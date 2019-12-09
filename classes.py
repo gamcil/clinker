@@ -51,7 +51,7 @@ class Cluster:
         """
         return self.length + locus_spacing * len(self.loci)
 
-    def map_cluster(self, locus_spacing=40, scale_factor=1.0):
+    def map_cluster(self, reverse=False, locus_spacing=40, scale_factor=1.0):
         """ Generate a scaled map of the genes in the loci of this Cluster.
 
             Each gene is scaled to the locus it is on, and saved
@@ -91,12 +91,25 @@ class Cluster:
             # Save scaled start/end; want to be able to separately control
             # vertical spacing and gene arrow shape (arrow tip size etc)
             for gene in self.genes[start:end]:
-                loci[locus]['genes'][gene.name] = (
-                    horizontal_offset + gene.location[0]*scale_factor,
-                    horizontal_offset + gene.location[1]*scale_factor,
-                    gene.location[2],
-                    gene.function
-                )
+                if not reverse:
+                    loci[locus]['genes'][gene.name] = (
+                        horizontal_offset + gene.location[0]*scale_factor,
+                        horizontal_offset + gene.location[1]*scale_factor,
+                        gene.location[2],
+                        gene.function
+                    )
+                else:
+                    flipped_start = (loci[locus]['end'] -
+                                     gene.location[0] * scale_factor)
+                    flipped_end = (loci[locus]['end'] -
+                                   gene.location[1] * scale_factor)
+
+                    loci[locus]['genes'][gene.name] = (
+                        horizontal_offset + flipped_end,
+                        horizontal_offset + flipped_start,
+                        -1 if gene.location[2] == 1 else 1,
+                        gene.function
+                    )
             prev = locus
 
         return loci

@@ -16,36 +16,37 @@ class Figure:
     # define the default colourscheme
     # taken from colorbrewer2 - paired n12
     default_colours = {
-        'PKS': '#a6cee3',
-        'NRPS': '#1f78b4',
-        'PKS-NRPS': '#33a02c',
-        'P450': '#b2df8a',
-        'Oxidase': '#ffffff',
-        'Regulator': '#fb9a99',
-        'Hydrolase': '#e31a1c',
-        'Reductase': '#fdbf6f6',
-        'Phosphatase': '#ff7f00',
-        'Transporter': '#cab2d6',
-        'Dehalogenase': '#6a3d9a',
-        'Dehydrogenase': '#ffff99',
-        'Terpene synthase': '#b15926',
-        'Hypothetical': '#d3d3d3'
+        "PKS": "#a6cee3",
+        "NRPS": "#1f78b4",
+        "PKS-NRPS": "#33a02c",
+        "P450": "#b2df8a",
+        "Oxidase": "#ffffff",
+        "Regulator": "#fb9a99",
+        "Hydrolase": "#e31a1c",
+        "Reductase": "#fdbf6f6",
+        "Phosphatase": "#ff7f00",
+        "Transporter": "#cab2d6",
+        "Dehalogenase": "#6a3d9a",
+        "Dehydrogenase": "#ffff99",
+        "Terpene synthase": "#b15926",
+        "Hypothetical": "#d3d3d3",
     }
 
-    def __init__(self,
-                 colours=None,
-                 vertical_spacing=None,
-                 locus_spacing=None,
-                 width=None,
-                 aligner=None,
-                 tip_length=None,
-                 wing_height=None,
-                 gene_height=None
-                 ):
+    def __init__(
+        self,
+        colours=None,
+        vertical_spacing=None,
+        locus_spacing=None,
+        width=None,
+        aligner=None,
+        tip_length=None,
+        wing_height=None,
+        gene_height=None,
+    ):
         self.aligner = aligner  # ClusterAligner object
         if not self.aligner:
             raise ValueError(
-                'A Figure object must be instantiated with a ClusterAligner'
+                "A Figure object must be instantiated with a ClusterAligner"
             )
 
         self.colours = colours if colours else self.default_colours
@@ -57,16 +58,16 @@ class Figure:
         self.locus_spacing = locus_spacing if locus_spacing else 20
 
         # Pixel width of the figure
-        self.width = width if width else 1000
-        self.tip_length = tip_length if tip_length else 8
-        self.wing_height = wing_height if wing_height else 0
-        self.gene_height = gene_height if gene_height else 12
+        self.width = int(width) if width else 1000
+        self.tip_length = int(tip_length) if tip_length else 8
+        self.wing_height = int(wing_height) if wing_height else 0
+        self.gene_height = int(gene_height) if gene_height else 12
 
     def render(self, order):
         """ Render the complete SVG of this figure.
         """
         if not order:
-            raise ValueError('A cluster order must be specified')
+            raise ValueError("A cluster order must be specified")
         display_order = self.aligner.compute_display_order(order)
 
         # Find largest cluster and configure figure scaling
@@ -77,27 +78,29 @@ class Figure:
         attachment_points = {}
         previous_cluster = None
         cluster_maps = []
-        tracks = ''  # draw these in order for correct z index
-        links = ''
-        genes = ''
+        tracks = ""  # draw these in order for correct z index
+        links = ""
+        genes = ""
 
         for count, cluster_name in enumerate(display_order):  # cluster names
             cluster = self.aligner.get_cluster(cluster_name)
             cluster_maps.append(
-                cluster.map_cluster(locus_spacing=self.locus_spacing,
-                                    scale_factor=scale_factor)
+                cluster.map_cluster(
+                    locus_spacing=self.locus_spacing, scale_factor=scale_factor
+                )
             )
 
             # Get the alignment to the previous cluster
             if count > 0:
                 alignment = self.aligner.get_alignment(
-                    display_order[count - 1],
-                    cluster_name
+                    display_order[count - 1], cluster_name
                 )
 
                 first, last = None, None
                 previous_total = len(previous_cluster.genes)
 
+                # Determine midpoint of the alignment region between the
+                # current and previous gene clusters; used for positioning
                 for index in range(previous_total):
                     lower = previous_cluster.genes[index]
                     upper = previous_cluster.genes[previous_total - index - 1]
@@ -105,18 +108,26 @@ class Figure:
                     if first and last:
                         break
 
-                    if not first and lower.name in attachment_points and \
-                            alignment.find_gene(lower.name):
+                    if (
+                        not first
+                        and lower.name in attachment_points
+                        and alignment.find_gene(lower.name)
+                    ):
                         first = attachment_points[lower.name][0]
 
-                    if not last and upper.name in attachment_points and \
-                            alignment.find_gene(upper.name):
+                    if (
+                        not last
+                        and upper.name in attachment_points
+                        and alignment.find_gene(upper.name)
+                    ):
                         last = attachment_points[upper.name][2]
 
                 x_offset = (
-                    (abs(last - first) / 2) + first -
-                    find_midpoint(alignment, cluster_maps[-1])
+                    (abs(last - first) / 2)
+                    + first
+                    - find_midpoint(alignment, cluster_maps[-1])
                 )
+
             else:
                 alignment, x_offset = None, 0
 
@@ -127,22 +138,24 @@ class Figure:
                     '<line x1="{}" y1="{mid}" x2="{}" y2="{mid}" '
                     'stroke="#d3d3d3" stroke-width="2" />'
                 ).format(
-                    x_offset + int(locus['start']),
-                    x_offset + int(locus['end']),
-                    mid=y_cluster + self.gene_height / 2
+                    x_offset + int(locus["start"]),
+                    x_offset + int(locus["end"]),
+                    mid=y_cluster + self.gene_height / 2,
                 )
 
-                for gene_name, location in locus['genes'].items():
+                for gene_name, location in locus["genes"].items():
                     start, end, strand, function = location
                     polygon, attachments = render_gene(
                         gene_name,
-                        start, end, strand,
+                        start,
+                        end,
+                        strand,
                         self.colours[function],
                         tip_length=self.tip_length,
                         wing_height=self.wing_height,
                         gene_height=self.gene_height,
                         horizontal_offset=x_offset,
-                        vertical_offset=y_cluster
+                        vertical_offset=y_cluster,
                     )
 
                     attachment_points[gene_name] = attachments
@@ -189,24 +202,33 @@ def find_midpoint(alignment, cluster_map):
     # queries or targets from the alignment
     for locus in cluster_map.values():
 
-        if first.query in locus['genes']:
-            alignment_start = locus['genes'][first.query][0]
-        if last.query in locus['genes']:
-            alignment_end = locus['genes'][last.query][1]
+        if first.query in locus["genes"]:
+            alignment_start = locus["genes"][first.query][0]
+        if last.query in locus["genes"]:
+            alignment_end = locus["genes"][last.query][1]
 
-        if first.target in locus['genes']:
-            alignment_start = locus['genes'][first.target][0]
-        if last.target in locus['genes']:
-            alignment_end = locus['genes'][last.target][1]
+        if first.target in locus["genes"]:
+            alignment_start = locus["genes"][first.target][0]
+        if last.target in locus["genes"]:
+            alignment_end = locus["genes"][last.target][1]
 
     if not alignment_start or not alignment_end:
         return None
     return alignment_start + (alignment_end - alignment_start) / 2
 
 
-def render_gene(name, start, end, strand, colour,
-                tip_length=10, wing_height=0, gene_height=10,
-                horizontal_offset=0, vertical_offset=0):
+def render_gene(
+    name,
+    start,
+    end,
+    strand,
+    colour,
+    tip_length=10,
+    wing_height=0,
+    gene_height=10,
+    horizontal_offset=0,
+    vertical_offset=0,
+):
     """ Generate a scaled SVG representation of a gene.
 
         Arguments:
@@ -242,14 +264,20 @@ def render_gene(name, start, end, strand, colour,
         tip_start = horizontal_offset + start + arrow_body
 
         coordinates = [  # from A to G...
-            horizontal_offset + start, vertical_offset,
-            tip_start, vertical_offset,
-            tip_start, vertical_offset - wing_height,
+            horizontal_offset + start,
+            vertical_offset,
+            tip_start,
+            vertical_offset,
+            tip_start,
+            vertical_offset - wing_height,
             horizontal_offset + start + total_length,
             vertical_offset + y_midpoint,
-            tip_start, y_bottom + wing_height,
-            tip_start, y_bottom,
-            horizontal_offset + start, y_bottom
+            tip_start,
+            y_bottom + wing_height,
+            tip_start,
+            y_bottom,
+            horizontal_offset + start,
+            y_bottom,
         ]
 
     else:  # reverse strand
@@ -257,27 +285,38 @@ def render_gene(name, start, end, strand, colour,
         body_end = horizontal_offset + start + total_length
 
         coordinates = [
-            horizontal_offset + start, vertical_offset + y_midpoint,
-            tip_start, vertical_offset - wing_height,
-            tip_start, vertical_offset,
-            body_end, vertical_offset,
-            body_end, y_bottom,
-            tip_start, y_bottom,
-            tip_start, y_bottom + wing_height,
+            horizontal_offset + start,
+            vertical_offset + y_midpoint,
+            tip_start,
+            vertical_offset - wing_height,
+            tip_start,
+            vertical_offset,
+            body_end,
+            vertical_offset,
+            body_end,
+            y_bottom,
+            tip_start,
+            y_bottom,
+            tip_start,
+            y_bottom + wing_height,
         ]
 
     # Any homology links drawn will connect to these
     attachment_points = [
-        horizontal_offset + start, vertical_offset + y_midpoint,
-        horizontal_offset + start + total_length, vertical_offset + y_midpoint
+        horizontal_offset + start,
+        vertical_offset + y_midpoint,
+        horizontal_offset + start + total_length,
+        vertical_offset + y_midpoint,
     ]
 
     # Concatenate coordinates to use as 'points' arg, make polygon
-    points = ','.join(str(int(c)) for c in coordinates)
-    polygon = (f'<text x="{horizontal_offset + start}" y="{vertical_offset}"'
-               f' font-size="12">{name}</text>\n'
-               f'<polygon id="{name}" points="{points}"'
-               f' fill="{colour}" stroke="black" stroke-width="1.5"/>\n')
+    points = ",".join(str(int(c)) for c in coordinates)
+    polygon = (
+        f'<text x="{horizontal_offset + start}" y="{vertical_offset}"'
+        f' font-size="12">{name}</text>\n'
+        f'<polygon id="{name}" points="{points}"'
+        f' fill="{colour}" stroke="black" stroke-width="1.5"/>\n'
+    )
 
     return polygon, attachment_points
 
@@ -300,35 +339,71 @@ def parse_colour_file(handle):
     colours = {}
 
     valid_functions = {
-        'Cytochrome P450', 'Hydrolase', 'PKS',
-        'NRPS', 'PKS-NRPS', 'Terpene synthase',
-        'Reductase', 'Dehydrogenase',
-        'Dehalogenase', 'Phosphatase'
+        "Cytochrome P450",
+        "Hydrolase",
+        "PKS",
+        "NRPS",
+        "PKS-NRPS",
+        "Terpene synthase",
+        "Reductase",
+        "Dehydrogenase",
+        "Dehalogenase",
+        "Phosphatase",
     }
 
     for line in handle:
         try:
-            function, colour = line.split(',')
+            function, colour = line.split(",")
         except ValueError as exc:
             # Not enough values to unpack; invalid split
             raise ValueError(
-                'Custom colour file must be a 2 column CSV'
-                ' e.g. P450,#FFFFFF'
+                "Custom colour file must be a 2 column CSV" " e.g. P450,#FFFFFF"
             ) from exc
 
         colour_length = len(colour)
-        if not colour.startswith('#') or colour_length != 7:
+        if not colour.startswith("#") or colour_length != 7:
             raise ValueError(
-                'Colours must be given as valid, 6 digit'
-                ' HEX codes starting with #, e.g. #FFFFFF'
+                "Colours must be given as valid, 6 digit"
+                " HEX codes starting with #, e.g. #FFFFFF"
             )
 
         if function not in valid_functions:
-            raise ValueError(
-                'Invalid biosynthetic function supplied',
-                valid_functions
-            )
+            raise ValueError("Invalid biosynthetic function supplied", valid_functions)
 
         colours[function] = colour
 
     return colours
+
+
+def run(*genbanks, output="clusters", **kwargs):
+    """ Wrapper function to generate a figure from GenBank files.
+    """
+    from Bio import SeqIO
+    import annotate
+    import globaligner
+
+    clusters = []
+    for genbank in genbanks:
+        clusters.append(Cluster.from_seqrecords(*SeqIO.parse(genbank, "genbank")))
+
+    print("Annotate proteins in clusters")
+    annotate.annotate_clusters(*clusters)
+
+    print("Aligning clusters")
+    aligner = globaligner.ClusterAligner()
+    aligner.add_clusters(*clusters)
+    aligner.align_stored_clusters()
+
+    print("Drawing figure")
+    figure = Figure(aligner=aligner, **kwargs)
+    fig = figure.render(order="added")
+
+    with open(f"{output}.svg", "w") as figure_out, open(
+        f"{output}.tsv", "w"
+    ) as links_out:
+        figure_out.write(fig)
+        links_out.write(str(aligner))
+
+    print(f"Figure written to {output}.svg")
+    print(f"Alignment scores written to {output}.tsv")
+

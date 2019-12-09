@@ -172,7 +172,7 @@ def annotate_clusters(*clusters):
         command = [
             HMMSEARCH_PATH,
             '--domtblout', domtbl.name,
-            # '-E', '1E-16',  # antiSMASH setting
+            '-E', '1E-16',  # antiSMASH setting
             HMMSEARCH_DATA,
             fasta.name
         ]
