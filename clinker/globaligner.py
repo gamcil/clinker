@@ -193,7 +193,7 @@ class ClusterAligner:
             raise KeyError("No cluster with this name could be retrieved") from exc
 
     # TODO: check for number of genes vs pure identity score
-    def compute_display_order(self, order="maximize"):
+    def compute_display_order(self, order="first_as_seed"):
         """ Return sorted cluster name list based on specified order scheme.
 
             Arguments:
@@ -221,9 +221,13 @@ class ClusterAligner:
             for permutation in permutations(self._clusters.keys()):
                 score = 0
                 for i in range(1, total_clusters):
-                    score += self.get_alignment(
-                        permutation[i - 1], permutation[i]
-                    ).score
+                    try:
+                        score += self.get_alignment(
+                            permutation[i - 1], permutation[i]
+                        ).score
+                    except ValueError:
+                        # no links
+                        continue
                 if score > best_score:
                     best_score = score
                     best_permutation = permutation
@@ -245,12 +249,19 @@ class ClusterAligner:
                         continue
 
                     # Grab alignment between last added cluster and next
-                    alignment = self.get_alignment(permutation[-1], target)
-                    if alignment.score > max_score:
-                        max_score = alignment.score
-                        max_cluster = target
+                    try:
+                        alignment = self.get_alignment(permutation[-1], target)
+                    except KeyError:
+                        continue
+                    try:
+                        if alignment.score > max_score:
+                            max_score = alignment.score
+                            max_cluster = target
+                    except ValueError:
+                        continue
 
-                permutation.append(max_cluster)
+                if max_cluster:
+                    permutation.append(max_cluster)
 
             return permutation
 
@@ -301,6 +312,8 @@ class Alignment:
     @property
     def score(self):
         """Calculate 'score' of this alignment by summing identities."""
+        if not self.links:
+            raise ValueError("Alignment has no links")
         return sum(link.identity + link.similarity for link in self.links) / len(
             self.links
         )

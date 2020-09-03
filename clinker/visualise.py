@@ -83,7 +83,13 @@ class Figure:
         genes = ""
 
         for count, cluster_name in enumerate(display_order):  # cluster names
-            cluster = self.aligner.get_cluster(cluster_name)
+            print(count, cluster_name)
+
+            try:
+                cluster = self.aligner.get_cluster(cluster_name)
+            except:
+                continue
+
             cluster_maps.append(
                 cluster.map_cluster(
                     locus_spacing=self.locus_spacing, scale_factor=scale_factor
@@ -104,6 +110,8 @@ class Figure:
                 for index in range(previous_total):
                     lower = previous_cluster.genes[index]
                     upper = previous_cluster.genes[previous_total - index - 1]
+
+                    print(lower, upper)
 
                     if first and last:
                         break

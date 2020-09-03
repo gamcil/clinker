@@ -23,8 +23,10 @@ def run(args):
     clusters = []
     print("Parsing GenBank files")
     for file in args.files:
+        print(file)
         records = [record for record in SeqIO.parse(file, "genbank")]
         cluster = Cluster.from_seqrecords(*records, mode=args.mode)
+        print(cluster.name, cluster.loci)
         clusters.append(cluster)
 
     # Scan genes for smCOGs if protein mode specified
@@ -38,9 +40,11 @@ def run(args):
     print("Aligning your clusters")
     aligner = globaligner.align_clusters(*clusters)
 
+    print(aligner)
+
     # Generate the SVG
     print("Generating the figure")
-    figure = visualise.Figure(aligner=aligner, width=args.width).render("maximize")
+    figure = visualise.Figure(aligner=aligner, width=args.width).render("added")
 
     # Write output files
     with open(args.output, "w") as svg:
