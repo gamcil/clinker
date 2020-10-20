@@ -32,7 +32,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=["genome2json"],
+    install_requires=["biopython", "numpy", "scipy"],
     python_requires=">=3.6",
     entry_points={"console_scripts": ["clinker=clinker.main:main"]},
     include_package_data=True,
