@@ -5,7 +5,7 @@ Gene cluster comparison figure generator
 clinker is a pipeline for easily generating publication-quality gene cluster
 comparison figures.
 
-<img src="images/figure.png" alt="bua cluster and homologues" width=400>
+<img src="images/figure.png" alt="bua cluster and homologues" width=700>
 
 Given a set of GenBank files, clinker will automatically extract protein translations,
 perform global alignments between sequences in each cluster, determine the
