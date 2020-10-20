@@ -82,8 +82,8 @@ def get_parser():
         " in every unique pair of clusters and generates interactive, to-scale comparison figures"
         " using the clustermap.js library.",
         epilog="Example usage\n-------------\n"
-        "Align clusters, plot results and save scores to file:\n"
-        "  $ clinker files/*.gbk -p -o results.txt\n\n"
+        "Align clusters, plot results and print scores to screen:\n"
+        "  $ clinker files/*.gbk\n\n"
         "Cameron Gilchrist, 2020",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )

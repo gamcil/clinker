@@ -74,8 +74,8 @@ Output options:
 
 Example usage
 -------------
-Align clusters, plot results and save scores to file:
-  $ clinker files/*.gbk -p -o results.txt
+Align clusters, plot results and print scores to screen:
+  $ clinker files/*.gbk
 
 Cameron Gilchrist, 2020
 ```
