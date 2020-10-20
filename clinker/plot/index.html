@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>clinker</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="style.css"></link>
+  <script src="http://d3js.org/d3.v6.min.js" charset="utf-8"></script>
+	<script src="clustermap.min.js"></script>
+</head>
+
+<body>
+	<main>
+		<div id='plot'></div>
+		<div id="div-floater">
+			<button class="collapsible active" type="button" onclick="toggleActive()">clinker</button>
+			<div id="div-summary">
+				<p id="p-result-summary"></p>
+				<p>If you found clinker useful, please cite:</p>
+				<pre>
+					Gilchrist, C.L.M, 2020. clinker: Easy gene cluster comparison
+					figure generator.
+				</pre>
+				<button id="btn-save-svg">Save SVG</button>
+				<button id="btn-reset-filters">Reset filters</button>
+				<p>Plot arrangement</p>
+				<div class="setting">
+					<label for="input-scale-factor">Scale factor:</label>
+					<input type="number" id="input-scale-factor" min="1" max="100" value="30" default="50" >
+				</div>
+				<div class="setting">
+					<label for="input-cluster-spacing">Vertical spacing:</label>
+					<input type="number" id="input-cluster-spacing" min="0" max="100" value="50" default="50">
+				</div>
+				<p>Cluster settings</p>
+				<div class="setting">
+					<label for="input-cluster-align-labels">Align labels:</label>
+					<input id="input-cluster-align-labels" type="checkbox" checked>
+				</div>
+				<div class="setting">
+					<label for="input-locus-spacing">Inter-locus spacing:</label>
+					<input type="number" id="input-locus-spacing" min="0" max="100" value="50" default="50">
+				</div>
+				<div class="setting">
+					<label for="input-cluster-name-size">Cluster name font size:</label>
+					<input type="number" id="input-cluster-name-size" min="1" max="20" value="12" default="12">
+				</div>
+				<div class="setting">
+					<label for="input-locus-name-size">Locus name font size:</label>
+					<input type="number" id="input-locus-name-size" min="1" max="20" value="10" default="10">
+				</div>
+				<p>Gene arrow shape</p>
+				<div class="setting">
+					<label for="input-body-height">Body height:</label>
+					<input type="number" id="input-body-height" min="1" max="25" value="12" default="12">
+				</div>
+				<div class="setting">
+					<label for="input-tip-height">Tip height:</label>
+					<input type="number" id="input-tip-height" min="0" max="20" value="5" default="5">
+				</div>
+				<div class="setting">
+					<label for="input-tip-length">Tip length:</label>
+					<input type="number" id="input-tip-length" min="0" max="20" value="12" default="12">
+				</div>
+				<p>Gene labels</p>
+				<div class="setting">
+					<label for="input-gene-labels">Show gene labels</button>
+					<input type="checkbox" id="input-gene-labels">
+				</div>
+				<div class="setting">
+					<label for="input-label-rotation">Label rotation (degrees):</label>
+					<input type="number" id="input-label-rotation" min="0" max="360" value="30" default="30">
+				</div>
+				<div class="setting">
+					<label for="input-label-start">Label start point:</label>
+					<input type="number" id="input-label-start" step="0.1" min="0.0" max="1.0" value="0.5" default="0.5">
+				</div>
+				<div class="setting">
+					<label for="select-label-anchor">Label anchor:</label>
+					<select id="select-label-anchor" name="select-label-anchor">
+						<option value="start">Start</option>
+						<option value="middle">Middle</option>
+						<option value="end">End</option>
+					</select>
+				</div>
+				<div class="setting">
+					<label for="input-label-size">Label font size:</label>
+					<input type="number" id="input-label-size" min="1" max="20" value="10" default="10">
+				</div>
+				<p>Scale bar</p>
+				<div class="setting">
+					<label for="input-scalebar-fontsize">Font size:</label>
+					<input type="number" id="input-scalebar-fontsize" min="1" max="20" value="14" default="14">
+				</div>
+				<div class="setting">
+					<label for="input-scalebar-height">Height:</label>
+					<input type="number" id="input-scalebar-height" min="1" max="50" value="15" default="15">
+				</div>
+				<div class="setting">
+					<label for="input-scalebar-basepair">Length (base pair):</label>
+					<input type="number" id="input-scalebar-basepair" min="1" value="2500" default="2500">
+				</div>
+				<p>Colour bar</p>
+				<div class="setting">
+					<label for="input-colourbar-fontsize">Font size:</label>
+					<input type="number" id="input-colourbar-fontsize" min="1" max="20" value="12" default="12">
+				</div>
+				<div class="setting">
+					<label for="input-colourbar-height">Height:</label>
+					<input type="number" id="input-colourbar-height" min="1" max="50" value="15" default="15">
+				</div>
+				<p>Legend</p>
+				<div class="setting">
+					<label for="input-legend-fontsize">Font size:</label>
+					<input type="number" id="input-legend-fontsize" min="1" max="20" value="14" default="14">
+				</div>
+				<div class="setting">
+					<label for="input-legend-entryheight">Height:</label>
+					<input type="number" id="input-legend-entryheight" min="1" max="50" value="18" default="18">
+				</div>
+			</div>
+
+		</div>
+		<script>
+			const coll = document.querySelector(".collapsible");
+			const menu = document.querySelector("#div-summary");
+			function toggleActive(event) {
+				coll.classList.toggle("active");
+				menu.style.display = menu.style.display === "none" ? "block" : "none";
+			}
+		</script>
+		<script src="clinker.js"></script>
+	</main>
+</body>
+
+</html>

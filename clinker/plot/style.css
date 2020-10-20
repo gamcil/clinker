@@ -1,0 +1,110 @@
+body {
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+}
+
+div#plot {
+  width: 100vw;
+  height: 100vh;
+}
+
+#plot div {
+  width: 100vw;
+  height: 100vh;
+}
+
+.wrapper-svg {
+	width: 100vw;
+	height: 100vh;
+}
+
+.collapsible {
+	width: 100%;
+	border: none;
+	cursor: pointer;
+	color: #444;
+	background-color: #eee;
+	margin: 0;
+	padding: 4px;
+	text-align: left;
+	font-size: 1rem;
+	font-weight: bold;
+	border-bottom: 1px solid black;
+}
+
+.collapsible:after {
+	content: "\2795";
+	font-size: 1rem;
+	color: white;
+	float: right;
+	margin-right: 0.3em;
+}
+
+.active:after {
+	content: "\2796";
+}
+
+.active, .collapsible:hover {
+	background-color: #ccc;
+}
+
+#div-floater {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	top: 1em;
+	right: 1em;
+	width: 300px;
+	max-height: 95vh;
+	border: 1px solid black;
+	background-color: white;
+}
+
+#div-summary {
+	display: block;
+	padding: 6px;
+	margin-bottom: 6px;
+	overflow-y: auto;
+}
+
+#div-summary p {
+	margin: 0;
+	margin-top: 10px;
+	font-size: 11pt;
+	font-family: sans-serif;
+  font-weight: bold;
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+#div-summary pre {
+	white-space: normal;
+}
+
+#div-summary button {
+	width: 100%;
+	margin-top: 0;
+	margin-bottom: 4px;
+}
+
+#div-summary button:first-child {
+	margin-top: 4px;
+}
+
+#div-summary button:last-child {
+	margin-bottom: 0;
+}
+
+#div-summary label {
+  font-size: 11pt;
+}
+
+#div-summary input {
+	width: 50px;
+}

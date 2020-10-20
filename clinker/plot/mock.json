@@ -1,0 +1,171 @@
+{
+	"clusters": [
+		{
+			"name": "Cluster 1",
+			"loci": [
+				{
+					"name": "Locus 1",
+					"start": 1,
+					"end": 10030,
+					"genes": [
+						{
+							"name": "Gene 1",
+							"start": 150,
+							"end": 2500,
+							"strand": 1,
+							"group": 1
+						},
+						{
+							"name": "Gene 2",
+							"start": 3400,
+							"end": 6000,
+							"strand": -1,
+							"group": 2
+						},
+						{
+							"name": "Gene 3",
+							"start": 6760,
+							"end": 10000,
+							"strand": 1,
+							"group": 3
+						}
+					]
+				},
+				{
+					"name": "Locus 2",
+					"start": 1,
+					"end": 2000,
+					"genes": [
+						{
+							"name": "Gene 4",
+							"start": 50,
+							"end": 1500,
+							"strand": 1,
+							"group": 4
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Cluster 4",
+			"loci": [
+				{
+					"name": "Locus 12",
+					"start": 1,
+					"end": 12200,
+					"genes": [
+						{
+							"name": "Gene 1",
+							"start": 300,
+							"end": 2432,
+							"strand": 1,
+							"group": 1
+						},
+						{
+							"name": "Gene 2",
+							"start": 3400,
+							"end": 6000,
+							"strand": -1,
+							"group": 2
+						},
+						{
+							"name": "Gene 3",
+							"start": 6760,
+							"end": 10000,
+							"strand": 1,
+							"group": 3
+						},
+						{
+							"name": "Gene 4",
+							"start": 10300,
+							"end": 11700,
+							"strand": 1,
+							"group": 4,
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Cluster 2",
+			"loci": [
+				{
+					"name": "Locus 1",
+					"start": 1,
+					"end": 10300,
+					"genes": [
+						{
+							"name": "Gene 1",
+							"start": 200,
+							"end": 2500,
+							"strand": 1,
+							"group": 1
+						},
+						{
+							"name": "Gene 2",
+							"start": 3400,
+							"end": 6000,
+							"strand": -1,
+							"group": 2
+						},
+						{
+							"name": "Gene 3",
+							"start": 6460,
+							"end": 10010,
+							"strand": 1,
+							"group": 3
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Cluster 3",
+			"loci": [
+				{
+					"name": "Locus 1",
+					"start": 1,
+					"end": 10200,
+					"genes": [
+						{
+							"name": "Gene 1",
+							"start": 200,
+							"end": 2500,
+							"strand": 1,
+							"group": 1
+						},
+						{
+							"name": "Gene 2",
+							"start": 3700,
+							"end": 5700,
+							"strand": -1,
+							"group": 2
+						},
+						{
+							"name": "Gene 3",
+							"start": 6460,
+							"end": 10010,
+							"strand": 1,
+							"group": 3
+						}
+					]
+				},
+				{
+					"name": "Locus 2",
+					"start": 1,
+					"end": 2000,
+					"genes": [
+						{
+							"name": "Gene 4",
+							"start": 50,
+							"end": 1500,
+							"strand": 1,
+							"group": 4
+						}
+					]
+				}
+			]
+		}
+	]
+}
