@@ -9,7 +9,7 @@ with open("README.md") as readme:
 
 def get_version():
     """Get version number from __init__.py"""
-    version_file = Path(__file__).resolve().parent / "synthaser" / "__init__.py"
+    version_file = Path(__file__).resolve().parent / "clinker" / "__init__.py"
     version_match = re.search(
         r"^__version__ = ['\"]([^'\"]*)['\"]", version_file.read_text(), re.M
     )
@@ -34,6 +34,6 @@ setup(
     ],
     install_requires=["genome2json"],
     python_requires=">=3.6",
-    entry_points={"console_scripts": ["synthaser=clinker.main:main"]},
+    entry_points={"console_scripts": ["clinker=clinker.main:main"]},
     include_package_data=True,
 )
