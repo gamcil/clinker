@@ -57,7 +57,7 @@ function plot(data) {
         label: {
           show: false,
         }
-      }
+      },
     })
 
   let plot = d3.select("#plot")
@@ -85,6 +85,8 @@ function plot(data) {
   // Cluster
   d3.select("#input-cluster-align-labels")
     .on("change", function() {update({cluster: {alignLabels: d3.select(this).property("checked")}})})
+  d3.select("#input-cluster-hide-coords")
+    .on("change", function() {update({cluster: {hideLocusCoordinates: d3.select(this).property("checked")}})})
   d3.select("#input-cluster-name-size")
     .on("change", function() {update({cluster: {nameFontSize: +this.value}})})
   d3.select("#input-locus-name-size")
@@ -131,6 +133,12 @@ function plot(data) {
     .on("change", function() {update({legend: {fontSize: +this.value}})})
   d3.select("#input-legend-entryheight")
     .on("change", function() {update({legend: {entryHeight: +this.value}})})
+
+  // Links
+  d3.select("#input-link-best-only")
+    .on("change", function() {update({link: {bestOnly: d3.select(this).property("checked")}})})
+  d3.select("#input-link-threshold")
+    .on("change", function() {update({link: {threshold: +this.value}})})
 }
 
 d3.json("data.json")
