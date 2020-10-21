@@ -361,7 +361,10 @@ class Globaligner:
 
     def order(self, i=0.5, method="ward"):
         """Determines optimal order of clusters using hierarchical clustering."""
+        LOG.info("Building cluster similarity matrix")
         matrix = self.matrix(i=i, normalise=True, as_distance=True)
+
+        LOG.info("Determining optimal order by hierarchical clustering")
         linkage = hierarchy.linkage(squareform(matrix), method=method)
         return hierarchy.leaves_list(linkage)[::-1]
 
