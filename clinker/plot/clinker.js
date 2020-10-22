@@ -121,18 +121,24 @@ function plot(data) {
     .on("change", function() {update({scaleBar: {height: +this.value}})})
   d3.select("#input-scalebar-basepair")
     .on("change", function() {update({scaleBar: {basePair: +this.value}})})
+  d3.select("#input-scalebar-margin-top")
+    .on("change", function() {update({scaleBar: {marginTop: +this.value}})})
   
   // Colour bar
   d3.select("#input-colourbar-fontsize")
     .on("change", function() {update({colourBar: {fontSize: +this.value}})})
   d3.select("#input-colourbar-height")
     .on("change", function() {update({colourBar: {height: +this.value}})})
+  d3.select("#input-colourbar-margin-top")
+    .on("change", function() {update({colourBar: {marginTop: +this.value}})})
 
   // Legend
   d3.select("#input-legend-fontsize")
     .on("change", function() {update({legend: {fontSize: +this.value}})})
   d3.select("#input-legend-entryheight")
     .on("change", function() {update({legend: {entryHeight: +this.value}})})
+  d3.select("#input-legend-margin-left")
+    .on("change", function() {update({legend: {marginLeft: +this.value}})})
 
   // Links
   d3.select("#input-link-best-only")
