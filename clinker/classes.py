@@ -116,13 +116,12 @@ class Locus:
         """Builds a new Locus from a BioPython SeqRecord."""
         if not isinstance(record, SeqRecord.SeqRecord):
             raise NotImplementedError('Supplied argument is not a valid SeqRecord object')
-        genes = []
-        for feature in record.features:
-            if feature.type != "CDS":
-                continue
-            gene = Gene.from_seqfeature(feature, record)
-            genes.append(gene)
-        return cls(name=record.name, start=1, end=gene.end, genes=genes)
+        genes = [
+            Gene.from_seqfeature(feature, record)
+            for feature in record.features
+            if feature.type == "CDS"
+        ]
+        return cls(name=record.name, start=0, end=len(record), genes=genes)
 
     def get_gene(self, name):
         for gene in self.genes:
