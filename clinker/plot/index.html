@@ -23,15 +23,14 @@
 					figure generator.
 				</pre>
 				<button id="btn-save-svg">Save SVG</button>
-				<button id="btn-reset-filters">Reset filters</button>
 				<p>Plot arrangement</p>
 				<div class="setting">
 					<label for="input-scale-factor">Scale factor:</label>
-					<input type="number" id="input-scale-factor" min="1" max="100" value="30" default="50" >
+					<input type="number" id="input-scale-factor" min="1" max="100" value="15" default="15" >
 				</div>
 				<div class="setting">
 					<label for="input-cluster-spacing">Vertical spacing:</label>
-					<input type="number" id="input-cluster-spacing" min="0" max="100" value="50" default="50">
+					<input type="number" id="input-cluster-spacing" min="0" max="100" value="40" default="40">
 				</div>
 				<p>Cluster settings</p>
 				<div class="setting">
@@ -95,7 +94,7 @@
 				<p>Scale bar</p>
 				<div class="setting">
 					<label for="input-scalebar-fontsize">Font size:</label>
-					<input type="number" id="input-scalebar-fontsize" min="1" max="20" value="12" default="12">
+					<input type="number" id="input-scalebar-fontsize" min="1" max="20" value="10" default="10">
 				</div>
 				<div class="setting">
 					<label for="input-scalebar-height">Height:</label>
@@ -112,7 +111,7 @@
 				<p>Colour bar</p>
 				<div class="setting">
 					<label for="input-colourbar-fontsize">Font size:</label>
-					<input type="number" id="input-colourbar-fontsize" min="1" max="20" value="12" default="12">
+					<input type="number" id="input-colourbar-fontsize" min="1" max="20" value="10" default="10">
 				</div>
 				<div class="setting">
 					<label for="input-colourbar-height">Height:</label>
@@ -136,6 +135,10 @@
 					<input type="number" id="input-legend-margin-left" min="1" value="20" default="20">
 				</div>
         <p>Links</p>
+				<div class="setting">
+					<label for="input-link-show">Show links</button>
+					<input type="checkbox" id="input-link-show" checked>
+				</div>
         <div class="setting">
           <label for="input-link-best-only">Show only best links:</label>
 					<input type="checkbox" id="input-link-best-only">

@@ -141,6 +141,8 @@ function plot(data) {
     .on("change", function() {update({legend: {marginLeft: +this.value}})})
 
   // Links
+  d3.select("#input-link-show")
+    .on("change", function() {update({link: {show: d3.select(this).property("checked")}})})
   d3.select("#input-link-best-only")
     .on("change", function() {update({link: {bestOnly: d3.select(this).property("checked")}})})
   d3.select("#input-link-threshold")
