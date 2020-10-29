@@ -43,11 +43,12 @@ def align_clusters(*args, cutoff=0.3, aligner_config=None):
     e.g.
         align_sequence_groups(cluster1, cluster2, ..., clusterN)
     """
-    if len(args) < 2:
-        raise ValueError("Must provide 2 or more clusters")
     aligner = Globaligner(aligner_config)
     aligner.add_clusters(*args)
-    aligner.align_stored_clusters(cutoff)
+    if len(args) == 1:
+        LOG.info("Only one cluster given, skipping alignment")
+    else:
+        aligner.align_stored_clusters(cutoff)
     return aligner
 
 
@@ -360,11 +361,13 @@ class Globaligner:
         return matrix
 
     def order(self, i=0.5, method="ward"):
-        """Determines optimal order of clusters using hierarchical clustering."""
-        LOG.info("Building cluster similarity matrix")
-        matrix = self.matrix(i=i, normalise=True, as_distance=True)
+        """Determines optimal order of clusters using hierarchical clustering.
 
-        LOG.info("Determining optimal order by hierarchical clustering")
+        When only a single cluster is stored, skips clustering and returns 0.
+        """
+        if len(self.clusters) == 1:
+            return [0]
+        matrix = self.matrix(i=i, normalise=True, as_distance=True)
         linkage = hierarchy.linkage(squareform(matrix), method=method)
         return hierarchy.leaves_list(linkage)[::-1]
 
