@@ -8,11 +8,12 @@ Cameron Gilchrist
 
 import argparse
 import logging
+import traceback
 
 from pathlib import Path
 
 from clinker import align, plot
-from clinker.classes import parse_files
+from clinker.classes import find_files, parse_files
 
 
 logging.basicConfig(
@@ -42,29 +43,33 @@ def clinker(
         return
 
     # Parse files, generate objects
-    LOG.info("Parsing GenBank files")
-    clusters = parse_files(files)
+    paths = find_files(files)
+    LOG.info("Parsing GenBank files: %s", paths)
+    clusters = parse_files(paths)
 
     # Align all clusters
-    LOG.info("Aligning your clusters")
-    globaligner = align.align_clusters(*clusters, cutoff=identity)
-
-    # Generate results summary
-    summary = globaligner.format(
-        delimiter=delimiter,
-        decimals=decimals,
-        link_headers=not hide_link_headers,
-        alignment_headers=not hide_alignment_headers,
-    )
-    if output:
-        LOG.info(f"Writing alignments to {output}")
-        with open(output, "w") as fp:
-            fp.write(summary)
+    if len(clusters) == 1:
+        globaligner = align.align_clusters(clusters[0])
     else:
-        print(summary)
+        LOG.info("Starting cluster alignments")
+        globaligner = align.align_clusters(*clusters, cutoff=identity)
+
+        LOG.info("Generating results summary...")
+        summary = globaligner.format(
+            delimiter=delimiter,
+            decimals=decimals,
+            link_headers=not hide_link_headers,
+            alignment_headers=not hide_alignment_headers,
+        )
+        if output:
+            LOG.info(f"Writing alignments to {output}")
+            with open(output, "w") as fp:
+                fp.write(summary)
+        else:
+            print(summary)
 
     # Generate the SVG
-    LOG.info("Plotting alignment...")
+    LOG.info("Building clustermap.js visualisation")
     plot.plot_clusters(globaligner)
 
     LOG.info("Done!")
