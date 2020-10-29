@@ -33,17 +33,20 @@ def parse_genbank(path):
     return cluster
 
 
-def parse_files(paths):
-    clusters = []
+def find_files(paths):
+    files = []
     for path in paths:
         if Path(path).is_dir():
-            files = Path(path).glob("*")
-            _clusters = parse_files(files)
-            clusters.extend(_clusters)
+            new = Path(path).glob("*")
+            _files = find_files(new)
+            files.extend(_files)
         else:
-            cluster = parse_genbank(path)
-            clusters.append(cluster)
-    return clusters
+            files.append(path)
+    return files
+
+
+def parse_files(paths):
+    return [parse_genbank(path) for path in paths]
 
 
 class Cluster:
