@@ -12,7 +12,7 @@ comparison figures.
 Given a set of GenBank files, clinker will automatically extract protein translations,
 perform global alignments between sequences in each cluster, determine the
 optimal display order based on cluster similarity, and generate an interactive
-visualisation (using ![clustermap.js](https://github.com/gamcil/clustermap.js))
+visualisation (using [clustermap.js](https://github.com/gamcil/clustermap.js))
 that can be extensively tweaked before being exported as an SVG file.
 
 ## Installation
