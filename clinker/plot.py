@@ -84,20 +84,24 @@ def save_html(data, output):
     with (directory / "index.html").open() as fp:
         html = fp.read()
 
-    css_string = '<link href="style.css" rel="stylesheet"></link>'
-    d3_string = '<script src="d3.min.js"></script>'
+    css_string = '<link rel="stylesheet" href="style.css"></link>'
+    clustermap_string = '<script src="clustermap.min.js"></script>'
     cl_string = '<script src="clinker.js"></script>'
 
-    with (directory / "index.css").open() as fp:
+    assert css_string in html, "Could not find CSS string in index.html"
+    assert clustermap_string in html, "Could not find clustermap.js string in index.html"
+    assert cl_string in html, "Could not find clinker.js string in index.html"
+
+    with (directory / "style.css").open() as fp:
         css = fp.read()
         html = html.replace(css_string, f"<style>{css}</style>")
 
-    with (directory / "d3.min.js").open() as fp:
-        d3 = fp.read()
-        html = html.replace(d3_string, f"<script>{d3}</script>")
+    with (directory / "clustermap.min.js").open() as fp:
+        clustermap = fp.read()
+        html = html.replace(clustermap_string, f"<script>{clustermap}</script>")
 
     with (directory / "clinker.js").open() as fp:
-        cl = f"const data={json.dumps(data)}" + fp.read()
+        cl = f"\nconst data={json.dumps(data, indent=4)};\n" + fp.read().replace('d3.json("data.json").then(plot)', "plot(data)")
         html = html.replace(cl_string, f"<script>{cl}</script>")
 
     with open(output, "w") as fp:

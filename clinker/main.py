@@ -30,6 +30,7 @@ def clinker(
     delimiter=None,
     decimals=2,
     output=None,
+    webpage=None,
     force=False,
     hide_link_headers=False,
     hide_alignment_headers=False,
@@ -70,7 +71,7 @@ def clinker(
 
     # Generate the SVG
     LOG.info("Building clustermap.js visualisation")
-    plot.plot_clusters(globaligner)
+    plot.plot_clusters(globaligner, output=webpage)
 
     LOG.info("Done!")
     return globaligner
@@ -106,6 +107,7 @@ def get_parser():
     output = parser.add_argument_group("Output options")
     output.add_argument("-f", "--force", help="Overwrite previous output file", action="store_true")
     output.add_argument("-o", "--output", help="Save alignments to file")
+    output.add_argument("-w", "--webpage", help="Save webpage to HTML file")
     output.add_argument("-dl", "--delimiter", help="Character to delimit output by")
     output.add_argument("-dc", "--decimals", help="Number of decimal places in output", default=2)
     output.add_argument(
@@ -133,6 +135,7 @@ def main():
         delimiter=args.delimiter,
         decimals=args.decimals,
         output=args.output,
+        webpage=args.webpage,
         force=args.force,
         hide_link_headers=args.hide_link_headers,
         hide_alignment_headers=args.hide_aln_headers,

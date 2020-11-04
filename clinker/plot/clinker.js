@@ -149,5 +149,4 @@ function plot(data) {
     .on("change", function() {update({link: {threshold: +this.value}})})
 }
 
-d3.json("data.json")
-  .then(plot)
+d3.json("data.json").then(plot)
