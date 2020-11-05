@@ -6,7 +6,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="style.css"></link>
-  <script src="http://d3js.org/d3.v6.min.js" charset="utf-8"></script>
+  <script src="d3.min.js"></script>
 	<script src="clustermap.min.js"></script>
 </head>
 
@@ -17,6 +17,19 @@
 			<button class="collapsible active" type="button" onclick="toggleActive()">clinker</button>
 			<div id="div-summary">
 				<p id="p-result-summary"></p>
+        <p>Instructions:</p>
+        <ul>
+          <li>Drag cluster names to re-order clusters</li>
+          <li>
+            Hover over a locus to reveal box and handles; drag box to move the
+            locus, drag handles to resize it
+          </li>
+          <li>Click genes to anchor the figure around them</li>
+          <li>Click cluster names and legend entries to rename them</li>
+          <li>Click legend circles to change gene colours</li>
+          <li>Click scale bar text to change its length</li>
+          <li>Tweak other options below!</li>
+        </ul>
 				<p>If you found clinker useful, please cite:</p>
 				<pre>
 					Gilchrist, C.L.M, 2020. clinker: Easy gene cluster comparison
