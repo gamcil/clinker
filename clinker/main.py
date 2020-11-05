@@ -8,11 +8,11 @@ Cameron Gilchrist
 
 import argparse
 import logging
-import traceback
 
 from pathlib import Path
 
-from clinker import align, plot
+from clinker import align
+from clinker.plot import plot_clusters
 from clinker.classes import find_files, parse_files
 
 
@@ -29,6 +29,7 @@ def clinker(
     identity=0.3,
     delimiter=None,
     decimals=2,
+    plot=None,
     output=None,
     force=False,
     hide_link_headers=False,
@@ -69,8 +70,11 @@ def clinker(
             print(summary)
 
     # Generate the SVG
-    LOG.info("Building clustermap.js visualisation")
-    plot.plot_clusters(globaligner)
+    if plot:
+        LOG.info("Building clustermap.js visualisation")
+        if isinstance(plot, str):
+            LOG.info("Writing to: %s", plot)
+        plot_clusters(globaligner, output=None if plot is True else plot)
 
     LOG.info("Done!")
     return globaligner
@@ -106,6 +110,16 @@ def get_parser():
     output = parser.add_argument_group("Output options")
     output.add_argument("-f", "--force", help="Overwrite previous output file", action="store_true")
     output.add_argument("-o", "--output", help="Save alignments to file")
+    output.add_argument(
+        "-p",
+        "--plot",
+        nargs="?",
+        const=True,
+        default=False,
+        help="Plot cluster alignments using clustermap.js. If a path is given,"
+        " clinker will generate a portable HTML file at that path. Otherwise,"
+        " the plot will be served dynamically using Python's HTTP server."
+    )
     output.add_argument("-dl", "--delimiter", help="Character to delimit output by")
     output.add_argument("-dc", "--decimals", help="Number of decimal places in output", default=2)
     output.add_argument(
@@ -132,6 +146,7 @@ def main():
         identity=args.identity,
         delimiter=args.delimiter,
         decimals=args.decimals,
+        plot=args.plot,
         output=args.output,
         force=args.force,
         hide_link_headers=args.hide_link_headers,
