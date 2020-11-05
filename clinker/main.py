@@ -72,6 +72,8 @@ def clinker(
     # Generate the SVG
     if plot:
         LOG.info("Building clustermap.js visualisation")
+        if isinstance(plot, str):
+            LOG.info("Writing to: %s", plot)
         plot_clusters(globaligner, output=None if plot is True else plot)
 
     LOG.info("Done!")
