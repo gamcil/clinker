@@ -69,6 +69,10 @@ div#plot {
 	overflow-y: auto;
 }
 
+#div-summary ul {
+  padding-left: 1em;
+}
+
 #div-summary p {
 	margin: 0;
 	margin-top: 10px;
