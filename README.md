@@ -15,6 +15,8 @@ optimal display order based on cluster similarity, and generate an interactive
 visualisation (using [clustermap.js](https://github.com/gamcil/clustermap.js))
 that can be extensively tweaked before being exported as an SVG file.
 
+![clinker visualisation demo](images/demo.gif)
+
 ## Installation
 clinker can be installed directly through pip:
 
