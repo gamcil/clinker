@@ -49,6 +49,28 @@ def parse_files(paths):
     return [parse_genbank(path) for path in paths]
 
 
+def get_children(children, uids_only=False):
+    return [
+        child.uid
+        if uids_only
+        else child.to_dict()
+        for child in children
+    ]
+
+
+def load_child(child, thing):
+    if not hasattr(thing, "from_dict"):
+        raise NotImplementedError
+    return child if isinstance(child, str) else thing.from_dict(child)
+
+
+def load_children(children, thing):
+    if not hasattr(thing, "from_dict"):
+        raise NotImplementedError
+    for index, child in enumerate(children):
+        children[index] = load_child(child, thing)
+
+
 class Cluster:
     """The Cluster class stores Proteins
 
@@ -61,16 +83,26 @@ class Cluster:
     id_iter = itertools.count()
 
     def __init__(self, name, loci, uid=None):
-        self.uid = uid if uid else next(Cluster.id_iter)
+        self.uid = uid if uid else str(next(Cluster.id_iter))
         self.name = name
         self.loci = loci
 
-    def to_dict(self):
+    def to_dict(self, uids_only=False):
         return {
             "uid": self.uid,
             "name": self.name,
-            "loci": [locus.to_dict() for locus in self.loci]
+            "loci": get_children(self.loci, uids_only=uids_only)
         }
+
+    @classmethod
+    def from_dict(cls, d):
+        load_children(d["loci"], Locus)
+        clu = cls(
+            d["name"],
+            d["loci"],
+            uid=d.get("uid")
+        )
+        return clu
 
     @classmethod
     def from_seqrecords(cls, *args, name=None):
@@ -96,7 +128,7 @@ class Locus:
     id_iter = itertools.count()
 
     def __init__(self, name, genes, start=None, end=None, uid=None):
-        self.uid = uid if uid else next(Locus.id_iter)
+        self.uid = uid if uid else str(next(Locus.id_iter))
         self.name = name
         self.genes = genes
         self.start = start
@@ -105,14 +137,25 @@ class Locus:
     def __str__(self):
         return f"{self.name}:{self.start}-{self.end}"
 
-    def to_dict(self):
+    def to_dict(self, uids_only=False):
         return {
             "uid": self.uid,
             "name": self.name,
             "start": self.start,
             "end": self.end,
-            "genes": [gene.to_dict() for gene in self.genes],
+            "genes": get_children(self.genes, uids_only=uids_only),
         }
+
+    @classmethod
+    def from_dict(cls, d):
+        load_children(d["genes"], Gene)
+        return cls(
+            d["name"],
+            d["genes"],
+            start=d["start"],
+            end=d["end"],
+            uid=d.get("uid"),
+        )
 
     @classmethod
     def from_seqrecord(cls, record):
@@ -139,24 +182,21 @@ class Gene:
 
     def __init__(
         self,
+        uid=None,
         name=None,
         start=None,
         end=None,
         strand=None,
-        function=None,
         sequence=None,
         translation=None,
-        uid=None,
     ):
-        self.uid = uid if uid else next(Gene.id_iter)
+        self.uid = uid if uid else str(next(Gene.id_iter))
         self.name = name
         self.start = start
         self.end = end
         self.strand = strand
         self.sequence = sequence
         self.translation = translation
-        self.smcog = {}
-        self.function = function if function else 'Hypothetical'
 
     def to_dict(self):
         return {
@@ -167,9 +207,11 @@ class Gene:
             "strand": self.strand,
             "sequence": self.sequence,
             "translation": self.translation,
-            "smcog": self.smcog,
-            "function": self.function,
         }
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(**d)
 
     @property
     def ordered_smcogs(self):
