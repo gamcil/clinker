@@ -11,10 +11,52 @@ import warnings
 
 from pathlib import Path
 
+import gffutils
+from gffutils import biopython_integration
+
 from Bio import SeqIO, SeqRecord, BiopythonParserWarning
 
 # ignore malformed locus warnings
 warnings.simplefilter('ignore', BiopythonParserWarning)
+
+
+def parse_fasta(path):
+    with open(path) as fp:
+        fasta = {record.id: record for record in SeqIO.parse(fp, "fasta")}
+    return fasta
+
+
+def parse_gff(path):
+    db = gffutils.create_db(
+        path,
+        ":memory:",
+        force=True,
+        merge_strategy="create_unique",
+    )
+    fasta = parse_fasta(path.replace(".gff3", ".fasta"))
+    cluster = Cluster()
+    for region in db.features_of_type("region"):
+        genes = []
+        for cds in db.region(
+            seqid=region.seqid,
+            start=region.start,
+            end=region.end,
+            strand=None,
+            featuretype="CDS"
+        ):
+            cds = biopython_integration.to_seqfeature(cds)
+            if not genes or (genes[-1].qualifiers["ID"] != cds.qualifiers["ID"]):
+                genes.append(cds)
+            else:
+                genes[-1].location += cds.location
+        genes = [
+            Gene.from_seqfeature(gene, fasta[region.seqid])
+            for gene in genes
+        ]
+        locus = Locus(name=region.seqid, genes=genes)
+        cluster.loci.append(locus)
+
+    return cluster
 
 
 def find_qualifier(valid_values, qualifiers):
@@ -60,10 +102,10 @@ class Cluster:
 
     id_iter = itertools.count()
 
-    def __init__(self, name, loci, uid=None):
+    def __init__(self, name=None, loci=None, uid=None):
         self.uid = uid if uid else next(Cluster.id_iter)
         self.name = name
-        self.loci = loci
+        self.loci = loci if loci else []
 
     def to_dict(self):
         return {
