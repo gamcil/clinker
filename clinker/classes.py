@@ -21,6 +21,21 @@ from Bio import SeqIO, SeqRecord, BiopythonParserWarning
 warnings.simplefilter('ignore', BiopythonParserWarning)
 
 
+FASTA_SUFFIXES = (".fa", ".fsa", ".fna", ".fasta", ".faa")
+GBK_SUFFIXES = (".gbk", ".gb", ".genbank", ".gbf", ".gbff")
+GFF_SUFFIXES = (".gtf", ".gff", ".gff3")
+
+
+def find_fasta(gff_path):
+    path = None
+    for suffix in FASTA_SUFFIXES:
+        _path = Path(gff_path).with_suffix(suffix)
+        if _path.exists():
+            path = _path
+            break
+    return path
+
+
 def parse_fasta(path):
     with open(path) as fp:
         fasta = {record.id: record for record in SeqIO.parse(fp, "fasta")}
@@ -28,17 +43,26 @@ def parse_fasta(path):
 
 
 def parse_gff(path):
-    db = gffutils.create_db(
-        path,
+    # Check for FASTA file
+    fasta_path = find_fasta(path)
+
+    if not fasta_path:
+        raise FileNotFoundError("Could not find matching FASTA file")
+
+    fasta = parse_fasta(fasta_path)
+
+    gff = gffutils.create_db(
+        str(path),
         ":memory:",
         force=True,
         merge_strategy="create_unique",
     )
-    fasta = parse_fasta(path.replace(".gff3", ".fasta"))
-    cluster = Cluster()
-    for region in db.features_of_type("region"):
+
+    cluster = Cluster(name=str(Path(path).with_suffix("")))
+
+    for region in gff.features_of_type("region"):
         genes = []
-        for cds in db.region(
+        for cds in gff.region(
             seqid=region.seqid,
             start=region.start,
             end=region.end,
@@ -54,9 +78,8 @@ def parse_gff(path):
             Gene.from_seqfeature(gene, fasta[region.seqid])
             for gene in genes
         ]
-        locus = Locus(name=region.seqid, genes=genes)
+        locus = Locus(name=region.seqid, start=0, end=region.end, genes=genes)
         cluster.loci.append(locus)
-
     return cluster
 
 
@@ -98,19 +121,29 @@ def parse_genbank(path):
 def find_files(paths, recurse=True, level=0):
     files = []
     for path in paths:
-        if Path(path).is_dir():
+        _path = Path(path)
+        if _path.is_dir():
             if level == 0 or recurse:
                 new = Path(path).glob("*")
                 _files = find_files(new, recurse=recurse, level=level + 1)
                 files.extend(_files)
         else:
-            if Path(path).exists():
+            if _path.exists() and _path.suffix in GBK_SUFFIXES + GFF_SUFFIXES:
                 files.append(path)
     return files
 
 
 def parse_files(paths):
-    return [parse_genbank(path) for path in paths]
+    clusters = []
+    for path in paths:
+        if Path(path).suffix in GBK_SUFFIXES:
+            cluster = parse_genbank(path)
+        elif Path(path).suffix in GFF_SUFFIXES:
+            cluster = parse_gff(path)
+        else:
+            raise TypeError("File %s does not have GenBank or GFF3 extension")
+        clusters.append(cluster)
+    return clusters
 
 
 def get_children(children, uids_only=False):
