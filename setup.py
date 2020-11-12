@@ -36,6 +36,7 @@ setup(
         "biopython>=1.75",
         "numpy>=1.13.3",
         "scipy>=1.3.3",
+        "gffutils",
     ],
     python_requires=">=3.6",
     entry_points={"console_scripts": ["clinker=clinker.main:main"]},
