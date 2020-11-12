@@ -159,13 +159,17 @@ class Globaligner:
     }
 
     def __init__(self, aligner_config=None):
-        self.alignments = []
-        self.aligner = Align.PairwiseAligner()
-        self.genes = {}
-        self.clusters = OrderedDict()
-
+        # Lookup dictionaries
+        self._genes = {}
+        self._loci = {}
+        self._alignments = {}
+        self._link = {}
         self._alignment_indices = defaultdict(dict)
         self._cluster_names = defaultdict(dict)
+
+        self.alignments = []
+        self.aligner = Align.PairwiseAligner()
+        self.clusters = OrderedDict()
 
         if aligner_config:
             self.configure_aligner(**aligner_config)
@@ -231,7 +235,7 @@ class Globaligner:
                     gene = Gene.from_dict(d["genes"][gene_uid])
                     locus.genes[gene_idx] = gene
                     ga.genes[gene_uid] = gene
-                cluster.loci[locus_idx] = locus
+                cluster.loci[locus_uid] = locus
             ga.clusters[cluster_uid] = cluster
 
         for alignment_uid, alignment in d["alignments"].items():
@@ -299,6 +303,10 @@ class Globaligner:
             if not isinstance(cluster, Cluster):
                 raise NotImplementedError("Expected Cluster object")
             self.clusters[cluster.uid] = cluster
+            for locus in cluster.loci:
+                self.loci[locus.uid] = locus
+                for gene in locus.genes:
+                    self.genes[gene.uid] = gene
 
     def align_clusters(self, one, two, cutoff=0.3):
         """Constructs a cluster alignment using aligner in the Globaligner."""
@@ -365,7 +373,7 @@ class Globaligner:
         self.add_clusters(q, t)
 
         # Overwrite previous alignment between these clusters if one exists
-        index = self._alignment_indices[q.name].get(t.name)
+        index = self._alignment_indices[q.uid].get(t.uid)
         if index:
             self.alignments[index] = alignment
         else:
@@ -373,9 +381,9 @@ class Globaligner:
             self.alignments.append(alignment)
 
         # Update mapping dictionaries and save Alignment
-        self._alignment_indices[q.name][t.name] = index
-        self._alignment_indices[t.name][q.name] = index
-        self._cluster_names[index] = (q.name, t.name)
+        self._alignment_indices[q.uid][t.uid] = index
+        self._alignment_indices[t.uid][q.uid] = index
+        self._cluster_names[index] = (q.uid, t.uid)
 
     def get_alignment(self, one, two):
         """Retrieves an Alignment corresponding to two Cluster objects.
@@ -386,7 +394,8 @@ class Globaligner:
         Returns:
             Alignment object for the specified Clusters
         """
-        return self._alignment_indices[one][two]
+        index = self._alignment_indices[one][two]
+        return self.alignments[index]
 
     def synteny(self, one, two, i=0.5):
         """Calculates a synteny score between two clusters.
