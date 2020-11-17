@@ -211,6 +211,7 @@ class Locus(Serializer):
             for feature in record.features
             if feature.type == "CDS"
         ]
+        genes = [gene for gene in genes if gene]
         return cls(name=record.name, start=0, end=len(record), genes=genes)
 
     def get_gene(self, name):
@@ -272,6 +273,8 @@ class Gene(Serializer):
             feature (SeqFeature): BioPython SeqFeature object
             record (SeqRecord): BioPython SeqRecord object (parent of feature)
         """
+        if "pseudo" in feature.qualifiers:
+            return
         tags = ("protein_id", "locus_tag", "id", "gene", "label", "name")
         names = subdict(feature.qualifiers, tags)
         sequence = feature.extract(record.seq)
