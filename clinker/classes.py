@@ -125,6 +125,7 @@ class Locus:
             for feature in record.features
             if feature.type == "CDS"
         ]
+        genes = [gene for gene in genes if gene]
         return cls(name=record.name, start=0, end=len(record), genes=genes)
 
     def get_gene(self, name):
@@ -186,6 +187,8 @@ class Gene:
             feature (SeqFeature): BioPython SeqFeature object
             record (SeqRecord): BioPython SeqRecord object (parent of feature)
         """
+        if "pseudo" in feature.qualifiers:
+            return
         name = find_qualifier(['protein_id', 'locus_tag', 'ID'], feature.qualifiers)
         if not name:
             raise ValueError(
