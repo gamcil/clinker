@@ -33,6 +33,7 @@ def clinker(
     plot=None,
     output=None,
     force=False,
+    no_align=False,
     hide_link_headers=False,
     hide_alignment_headers=False,
     use_file_order=False,
@@ -63,7 +64,10 @@ def clinker(
         clusters = parse_files(paths)
 
         # Align all clusters
-        if len(clusters) == 1:
+        if no_align:
+            globaligner = align.Globaligner()
+            globaligner.add_clusters(*clusters)
+        elif len(clusters) == 1:
             globaligner = align.align_clusters(clusters[0])
         else:
             LOG.info("Starting cluster alignments")
@@ -128,6 +132,12 @@ def get_parser():
 
     alignment = parser.add_argument_group("Alignment options")
     alignment.add_argument(
+        "-na",
+        "--no_align",
+        help="Do not align clusters",
+        action="store_true",
+    )
+    alignment.add_argument(
         "-i",
         "--identity",
         help="Minimum alignment sequence identity",
@@ -189,6 +199,7 @@ def main():
         plot=args.plot,
         output=args.output,
         force=args.force,
+        no_align=args.no_align,
         hide_link_headers=args.hide_link_headers,
         hide_alignment_headers=args.hide_aln_headers,
         use_file_order=args.use_file_order,
