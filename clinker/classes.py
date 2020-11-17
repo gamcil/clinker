@@ -33,13 +33,13 @@ def parse_genbank(path):
     return cluster
 
 
-def find_files(paths, recurse=True):
+def find_files(paths, recurse=True, level=0):
     files = []
     for path in paths:
         if Path(path).is_dir():
-            if recurse:
+            if level == 0 or recurse:
                 new = Path(path).glob("*")
-                _files = find_files(new)
+                _files = find_files(new, recurse=recurse, level=level + 1)
                 files.extend(_files)
         else:
             files.append(path)
