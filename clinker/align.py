@@ -324,15 +324,15 @@ class Globaligner:
         identity value of homologues in each cluster.
         """
         alignment = self.get_alignment(one, two)
+        if not alignment.links:
+            return 0
         homology = sum(link.identity for link in alignment.links)
-
         assign_groups(alignment.links)
         one_cluster = self.clusters[one]
         two_cluster = self.clusters[two]
         one_pairs = get_pairs(one_cluster)
         two_pairs = get_pairs(two_cluster)
         contiguity = compare_pairs(one_pairs, two_pairs)
-
         return homology + i * contiguity
 
     def matrix(self, i=0.5, normalise=False, as_distance=False):
@@ -353,7 +353,10 @@ class Globaligner:
                     continue
                 matrix[i, j] = self.synteny(one, two, i=i)
         if normalise:
-            matrix /= matrix.max()
+            # Explicitly check for zero so empty alignments don't cause issues
+            max_value = matrix.max()
+            if max_value > 0:
+                matrix /= max_value
         if as_distance:
             maximum = 1 if normalise else matrix.max()
             matrix = maximum - matrix
