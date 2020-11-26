@@ -6,9 +6,9 @@ Module to store classes used across the package.
 Cameron Gilchrist
 """
 
-import itertools
 import json
 import warnings
+import uuid
 
 from pathlib import Path
 
@@ -85,10 +85,7 @@ def load_child(child, thing):
 
 
 def load_children(children, thing):
-    if not hasattr(thing, "from_dict"):
-        raise NotImplementedError
-    for index, child in enumerate(children):
-        children[index] = load_child(child, thing)
+    return [load_child(child, thing) for child in children]
 
 
 class Serializer:
@@ -125,7 +122,6 @@ class Serializer:
         return cls.from_dict(d)
 
 
-
 class Cluster(Serializer):
     """The Cluster class stores Proteins
 
@@ -135,10 +131,8 @@ class Cluster(Serializer):
           to Gene objects in self.genes
     """
 
-    id_iter = itertools.count()
-
     def __init__(self, name, loci, uid=None):
-        self.uid = uid if uid else str(next(Cluster.id_iter))
+        self.uid = uid if uid else str(uuid.uuid4())
         self.name = name
         self.loci = loci
 
@@ -151,13 +145,11 @@ class Cluster(Serializer):
 
     @classmethod
     def from_dict(cls, d):
-        load_children(d["loci"], Locus)
-        clu = cls(
+        return cls(
             d["name"],
-            d["loci"],
+            load_children(d["loci"], Locus),
             uid=d.get("uid")
         )
-        return clu
 
     @classmethod
     def from_seqrecords(cls, *args, name=None):
@@ -180,10 +172,8 @@ class Cluster(Serializer):
 class Locus(Serializer):
     """A cluster locus."""
 
-    id_iter = itertools.count()
-
     def __init__(self, name, genes, start=None, end=None, uid=None):
-        self.uid = uid if uid else str(next(Locus.id_iter))
+        self.uid = uid if uid else str(uuid.uuid4())
         self.name = name
         self.genes = genes
         self.start = start
@@ -203,10 +193,9 @@ class Locus(Serializer):
 
     @classmethod
     def from_dict(cls, d):
-        load_children(d["genes"], Gene)
         return cls(
             d["name"],
-            d["genes"],
+            load_children(d["genes"], Gene),
             start=d["start"],
             end=d["end"],
             uid=d.get("uid"),
@@ -233,8 +222,6 @@ class Locus(Serializer):
 class Gene(Serializer):
     """Location, annotation and attachment points for drawing links."""
 
-    id_iter = itertools.count()
-
     def __init__(
         self,
         uid=None,
@@ -246,7 +233,7 @@ class Gene(Serializer):
         sequence=None,
         translation=None,
     ):
-        self.uid = uid if uid else str(next(Gene.id_iter))
+        self.uid = uid if uid else str(uuid.uuid4())
         self.label = label if label else self.uid
         self.names = names if names else {}
         self.start = start
