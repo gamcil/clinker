@@ -7,7 +7,7 @@ Cameron Gilchrist
 """
 
 import logging
-import itertools
+import uuid
 
 from collections import defaultdict, OrderedDict
 from itertools import combinations, product
@@ -21,7 +21,7 @@ from Bio import Align
 from Bio.Align import substitution_matrices
 
 from clinker.formatters import format_alignment, format_globaligner
-from clinker.classes import Cluster, Locus, Gene, load_child, load_children
+from clinker.classes import Serializer, Cluster, Locus, Gene, load_child, load_children
 
 
 LOG = logging.getLogger(__name__)
@@ -138,7 +138,7 @@ def compute_identity(alignment):
     return matches / length, (matches + similar) / length
 
 
-class Globaligner:
+class Globaligner(Serializer):
     """Performs and stores alignments.
 
     Parameters:
@@ -162,12 +162,11 @@ class Globaligner:
         # Lookup dictionaries
         self._genes = {}
         self._loci = {}
-        self._alignments = {}
-        self._link = {}
+        self._links = {}
         self._alignment_indices = defaultdict(dict)
         self._cluster_names = defaultdict(dict)
 
-        self.alignments = []
+        self.alignments = {}
         self.aligner = Align.PairwiseAligner()
         self.clusters = OrderedDict()
 
@@ -185,7 +184,7 @@ class Globaligner:
                 clusters: {},
                 loci: {},
                 genes: {},
-                alignments: {},
+                alignments: [],
                 links: {},
             }
 
@@ -194,28 +193,29 @@ class Globaligner:
         real references between objects (e.g. Link query/target attributes
         are Gene objects).
         """
-        serial = {
+        return {
             "order": list(self.clusters),
-            "clusters": {},
-            "loci": {},
-            "genes": {},
-            "alignments": {},
-            "links": {},
+            "clusters": {
+                uid: cluster.to_dict(uids_only=True)
+                for uid, cluster in self.clusters.items()
+            },
+            "loci": {
+                uid: locus.to_dict(uids_only=True)
+                for uid, locus in self._loci.items()
+            },
+            "genes": {
+                uid: gene.to_dict()
+                for uid, gene in self._genes.items()
+            },
+            "alignments": {
+                uid: alignment.to_dict(uids_only=True)
+                for uid, alignment in self.alignments.items()
+            },
+            "links": {
+                uid: link.to_dict()
+                for uid, link in self._links.items()
+            },
         }
-
-        for cluster_uid, cluster in self.clusters.items():
-            serial["clusters"][cluster_uid] = cluster.to_dict(uids_only=True)
-            for locus_idx, locus in enumerate(cluster.loci):
-                serial["loci"][locus.uid] = locus.to_dict(uids_only=True)
-                for gene_idx, gene in enumerate(locus.genes):
-                    serial["genes"][gene.uid] = gene.to_dict()
-
-        for alignment in self.alignments:
-            serial["alignments"][alignment.uid] = alignment.to_dict(uids_only=True)
-            for link in alignment.links:
-                serial["links"][link.uid] = link.to_dict(uids_only=True)
-
-        return serial
 
     @classmethod
     def from_dict(cls, d):
@@ -227,6 +227,7 @@ class Globaligner:
         """
         ga = Globaligner()
 
+        # Reconstruct cluster -> locus -> gene hierarchy
         for cluster_uid in d["order"]:
             cluster = Cluster.from_dict(d["clusters"][cluster_uid])
             for locus_idx, locus_uid in enumerate(cluster.loci):
@@ -235,24 +236,28 @@ class Globaligner:
                     gene = Gene.from_dict(d["genes"][gene_uid])
                     locus.genes[gene_idx] = gene
                     ga._genes[gene_uid] = gene
-                cluster.loci[locus_uid] = locus
+                cluster.loci[locus_idx] = locus
                 ga._loci[locus_uid] = locus
             ga.clusters[cluster_uid] = cluster
 
+        # Reconstruct cluster alignments
         for alignment_uid, alignment in d["alignments"].items():
             aln = Alignment.from_dict(alignment)
             aln.query = ga.clusters[aln.query]
             aln.target = ga.clusters[aln.target]
 
+            # Form Link objects and add to lookup dict
             for idx, uid in enumerate(aln.links):
                 link = Link.from_dict(d["links"][uid])
-                link.query = ga._genes[link.query]
-                link.target = ga._genes[link.target]
+                link.query = ga._genes[link.query.uid]
+                link.target = ga._genes[link.target.uid]
                 aln.links[idx] = link
+                ga._links[uid] = link
 
-            ga.alignments.append(aln)
-            ga._alignment_indices[aln.query.uid][aln.target.uid] = aln
-            ga._alignment_indices[aln.target.uid][aln.query.uid] = aln
+            # Update Alignment object lookup dictionaries
+            ga.alignments[aln.uid] = aln
+            ga._alignment_indices[aln.query.uid][aln.target.uid] = aln.uid
+            ga._alignment_indices[aln.target.uid][aln.query.uid] = aln.uid
             ga._cluster_names[aln.uid] = (aln.query.uid, aln.target.uid)
 
         return ga
@@ -288,7 +293,7 @@ class Globaligner:
             ],
             "links": [
                 link.to_dict()
-                for alignment in self.alignments
+                for alignment in self.alignments.values()
                 for link in alignment.links
             ],
         }
@@ -332,7 +337,8 @@ class Globaligner:
     def align_stored_clusters(self, cutoff=0.3):
         """Aligns clusters stored in the Globaligner."""
         for one, two in combinations(self.clusters.values(), 2):
-            if self._alignment_indices[one.name].get(two.name):
+            if self._alignment_indices[one.uid].get(two.uid):
+                LOG.debug("Skipping %s vs %s", one.name, two.name)
                 continue
             LOG.info("%s vs %s", one.name, two.name)
             alignment = self.align_clusters(one, two, cutoff)
@@ -359,15 +365,7 @@ class Globaligner:
         """Returns a printout of the current PairwiseAligner object settings."""
         return str(self.aligner)
 
-    def form_alignment_string(self, index):
-        """Return a string representation of a stored Alignment."""
-        one, two = self._cluster_names[index]
-        header = f"{one} vs {two}"
-        separator = "-" * len(header)
-        alignment = self.alignments[index]
-        return f"{header}\n{separator}\n{alignment}"
-
-    def add_alignment(self, alignment):
+    def add_alignment(self, alignment, overwrite=False):
         """Adds a new cluster alignment to the Globaligner.
 
         self._alignment_indices allows for Alignment indices to be
@@ -382,17 +380,21 @@ class Globaligner:
         self.add_clusters(q, t)
 
         # Overwrite previous alignment between these clusters if one exists
-        index = self._alignment_indices[q.uid].get(t.uid)
-        if index:
-            self.alignments[index] = alignment
-        else:
-            index = len(self.alignments)
-            self.alignments.append(alignment)
+        previous = self._alignment_indices[q.uid].get(t.uid)
+
+        # Clear up any old links, add the new ones
+        if previous:
+            previous = self.alignments.pop(previous)
+            for link in previous.links:
+                self._links.pop(link.uid)
+        for link in alignment.links:
+            self._links[link.uid] = link
 
         # Update mapping dictionaries and save Alignment
-        self._alignment_indices[q.uid][t.uid] = index
-        self._alignment_indices[t.uid][q.uid] = index
-        self._cluster_names[index] = (q.uid, t.uid)
+        self.alignments[alignment.uid] = alignment
+        self._alignment_indices[q.uid][t.uid] = alignment.uid
+        self._alignment_indices[t.uid][q.uid] = alignment.uid
+        self._cluster_names[alignment.uid] = (q.uid, t.uid)
 
     def get_alignment(self, one, two):
         """Retrieves an Alignment corresponding to two Cluster objects.
@@ -403,8 +405,8 @@ class Globaligner:
         Returns:
             Alignment object for the specified Clusters
         """
-        index = self._alignment_indices[one][two]
-        return self.alignments[index]
+        uid = self._alignment_indices[one][two]
+        return self.alignments[uid]
 
     def synteny(self, one, two, i=0.5):
         """Calculates a synteny score between two clusters.
@@ -468,17 +470,15 @@ class Globaligner:
         return hierarchy.leaves_list(linkage)[::-1]
 
 
-class Alignment:
+class Alignment(Serializer):
     """An alignment between two gene clusters.
 
     Attributes:
         links (list): list of Gene-Gene 'links' (i.e. alignments)
     """
 
-    id_iter = itertools.count()
-
     def __init__(self, uid=None, query=None, target=None, links=None):
-        self.uid = uid if uid else str(next(Alignment.id_iter))
+        self.uid = uid if uid else str(uuid.uuid4())
         self.query = query
         self.target = target
         self.links = links if links else []
@@ -493,11 +493,10 @@ class Alignment:
 
     @classmethod
     def from_dict(cls, d):
-        load_children(d["links"], Link)
         return cls(
             query=load_child(d["query"], Cluster),
             target=load_child(d["target"], Cluster),
-            links=d["links"],
+            links=load_children(d["links"], Link),
         )
 
     def __str__(self):
@@ -542,13 +541,11 @@ class Alignment:
         self.links.append(link)
 
 
-class Link:
+class Link(Serializer):
     """An alignment link between two Gene objects."""
 
-    id_iter = itertools.count()
-
     def __init__(self, uid=None, query=None, target=None, identity=None, similarity=None):
-        self.uid = uid if uid else str(next(Link.id_iter))
+        self.uid = uid if uid else str(uuid.uuid4())
         self.query = query
         self.target = target
         self.identity = identity
@@ -562,6 +559,7 @@ class Link:
 
     def to_dict(self, uids_only=False):
         return {
+            "uid": self.uid,
             "query": self.query.uid if uids_only else self.query.to_dict(),
             "target": self.target.uid if uids_only else self.target.to_dict(),
             "identity": self.identity,
