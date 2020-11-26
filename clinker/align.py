@@ -468,6 +468,8 @@ class Globaligner(Serializer):
         """
         if len(self.clusters) == 1:
             return [0]
+        if not self.alignments:
+            return list(range(len(self.clusters)))
         matrix = self.matrix(i=i, normalise=True, as_distance=True)
         linkage = hierarchy.linkage(squareform(matrix), method=method)
         return hierarchy.leaves_list(linkage)[::-1]
