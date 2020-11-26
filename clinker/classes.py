@@ -7,6 +7,7 @@ Cameron Gilchrist
 """
 
 import itertools
+import json
 import warnings
 
 from pathlib import Path
@@ -23,6 +24,25 @@ def find_qualifier(valid_values, qualifiers):
         if value in qualifiers:
             return qualifiers[value][0]
     return None
+
+
+def subdict(d, keys):
+    """Creates a sub-dictionary of a parent dictionary given set of keys."""
+    funcs = ("lower", "upper", "title")
+    sub = {}
+    for key, value in d.items():
+        if key in keys or any(getattr(key, func) in keys for func in funcs):
+            if isinstance(value, list):
+                sub[key] = value[0]
+            else:
+                sub[key] = value
+    return sub
+
+
+def get_value(d, keys):
+    for key in keys:
+        if key in d:
+            return d[key]
 
 
 def parse_genbank(path):
@@ -71,7 +91,42 @@ def load_children(children, thing):
         children[index] = load_child(child, thing)
 
 
-class Cluster:
+class Serializer:
+    """JSON serialisation mixin class.
+
+    Classes that inherit from this class should implement `to_dict` and
+    `from_dict` methods.
+    """
+
+    def to_dict(self):
+        """Serialises class to dict."""
+        raise NotImplementedError
+
+    @classmethod
+    def from_dict(self, d):
+        """Loads class from dict."""
+        raise NotImplementedError
+
+    def to_json(self, fp=None, **kwargs):
+        """Serialises class to JSON."""
+        d = self.to_dict()
+        if fp:
+            json.dump(d, fp, **kwargs)
+        else:
+            return json.dumps(d, **kwargs)
+
+    @classmethod
+    def from_json(cls, js):
+        """Instantiates class from JSON handle."""
+        if isinstance(js, str):
+            d = json.loads(js)
+        else:
+            d = json.load(js)
+        return cls.from_dict(d)
+
+
+
+class Cluster(Serializer):
     """The Cluster class stores Proteins
 
     Attributes:
@@ -122,7 +177,7 @@ class Cluster:
                 return gene
 
 
-class Locus:
+class Locus(Serializer):
     """A cluster locus."""
 
     id_iter = itertools.count()
@@ -175,7 +230,7 @@ class Locus:
                 return gene
 
 
-class Gene:
+class Gene(Serializer):
     """Location, annotation and attachment points for drawing links."""
 
     id_iter = itertools.count()
@@ -183,7 +238,8 @@ class Gene:
     def __init__(
         self,
         uid=None,
-        name=None,
+        label=None,
+        names=None,
         start=None,
         end=None,
         strand=None,
@@ -191,7 +247,8 @@ class Gene:
         translation=None,
     ):
         self.uid = uid if uid else str(next(Gene.id_iter))
-        self.name = name
+        self.label = label if label else self.uid
+        self.names = names if names else {}
         self.start = start
         self.end = end
         self.strand = strand
@@ -201,7 +258,8 @@ class Gene:
     def to_dict(self):
         return {
             "uid": self.uid,
-            "name": self.name,
+            "label": self.label,
+            "names": self.names,
             "start": self.start,
             "end": self.end,
             "strand": self.strand,
@@ -227,12 +285,8 @@ class Gene:
             feature (SeqFeature): BioPython SeqFeature object
             record (SeqRecord): BioPython SeqRecord object (parent of feature)
         """
-        name = find_qualifier(['protein_id', 'locus_tag', 'ID'], feature.qualifiers)
-        if not name:
-            raise ValueError(
-                "Could not determine a valid identifier"
-                f" from a CDS SeqFeature in {record.id}"
-            )
+        tags = ("protein_id", "locus_tag", "id", "gene", "label", "name")
+        names = subdict(feature.qualifiers, tags)
         sequence = feature.extract(record.seq)
         translation = find_qualifier(
             ["translation"],
@@ -241,7 +295,8 @@ class Gene:
         if not translation:
             translation = sequence.translate()
         return cls(
-            name=name,
+            names=names,
+            label=get_value(names, tags),
             sequence=str(sequence),
             translation=str(translation),
             start=int(feature.location.start),
