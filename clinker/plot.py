@@ -109,9 +109,9 @@ def save_html(data, output):
         fp.write(html)
 
 
-def plot_clusters(clusters, output=None):
+def plot_clusters(clusters, output=None, use_file_order=False):
     """Generates clinker plot from a collection of Synthase objects."""
-    data = clusters.to_data()
+    data = clusters.to_data(use_file_order=use_file_order)
     if output:
         save_html(data, output)
         webbrowser.open(output)

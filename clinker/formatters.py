@@ -25,14 +25,19 @@ def humanise(rows):
 
 def get_link_values(link, decimals=4):
     return [
-        link.query.name,
-        link.target.name,
+        link.query.label,
+        link.query.label,
         f"{link.identity:.{decimals}f}",
         f"{link.similarity:.{decimals}f}",
     ]
 
 
-def format_links(links, decimals=4, headers=False, delimiter=None):
+def format_links(
+    links,
+    decimals=4,
+    headers=False,
+    delimiter=None,
+):
     """Generates a summary table for a hit cluster.
 
     Args:
@@ -43,7 +48,10 @@ def format_links(links, decimals=4, headers=False, delimiter=None):
     Returns:
         summary table
     """
-    rows = [get_link_values(link, decimals) for link in links]
+    rows = [
+        get_link_values(link, decimals=decimals)
+        for link in links
+    ]
     if headers:
         hdrs = ["Query", "Target", "Identity", "Similarity"]
         rows.insert(0, hdrs)
@@ -54,11 +62,11 @@ def format_links(links, decimals=4, headers=False, delimiter=None):
 
 
 def format_alignment(
-        alignment,
-        decimals=4,
-        alignment_headers=True,
-        link_headers=True,
-        delimiter=None,
+    alignment,
+    decimals=4,
+    alignment_headers=True,
+    link_headers=True,
+    delimiter=None,
 ):
     fmt = format_links(
         alignment.links,
@@ -83,7 +91,7 @@ def format_globaligner(
     if not aligner.alignments:
         raise ValueError("No alignments are stored in aligner")
     fmts = []
-    for alignment in aligner.alignments:
+    for alignment in aligner.alignments.values():
         fmt = format_alignment(
             alignment,
             alignment_headers=alignment_headers,
