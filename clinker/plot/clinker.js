@@ -147,6 +147,12 @@ function plot(data) {
     .on("change", function() {update({link: {bestOnly: d3.select(this).property("checked")}})})
   d3.select("#input-link-threshold")
     .on("change", function() {update({link: {threshold: +this.value}})})
+  d3.select("#input-link-fontsize")
+    .on("change", function() {update({link: {label: {fontSize: +this.value}}})})
+  d3.select("#input-link-label-show")
+    .on("change", function() {update({link: {label: {show: d3.select(this).property("checked")}}})})
+  d3.select("#input-link-labelbg-show")
+    .on("change", function() {update({link: {label: {background: d3.select(this).property("checked")}}})})
 }
 
 if (typeof data === 'undefined') {
