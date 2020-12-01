@@ -23,14 +23,15 @@ div#plot {
   border: solid;
   border-color: black;
   border-width: 2px;
+	max-width: 500px;
 }
 
 .tooltip:before {
 	content: " ";
 	position: absolute;
 	bottom: 100%;
-	left: 49%;
-	margin-left: -5px;
+	left: 50% ;
+	margin-left: -7px;
   border: 10px solid transparent;
   border-bottom-color: black;
 }
