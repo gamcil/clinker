@@ -277,17 +277,15 @@ class Gene(Serializer):
         if "pseudo" in feature.qualifiers:
             return
         tags = ("protein_id", "locus_tag", "id", "gene", "label", "name")
-        names = subdict(feature.qualifiers, tags)
+        qualifiers = {
+            k: v[0] if isinstance(v, list) else v
+            for k, v in feature.qualifiers.items()
+        }
         sequence = feature.extract(record.seq)
-        translation = find_qualifier(
-            ["translation"],
-            feature.qualifiers,
-        )
-        if not translation:
-            translation = sequence.translate()
+        translation = qualifiers.pop("translation") or sequence.translate()
         return cls(
-            names=names,
-            label=get_value(names, tags),
+            names=qualifiers,
+            label=get_value(qualifiers, tags),
             sequence=str(sequence),
             translation=str(translation),
             start=int(feature.location.start),
