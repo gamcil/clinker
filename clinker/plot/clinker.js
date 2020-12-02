@@ -76,6 +76,27 @@ function plot(data) {
     plot.call(chart)
   }
 
+  // Populate label type multi select and bind change handler
+  let labelTypes = new Set()
+  data.clusters.forEach(cluster => {
+    cluster.loci.forEach(locus => {
+      locus.genes.forEach(gene => Object.keys(gene.names).forEach(type => labelTypes.add(type)))
+    })
+  })
+  const changeLabel = event => {
+    const type = event.target.value
+    d3.selectAll("text.geneLabel")
+      .each(d => d.label = d.names[type] ? d.names[type] : d.label)
+    update({})
+  }
+  let select = d3.select("#select-label-type")
+    .on("change", changeLabel)
+  select.selectAll("option")
+    .data(labelTypes)
+    .join("option")
+    .attr("value", d => d)
+    .text(d => d)
+
   // Figure layout
   d3.select("#input-scale-factor")
     .on("change", function() {update({plot: {scaleFactor: +this.value}})})
@@ -149,6 +170,8 @@ function plot(data) {
     .on("change", function() {update({link: {threshold: +this.value}})})
   d3.select("#input-link-fontsize")
     .on("change", function() {update({link: {label: {fontSize: +this.value}}})})
+  d3.select("#input-link-label-pos")
+    .on("change", function() {update({link: {label: {position: +this.value}}})})
   d3.select("#input-link-label-show")
     .on("change", function() {update({link: {label: {show: d3.select(this).property("checked")}}})})
   d3.select("#input-link-labelbg-show")
