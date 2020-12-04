@@ -102,6 +102,10 @@ function plot(data) {
     .on("change", function() {update({plot: {scaleFactor: +this.value}})})
   d3.select("#input-cluster-spacing")
     .on("change", function() {update({cluster: {spacing: +this.value}})})
+  d3.select("#input-scale-genes")
+    .on("change", function() {update({plot: {scaleGenes: d3.select(this).property("checked")}})})
+  d3.select("#input-show-intergenic")
+    .on("change", function() {update({plot: {showIntergenicGaps: d3.select(this).property("checked")}})})
 
   // Cluster
   d3.select("#input-cluster-align-labels")
