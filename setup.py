@@ -32,7 +32,11 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=["biopython", "numpy", "scipy"],
+    install_requires=[
+        "biopython>=1.75",
+        "numpy>=1.13.3",
+        "scipy>=1.3.3",
+    ],
     python_requires=">=3.6",
     entry_points={"console_scripts": ["clinker=clinker.main:main"]},
     include_package_data=True,
