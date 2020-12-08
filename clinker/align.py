@@ -167,13 +167,12 @@ class Globaligner(Serializer):
         self._cluster_names = defaultdict(dict)
 
         self.alignments = {}
-        self.aligner = Align.PairwiseAligner()
         self.clusters = OrderedDict()
 
-        if aligner_config:
-            self.configure_aligner(**aligner_config)
+        if aligner_config is None:
+            self.aligner_config = aligner_config
         else:
-            self.configure_aligner(**self.aligner_default)
+            self.aligner_default.copy()
 
     def to_dict(self):
         """Serialises the Globaligner instance to dict.
@@ -324,10 +323,15 @@ class Globaligner(Serializer):
 
     def align_clusters(self, one, two, cutoff=0.3):
         """Constructs a cluster alignment using aligner in the Globaligner."""
+
+        aligner = Align.PairwiseAligner()
+        for k, v in self.aligner_config.items():
+            setattr(aligner, k, v)
+
         alignment = Alignment(query=one, target=two)
         for locusA, locusB in product(one.loci, two.loci):
             for geneA, geneB in product(locusA.genes, locusB.genes):
-                aln = self.aligner.align(geneA.translation, geneB.translation)
+                aln = aligner.align(geneA.translation, geneB.translation)
                 identity, similarity = compute_identity(aln[0])
                 if identity < cutoff:
                     continue
@@ -351,19 +355,22 @@ class Globaligner(Serializer):
         they correspond to valid properties on the PairwiseAligner.
         Refer to BioPython documentation for these.
         """
-        valid_attributes = set(dir(self.aligner))
-        for key, value in kwargs.items():
-            if key not in valid_attributes:
-                raise ValueError(
-                    f'"{key}" is not a valid attribute of the BioPython'
-                    "Align.PairwiseAligner class"
-                )
-            setattr(self.aligner, key, value)
+        valid_attributes = {
+            x for x in dir(Align.PairwiseAligner)
+            if not x.startswith("_"))
+        }
+        invalid_keys = set(kwargs.keys()) - valid_attributes
+        if invalid_keys:
+            raise ValueError(
+                f'invalid attributes for the BioPython Align.PairwiseAligner'
+                f"class: { ', '.join(map(repr, sorted(invalid_keys))) }"
+            )
+        self.aligner_config.update(kwargs)
 
-    @property
-    def aligner_settings(self):
-        """Returns a printout of the current PairwiseAligner object settings."""
-        return str(self.aligner)
+    # @property
+    # def aligner_settings(self):
+    #     """Returns a printout of the current PairwiseAligner object settings."""
+    #     return str(self.aligner)
 
     def add_alignment(self, alignment, overwrite=False):
         """Adds a new cluster alignment to the Globaligner.
