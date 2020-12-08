@@ -11,6 +11,7 @@ import uuid
 
 from collections import defaultdict, OrderedDict
 from itertools import combinations, product
+from multiprocessing import Pool
 
 import numpy as np
 
@@ -324,6 +325,8 @@ class Globaligner(Serializer):
     def align_clusters(self, one, two, cutoff=0.3):
         """Constructs a cluster alignment using aligner in the Globaligner."""
 
+        LOG.info("%s vs %s", one.name, two.name)
+
         aligner = Align.PairwiseAligner()
         for k, v in self.aligner_config.items():
             setattr(aligner, k, v)
@@ -338,14 +341,20 @@ class Globaligner(Serializer):
                 alignment.add_link(geneA, geneB, identity, similarity)
         return alignment
 
-    def align_stored_clusters(self, cutoff=0.3):
+    def align_stored_clusters(self, cutoff=0.3, jobs=None):
         """Aligns clusters stored in the Globaligner."""
+
+        pairs_to_align = []
         for one, two in combinations(self.clusters.values(), 2):
             if self._alignment_indices[one.uid].get(two.uid):
                 LOG.debug("Skipping %s vs %s", one.name, two.name)
-                continue
-            LOG.info("%s vs %s", one.name, two.name)
-            alignment = self.align_clusters(one, two, cutoff)
+            else:
+                pairs_to_align.append((one, two, cutoff))
+
+        with Pool(jobs) as pool:
+            alignments = pool.starmap(self.align_clusters, pairs_to_align)
+
+        for alignment in alignments:
             self.add_alignment(alignment)
 
     def configure_aligner(self, **kwargs):
@@ -357,7 +366,7 @@ class Globaligner(Serializer):
         """
         valid_attributes = {
             x for x in dir(Align.PairwiseAligner)
-            if not x.startswith("_"))
+            if not x.startswith("_")
         }
         invalid_keys = set(kwargs.keys()) - valid_attributes
         if invalid_keys:
