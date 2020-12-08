@@ -10,6 +10,7 @@ import logging
 import uuid
 
 from collections import defaultdict, OrderedDict
+from functools import partial
 from itertools import combinations, product
 from multiprocessing import Pool
 
@@ -323,13 +324,13 @@ class Globaligner(Serializer):
                 for gene in locus.genes:
                     self._genes[gene.uid] = gene
 
-    def align_clusters(self, one, two, cutoff=0.3):
-        """Constructs a cluster alignment using aligner in the Globaligner."""
-
+    @staticmethod
+    def _align_clusters(config, one, two, cutoff=0.3):
+        """Constructs a cluster alignment using the given configuration."""
         LOG.info("%s vs %s", one.name, two.name)
 
         aligner = Align.PairwiseAligner()
-        for k, v in self.aligner_config.items():
+        for k, v in config.items():
             setattr(aligner, k, v)
 
         alignment = Alignment(query=one, target=two)
@@ -342,6 +343,10 @@ class Globaligner(Serializer):
                 alignment.add_link(geneA, geneB, identity, similarity)
         return alignment
 
+    def align_clusters(self, one, two, cutoff=0.3):
+        """Constructs a cluster alignment using aligner config in the Globaligner."""
+        return self._align_clusters(self.aligner_config, one, two, cutoff=cutoff)
+
     def align_stored_clusters(self, cutoff=0.3, jobs=None):
         """Aligns clusters stored in the Globaligner."""
 
@@ -350,10 +355,15 @@ class Globaligner(Serializer):
             if self._alignment_indices[one.uid].get(two.uid):
                 LOG.debug("Skipping %s vs %s", one.name, two.name)
             else:
-                pairs_to_align.append((one, two, cutoff))
+                pairs_to_align.append((one, two))
 
         with Pool(jobs) as pool:
-            alignments = pool.starmap(self.align_clusters, pairs_to_align)
+            _align_clusters = partial(
+                self._align_clusters,
+                self.aligner_config,
+                cutoff=cutoff
+            )
+            alignments = pool.starmap(_align_clusters, pairs_to_align)
 
         for alignment in alignments:
             self.add_alignment(alignment)
