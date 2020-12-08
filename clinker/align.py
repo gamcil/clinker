@@ -28,7 +28,7 @@ from clinker.classes import Serializer, Cluster, Locus, Gene, load_child, load_c
 LOG = logging.getLogger(__name__)
 
 
-def align_clusters(*args, cutoff=0.3, aligner_config=None):
+def align_clusters(*args, cutoff=0.3, aligner_config=None, jobs=None):
     """Convenience function for directly aligning Cluster object/s.
 
     Initialises a Globaligner, adds Cluster/s, then runs alignments
@@ -39,6 +39,7 @@ def align_clusters(*args, cutoff=0.3, aligner_config=None):
         aligner_config (dict): keyword arguments to use when setting
                                up the BioPython.PairwiseAligner object
         cutoff (float): decimal identity cutoff for saving an alignment
+        jobs (int, optional): number of jobs to run alignment in parallel
     Returns:
         aligner (Globaligner): instance of Globaligner class which
                                   contains all cluster alignments
@@ -50,7 +51,7 @@ def align_clusters(*args, cutoff=0.3, aligner_config=None):
     if len(args) == 1:
         LOG.info("Only one cluster given, skipping alignment")
     else:
-        aligner.align_stored_clusters(cutoff)
+        aligner.align_stored_clusters(cutoff, jobs=jobs)
     return aligner
 
 
@@ -171,9 +172,9 @@ class Globaligner(Serializer):
         self.clusters = OrderedDict()
 
         if aligner_config is None:
-            self.aligner_config = aligner_config
+            self.aligner_config = self.aligner_default.copy()
         else:
-            self.aligner_default.copy()
+            self.aligner_config = aligner_config
 
     def to_dict(self):
         """Serialises the Globaligner instance to dict.
