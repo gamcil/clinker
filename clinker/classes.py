@@ -7,6 +7,7 @@ Cameron Gilchrist
 """
 
 import json
+import logging
 import warnings
 import uuid
 
@@ -16,10 +17,12 @@ import gffutils
 from gffutils import biopython_integration
 
 from Bio import SeqIO, SeqRecord, BiopythonParserWarning
+from Bio.SeqFeature import FeatureLocation
 
 # ignore malformed locus warnings
 warnings.simplefilter('ignore', BiopythonParserWarning)
 
+LOG = logging.getLogger(__name__)
 
 FASTA_SUFFIXES = (".fa", ".fsa", ".fna", ".fasta", ".faa")
 GBK_SUFFIXES = (".gbk", ".gb", ".genbank", ".gbf", ".gbff")
@@ -38,48 +41,99 @@ def find_fasta(gff_path):
 
 def parse_fasta(path):
     with open(path) as fp:
-        fasta = {record.id: record for record in SeqIO.parse(fp, "fasta")}
-    return fasta
+        records = list(SeqIO.parse(fp, "fasta"))
+    return records
+
+
+def find_regions(directives):
+    """Looks for ##sequence-region directives in a list of GFF3 directives."""
+    regions = {}
+    for directive in directives:
+        if directive.startswith("sequence-region"):
+            _, accession, start, end = directive.split(" ")
+            regions[accession] = (int(start), int(end))
+    return regions
 
 
 def parse_gff(path):
+    """Parses a GFF3 file using GFFUtils."""
+
     # Check for FASTA file
     fasta_path = find_fasta(path)
     if not fasta_path:
         raise FileNotFoundError("Could not find matching FASTA file")
 
+    # Parse FASTA and create GFFUtils database
     fasta = parse_fasta(fasta_path)
     gff = gffutils.create_db(
         str(path),
         ":memory:",
         force=True,
         merge_strategy="create_unique",
+        sort_attribute_values=True
     )
+    regions = find_regions(gff.directives)
 
-    name = str(Path(path).with_suffix(""))
-    cluster = Cluster(name=name)
+    # Find features for each record in the FASTA file
+    loci = []
+    for record in fasta:
+        previous = None
+        try:
+            record_start, _ = regions[record.id]
+        except KeyError:
+            record_start = 1
+        features = list(gff.region(seqid=record.id, featuretype="CDS"))
+        features.sort(key=lambda f: f.start)
+        if not features:
+            raise ValueError(f"Found no CDS features in {record.id} [{path}]")
 
-    for region in gff.features_of_type("region"):
-        genes = []
-        for cds in gff.region(
-            seqid=region.seqid,
-            start=region.start,
-            end=region.end,
-            strand=None,
-            featuretype="CDS"
-        ):
-            cds = biopython_integration.to_seqfeature(cds)
-            if not genes or (genes[-1].qualifiers["ID"] != cds.qualifiers["ID"]):
-                genes.append(cds)
+        for feature in features:
+            # Check if this feature is part of the previous one for merging
+            seqid = feature.attributes["ID"][0]
+            same_feature = previous == seqid
+            if not previous:
+                previous = seqid
+
+            # Normalise Feature location based on ##sequence-region directive.
+            # Necessary for extracted GFF3 files that still store coordinates
+            # relative to the entire region. If no sequence-region directive
+            # is found, assumes 1 (i.e. default sequence start).
+            feature = biopython_integration.to_seqfeature(feature)
+            feature.location = FeatureLocation(
+                feature.location.start - record_start - 1,
+                feature.location.end - record_start,
+                strand=feature.location.strand
+            )
+
+            # Either merge with previous feature, or append it
+            if same_feature:
+                record.features[-1].location += feature.location
             else:
-                genes[-1].location += cds.location
-        genes = [
-            Gene.from_seqfeature(gene, fasta[region.seqid])
-            for gene in genes
-        ]
-        locus = Locus(name=region.seqid, start=0, end=region.end, genes=genes)
-        cluster.loci.append(locus)
-    return cluster
+                record.features.append(feature)
+                previous = seqid
+
+        # Try to trace back from CDS to parent gene feature for actual
+        # gene coordinates. If not found (e.g. malformed GFF without ID= and parent=
+        # features), warns user and defaults to CDS start/end.
+        genes = []
+        for feature in record.features:
+            parent = list(gff.parents(gff[feature.id], featuretype="gene"))
+            start, end = None, None
+            if parent:
+                start = parent[0].start - record_start - 1
+                end = parent[0].end - record_start
+            else:
+                LOG.warning(
+                    f"Could not find parent gene of {feature.id}."
+                    " Using coding sequence coordinates instead."
+                )
+            gene = Gene.from_seqfeature(feature, record, start=start, end=end)
+            genes.append(gene)
+
+        locus = Locus(record.id, genes, 0, len(record))
+        loci.append(locus)
+
+    return Cluster(Path(path).stem, loci)
 
 
 def find_qualifier(valid_values, qualifiers):
@@ -127,7 +181,7 @@ def find_files(paths, recurse=True, level=0):
                 _files = find_files(new, recurse=recurse, level=level + 1)
                 files.extend(_files)
         else:
-            if _path.exists() and _path.suffix in GBK_SUFFIXES + GFF_SUFFIXES:
+            if _path.exists() and _path.suffix.lower() in GBK_SUFFIXES + GFF_SUFFIXES:
                 files.append(path)
     return files
 
@@ -342,7 +396,7 @@ class Gene(Serializer):
         return [(key, *self.smcog[key]) for key in ordered]
 
     @classmethod
-    def from_seqfeature(cls, feature, record):
+    def from_seqfeature(cls, feature, record, start=None, end=None):
         """Builds a new Gene object from a BioPython SeqFeature.
 
         Parameters:
@@ -363,7 +417,7 @@ class Gene(Serializer):
             label=get_value(qualifiers, tags),
             sequence=str(sequence),
             translation=str(translation),
-            start=int(feature.location.start),
-            end=int(feature.location.end),
+            start=start if start else int(feature.location.start),
+            end=end if end else int(feature.location.end),
             strand=feature.location.strand,
         )
