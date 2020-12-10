@@ -218,6 +218,15 @@ def load_children(children, thing):
     return [load_child(child, thing) for child in children]
 
 
+def find_overlapping_location(feature, locations):
+    for location in locations:
+        if (
+            feature.location.start >= location.start
+            and feature.location.end <= location.end
+        ):
+            return location
+
+
 class Serializer:
     """JSON serialisation mixin class.
 
@@ -287,7 +296,6 @@ class Cluster(Serializer):
 
         Arguments:
             args (SeqRecord): BioPython SeqRecord object/s
-            mode (str): which sequence to extract ('protein' or 'gene')
         """
         loci = [Locus.from_seqrecord(record) for record in args]
         return cls(name=name if name else loci[0].name, loci=loci)
@@ -336,12 +344,30 @@ class Locus(Serializer):
         """Builds a new Locus from a BioPython SeqRecord."""
         if not isinstance(record, SeqRecord.SeqRecord):
             raise NotImplementedError('Supplied argument is not a valid SeqRecord object')
-        genes = [
-            Gene.from_seqfeature(feature, record)
-            for feature in record.features
-            if feature.type == "CDS"
-        ]
-        genes = [gene for gene in genes if gene]
+        genes, features, locations = [], [], []
+
+        # Parse all CDS and gene type features
+        for feature in record.features:
+            if feature.type == "CDS":
+                features.append(feature)
+            elif feature.type == "gene":
+                locations.append(feature.location)
+
+        # Trace CDS features back to genes for real locations
+        for feature in features:
+            match = find_overlapping_location(feature, locations)
+            if not match:
+                LOG.warning(
+                    f"Could not find parent gene of {feature.id}."
+                    " Using coding sequence coordinates instead."
+                )
+            gene = Gene.from_seqfeature(
+                feature,
+                record,
+                start=match.start if match else None,
+                end=match.end if match else None,
+            )
+            genes.append(gene)
         return cls(name=record.name, start=0, end=len(record), genes=genes)
 
     def get_gene(self, name):
