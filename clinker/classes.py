@@ -189,9 +189,9 @@ def find_files(paths, recurse=True, level=0):
 def parse_files(paths):
     clusters = []
     for path in paths:
-        if Path(path).suffix in GBK_SUFFIXES:
+        if Path(path).suffix.lower() in GBK_SUFFIXES:
             cluster = parse_genbank(path)
-        elif Path(path).suffix in GFF_SUFFIXES:
+        elif Path(path).suffix.lower() in GFF_SUFFIXES:
             cluster = parse_gff(path)
         else:
             raise TypeError("File %s does not have GenBank or GFF3 extension")
