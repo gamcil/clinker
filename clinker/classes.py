@@ -344,16 +344,13 @@ class Locus(Serializer):
         """Builds a new Locus from a BioPython SeqRecord."""
         if not isinstance(record, SeqRecord.SeqRecord):
             raise NotImplementedError('Supplied argument is not a valid SeqRecord object')
-        genes, features, locations = [], [], []
 
-        # Parse all CDS and gene type features
-        for feature in record.features:
-            if feature.type == "CDS":
-                features.append(feature)
-            elif feature.type == "gene":
-                locations.append(feature.location)
+        # Find all CDS SeqFeature and gene FeatureLocations
+        features = [f for f in record.features if f.type == "CDS"]
+        locations = [f.location for f in record.features if f.type == "gene"]
 
-        # Trace CDS features back to genes for real locations
+        # Trace CDS features back to genes for real locations, create Gene objects
+        genes = []
         for feature in features:
             match = find_overlapping_location(feature, locations)
             if not match:
