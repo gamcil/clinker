@@ -62,7 +62,8 @@ def find_files(paths, recurse=True, level=0):
                 _files = find_files(new, recurse=recurse, level=level + 1)
                 files.extend(_files)
         else:
-            files.append(path)
+            if Path(path).exists():
+                files.append(path)
     return files
 
 
