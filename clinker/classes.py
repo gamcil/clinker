@@ -45,12 +45,10 @@ def parse_fasta(path):
 def parse_gff(path):
     # Check for FASTA file
     fasta_path = find_fasta(path)
-
     if not fasta_path:
         raise FileNotFoundError("Could not find matching FASTA file")
 
     fasta = parse_fasta(fasta_path)
-
     gff = gffutils.create_db(
         str(path),
         ":memory:",
@@ -58,7 +56,8 @@ def parse_gff(path):
         merge_strategy="create_unique",
     )
 
-    cluster = Cluster(name=str(Path(path).with_suffix("")))
+    name = str(Path(path).with_suffix(""))
+    cluster = Cluster(name=name)
 
     for region in gff.features_of_type("region"):
         genes = []
@@ -358,7 +357,7 @@ class Gene(Serializer):
             for k, v in feature.qualifiers.items()
         }
         sequence = feature.extract(record.seq)
-        translation = qualifiers.pop("translation") or sequence.translate()
+        translation = qualifiers.pop("translation", None) or sequence.translate()
         return cls(
             names=qualifiers,
             label=get_value(qualifiers, tags),
