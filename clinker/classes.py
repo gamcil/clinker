@@ -77,7 +77,6 @@ def parse_gff(path):
     # Find features for each record in the FASTA file
     loci = []
     for record in fasta:
-        previous = None
         try:
             record_start, _ = regions[record.id]
         except KeyError:
@@ -87,6 +86,7 @@ def parse_gff(path):
         if not features:
             raise ValueError(f"Found no CDS features in {record.id} [{path}]")
 
+        previous = None
         for feature in features:
             # Check if this feature is part of the previous one for merging
             seqid = feature.attributes["ID"][0]
