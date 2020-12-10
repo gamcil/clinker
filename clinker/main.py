@@ -50,6 +50,9 @@ def clinker(
             globaligner = align.Globaligner.from_json(fp)
         if files:
             paths = find_files(files)
+            if not paths:
+                LOG.error("No files found")
+                raise SystemExit
             LOG.info("Parsing GenBank files: %s", paths)
             clusters = parse_files(paths)
 
@@ -60,6 +63,9 @@ def clinker(
     else:
         # Parse files, generate objects
         paths = find_files(files)
+        if not paths:
+            LOG.error("No files found")
+            raise SystemExit
         LOG.info("Parsing GenBank files: %s", paths)
         clusters = parse_files(paths)
 

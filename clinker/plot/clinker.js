@@ -102,6 +102,8 @@ function plot(data) {
     .on("change", function() {update({plot: {scaleFactor: +this.value}})})
   d3.select("#input-cluster-spacing")
     .on("change", function() {update({cluster: {spacing: +this.value}})})
+  d3.select("#input-scale-genes")
+    .on("change", function() {update({plot: {scaleGenes: d3.select(this).property("checked")}})})
 
   // Cluster
   d3.select("#input-cluster-align-labels")
@@ -166,6 +168,14 @@ function plot(data) {
     .on("change", function() {update({link: {show: d3.select(this).property("checked")}})})
   d3.select("#input-link-best-only")
     .on("change", function() {update({link: {bestOnly: d3.select(this).property("checked")}})})
+  d3.select("#input-link-as-line")
+    .on("change", function() {update({link: {asLine: d3.select(this).property("checked")}})})
+  d3.select("#input-link-straight")
+    .on("change", function() {update({link: {straight: d3.select(this).property("checked")}})})
+  d3.select("#input-link-group-colour")
+    .on("change", function() {update({link: {groupColour: d3.select(this).property("checked")}})})
+  d3.select("#input-link-stroke-width")
+    .on("change", function() {update({link: {strokeWidth: +this.value}})})
   d3.select("#input-link-threshold")
     .on("change", function() {update({link: {threshold: +this.value}})})
   d3.select("#input-link-fontsize")
