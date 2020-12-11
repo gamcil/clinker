@@ -174,8 +174,13 @@ class Globaligner(Serializer):
 
         if aligner_config is None:
             self.aligner_config = self.aligner_default.copy()
+            self._matrix_alphabet = self.aligner_config["substitution_matrix"].alphabet
         else:
             self.aligner_config = aligner_config
+            self._matrix_alphabet = aligner_config.get(
+                "substitution_matrix",
+                self.aligner_default["substitution_matrix"]
+            ).alphabet
 
     def to_dict(self):
         """Serialises the Globaligner instance to dict.
@@ -325,13 +330,14 @@ class Globaligner(Serializer):
                     self._genes[gene.uid] = gene
 
     @staticmethod
-    def _align_clusters(config, one, two, cutoff=0.3):
+    def _align_clusters(config, alphabet, one, two, cutoff=0.3):
         """Constructs a cluster alignment using the given configuration."""
         LOG.info("%s vs %s", one.name, two.name)
 
         aligner = Align.PairwiseAligner()
         for k, v in config.items():
             setattr(aligner, k, v)
+        aligner.substitution_matrix._alphabet = alphabet
 
         alignment = Alignment(query=one, target=two)
         for locusA, locusB in product(one.loci, two.loci):
@@ -345,7 +351,13 @@ class Globaligner(Serializer):
 
     def align_clusters(self, one, two, cutoff=0.3):
         """Constructs a cluster alignment using aligner config in the Globaligner."""
-        return self._align_clusters(self.aligner_config, one, two, cutoff=cutoff)
+        return self._align_clusters(
+            self.aligner_config,
+            self._matrix_alphabet,
+            one,
+            two,
+            cutoff=cutoff
+        )
 
     def align_stored_clusters(self, cutoff=0.3, jobs=None):
         """Aligns clusters stored in the Globaligner."""
@@ -361,6 +373,7 @@ class Globaligner(Serializer):
             _align_clusters = partial(
                 self._align_clusters,
                 self.aligner_config,
+                self._matrix_alphabet,
                 cutoff=cutoff
             )
             alignments = pool.starmap(_align_clusters, pairs_to_align)
@@ -386,6 +399,8 @@ class Globaligner(Serializer):
                 f"class: { ', '.join(map(repr, sorted(invalid_keys))) }"
             )
         self.aligner_config.update(kwargs)
+        if "substitution_matrix" in kwargs:
+            self._matrix_alphabet = kwargs["substitution_matrix"].alphabet
 
     # @property
     # def aligner_settings(self):
