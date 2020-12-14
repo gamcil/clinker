@@ -68,10 +68,17 @@ optional arguments:
   -h, --help            show this help message and exit
 
 Alignment options:
+  -na, --no_align       Do not align clusters
   -i IDENTITY, --identity IDENTITY
                         Minimum alignment sequence identity
+  -j JOBS, --jobs JOBS  Number of alignments to run in parallel (0 to use the
+                        number of CPUs)
 
 Output options:
+  -s SESSION, --session SESSION
+                        Path to clinker session
+  -ji JSON_INDENT, --json_indent JSON_INDENT
+                        Number of spaces to indent JSON
   -f, --force           Overwrite previous output file
   -o OUTPUT, --output OUTPUT
                         Save alignments to file
@@ -88,6 +95,10 @@ Output options:
                         Hide alignment column headers
   -ha, --hide_aln_headers
                         Hide alignment cluster name headers
+
+Visualisation options:
+  -ufo, --use_file_order
+                        Display clusters in order of input files
 
 Example usage
 -------------
