@@ -10,7 +10,9 @@ import logging
 import uuid
 
 from collections import defaultdict, OrderedDict
+from functools import partial
 from itertools import combinations, product
+from multiprocessing import Pool
 
 import numpy as np
 
@@ -27,7 +29,7 @@ from clinker.classes import Serializer, Cluster, Locus, Gene, load_child, load_c
 LOG = logging.getLogger(__name__)
 
 
-def align_clusters(*args, cutoff=0.3, aligner_config=None):
+def align_clusters(*args, cutoff=0.3, aligner_config=None, jobs=None):
     """Convenience function for directly aligning Cluster object/s.
 
     Initialises a Globaligner, adds Cluster/s, then runs alignments
@@ -38,6 +40,7 @@ def align_clusters(*args, cutoff=0.3, aligner_config=None):
         aligner_config (dict): keyword arguments to use when setting
                                up the BioPython.PairwiseAligner object
         cutoff (float): decimal identity cutoff for saving an alignment
+        jobs (int, optional): number of jobs to run alignment in parallel
     Returns:
         aligner (Globaligner): instance of Globaligner class which
                                   contains all cluster alignments
@@ -49,7 +52,7 @@ def align_clusters(*args, cutoff=0.3, aligner_config=None):
     if len(args) == 1:
         LOG.info("Only one cluster given, skipping alignment")
     else:
-        aligner.align_stored_clusters(cutoff)
+        aligner.align_stored_clusters(cutoff, jobs=jobs)
     return aligner
 
 
@@ -153,7 +156,7 @@ class Globaligner(Serializer):
 
     aligner_default = {
         "mode": "global",
-        "substitution_matrix": substitution_matrices.load("BLOSUM62"),
+        "substitution_matrix": "BLOSUM62",
         "open_gap_score": -10,
         "extend_gap_score": -0.5,
     }
@@ -167,13 +170,12 @@ class Globaligner(Serializer):
         self._cluster_names = defaultdict(dict)
 
         self.alignments = {}
-        self.aligner = Align.PairwiseAligner()
         self.clusters = OrderedDict()
 
-        if aligner_config:
-            self.configure_aligner(**aligner_config)
+        if aligner_config is None:
+            self.aligner_config = self.aligner_default.copy()
         else:
-            self.configure_aligner(**self.aligner_default)
+            self.aligner_config = aligner_config
 
     def to_dict(self):
         """Serialises the Globaligner instance to dict.
@@ -322,26 +324,53 @@ class Globaligner(Serializer):
                 for gene in locus.genes:
                     self._genes[gene.uid] = gene
 
-    def align_clusters(self, one, two, cutoff=0.3):
-        """Constructs a cluster alignment using aligner in the Globaligner."""
+    @staticmethod
+    def _align_clusters(config, one, two, cutoff=0.3):
+        """Constructs a cluster alignment using the given configuration."""
+        LOG.info("%s vs %s", one.name, two.name)
+
+        aligner = Align.PairwiseAligner()
+        matrix = config.pop("substitution_matrix", "BLOSUM62")
+        if matrix not in substitution_matrices.load():
+            LOG.warning("Invalid substitution matrix (%s), defaulting to BLOSUM62", matrix)
+            matrix = "BLOSUM62"
+        aligner.substitution_matrix = substitution_matrices.load(matrix)
+        for k, v in config.items():
+            setattr(aligner, k, v)
+
         alignment = Alignment(query=one, target=two)
         for locusA, locusB in product(one.loci, two.loci):
             for geneA, geneB in product(locusA.genes, locusB.genes):
-                aln = self.aligner.align(geneA.translation, geneB.translation)
+                aln = aligner.align(geneA.translation, geneB.translation)
                 identity, similarity = compute_identity(aln[0])
                 if identity < cutoff:
                     continue
                 alignment.add_link(geneA, geneB, identity, similarity)
         return alignment
 
-    def align_stored_clusters(self, cutoff=0.3):
+    def align_clusters(self, one, two, cutoff=0.3):
+        """Constructs a cluster alignment using aligner config in the Globaligner."""
+        return self._align_clusters(self.aligner_config, one, two, cutoff=cutoff)
+
+    def align_stored_clusters(self, cutoff=0.3, jobs=None):
         """Aligns clusters stored in the Globaligner."""
+
+        pairs_to_align = []
         for one, two in combinations(self.clusters.values(), 2):
             if self._alignment_indices[one.uid].get(two.uid):
                 LOG.debug("Skipping %s vs %s", one.name, two.name)
-                continue
-            LOG.info("%s vs %s", one.name, two.name)
-            alignment = self.align_clusters(one, two, cutoff)
+            else:
+                pairs_to_align.append((one, two))
+
+        with Pool(jobs) as pool:
+            _align_clusters = partial(
+                self._align_clusters,
+                self.aligner_config,
+                cutoff=cutoff
+            )
+            alignments = pool.starmap(_align_clusters, pairs_to_align)
+
+        for alignment in alignments:
             self.add_alignment(alignment)
 
     def configure_aligner(self, **kwargs):
@@ -351,19 +380,17 @@ class Globaligner(Serializer):
         they correspond to valid properties on the PairwiseAligner.
         Refer to BioPython documentation for these.
         """
-        valid_attributes = set(dir(self.aligner))
-        for key, value in kwargs.items():
-            if key not in valid_attributes:
-                raise ValueError(
-                    f'"{key}" is not a valid attribute of the BioPython'
-                    "Align.PairwiseAligner class"
-                )
-            setattr(self.aligner, key, value)
-
-    @property
-    def aligner_settings(self):
-        """Returns a printout of the current PairwiseAligner object settings."""
-        return str(self.aligner)
+        valid_attributes = {
+            x for x in dir(Align.PairwiseAligner)
+            if not x.startswith("_")
+        }
+        invalid_keys = set(kwargs.keys()) - valid_attributes
+        if invalid_keys:
+            raise ValueError(
+                f'invalid attributes for the BioPython Align.PairwiseAligner'
+                f"class: { ', '.join(map(repr, sorted(invalid_keys))) }"
+            )
+        self.aligner_config.update(kwargs)
 
     def add_alignment(self, alignment, overwrite=False):
         """Adds a new cluster alignment to the Globaligner.

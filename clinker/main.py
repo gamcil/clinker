@@ -38,6 +38,7 @@ def clinker(
     hide_alignment_headers=False,
     use_file_order=False,
     json_indent=None,
+    jobs=None,
 ):
     """Entry point for running the script."""
     LOG.info("Starting clinker")
@@ -58,7 +59,7 @@ def clinker(
 
             LOG.info("Adding clusters to loaded session and aligning")
             globaligner.add_clusters(*clusters)
-            globaligner.align_stored_clusters(cutoff=identity)
+            globaligner.align_stored_clusters(cutoff=identity, jobs=jobs)
             load_session = False
     else:
         # Parse files, generate objects
@@ -74,10 +75,10 @@ def clinker(
             globaligner = align.Globaligner()
             globaligner.add_clusters(*clusters)
         elif len(clusters) == 1:
-            globaligner = align.align_clusters(clusters[0])
+            globaligner = align.align_clusters(clusters[0], jobs=1)
         else:
             LOG.info("Starting cluster alignments")
-            globaligner = align.align_clusters(*clusters, cutoff=identity)
+            globaligner = align.align_clusters(*clusters, cutoff=identity, jobs=jobs)
 
     LOG.info("Generating results summary...")
     summary = globaligner.format(
@@ -150,6 +151,13 @@ def get_parser():
         type=float,
         default=0.3
     )
+    alignment.add_argument(
+        "-j",
+        "--jobs",
+        help="Number of alignments to run in parallel (0 to use the number of CPUs)",
+        type=int,
+        default=0,
+    )
 
     output = parser.add_argument_group("Output options")
     output.add_argument("-s", "--session", help="Path to clinker session")
@@ -209,6 +217,7 @@ def main():
         hide_link_headers=args.hide_link_headers,
         hide_alignment_headers=args.hide_aln_headers,
         use_file_order=args.use_file_order,
+        jobs=args.jobs if args.jobs > 0 else None
     )
 
 
