@@ -369,7 +369,8 @@ class Locus(Serializer):
                 start=match.start if match else None,
                 end=match.end if match else None,
             )
-            genes.append(gene)
+            if gene:
+                genes.append(gene)
         return cls(name=record.name, start=0, end=len(record), genes=genes)
 
     def get_gene(self, name):

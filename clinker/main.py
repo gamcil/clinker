@@ -80,24 +80,26 @@ def clinker(
             LOG.info("Starting cluster alignments")
             globaligner = align.align_clusters(*clusters, cutoff=identity, jobs=jobs)
 
-    LOG.info("Generating results summary...")
-    summary = globaligner.format(
-        delimiter=delimiter,
-        decimals=decimals,
-        link_headers=not hide_link_headers,
-        alignment_headers=not hide_alignment_headers,
-    )
-
-    if output:
-        if (output and Path(output).exists() and not force):
-            print(summary)
-            LOG.warn("File %s already exists but --force was not specified", output)
+    if globaligner.alignments:
+        LOG.info("Generating results summary...")
+        summary = globaligner.format(
+            delimiter=delimiter,
+            decimals=decimals,
+            link_headers=not hide_link_headers,
+            alignment_headers=not hide_alignment_headers,
+        )
+        if output:
+            if (output and Path(output).exists() and not force):
+                print(summary)
+                LOG.warn("File %s already exists but --force was not specified", output)
+            else:
+                LOG.info("Writing alignments to: %s", output)
+                with open(output, "w") as fp:
+                    fp.write(summary)
         else:
-            LOG.info("Writing alignments to: %s", output)
-            with open(output, "w") as fp:
-                fp.write(summary)
+            print(summary)
     else:
-        print(summary)
+        LOG.info("No alignments were generated")
 
     if session and not load_session:
         LOG.info("Saving session to: %s", session)
