@@ -107,7 +107,12 @@ def parse_gff(path):
 
             # Either merge with previous feature, or append it
             if same_feature:
-                record.features[-1].location += feature.location
+                if feature.location.strand == 1:
+                    record.features[-1].location += feature.location
+                else:
+                    # Must be in biological order
+                    old, new = record.features[-1].location, feature.location
+                    record.features[-1].location = new + old
             else:
                 record.features.append(feature)
                 previous = seqid
