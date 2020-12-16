@@ -432,8 +432,6 @@ class Gene(Serializer):
             feature (SeqFeature): BioPython SeqFeature object
             record (SeqRecord): BioPython SeqRecord object (parent of feature)
         """
-        if "pseudo" in feature.qualifiers:
-            return
         tags = ("protein_id", "locus_tag", "id", "gene", "label", "name")
         qualifiers = {
             k: v[0] if isinstance(v, list) else v
@@ -441,6 +439,8 @@ class Gene(Serializer):
         }
         sequence = feature.extract(record.seq)
         translation = qualifiers.pop("translation", None) or sequence.translate()
+        if not translation:
+            return
         return cls(
             names=qualifiers,
             label=get_value(qualifiers, tags),
