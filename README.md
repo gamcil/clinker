@@ -22,12 +22,19 @@ clinker can be installed directly through pip:
 
 `pip install clinker`
 
-Or by cloning the source code from GitHub:
+By cloning the source code from GitHub:
 
 ```
 git clone https://github.com/gamcil/clinker.git
 cd clinker
 pip install .
+```
+
+Or, through conda:
+
+```
+conda create -n clinker -c conda-forge -c bioconda clinker-py
+conda activate clinker
 ```
 
 ## Citation
