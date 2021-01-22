@@ -40,7 +40,9 @@ conda activate clinker
 ## Citation
 If you found clinker useful, please cite:
 ```
-Gilchrist, C.L.M., Chooi, Y.-H., 2020. clinker & clustermap.js: Automatic generation of gene cluster comparison figures. bioRxiv 2020.11.08.370650. https://doi.org/10.1101/2020.11.08.370650
+clinker & clustermap.js: Automatic generation of gene cluster comparison figures.
+Gilchrist, C.L.M., Chooi, Y.-H., 2020.
+Bioinformatics. doi: https://doi.org/10.1093/bioinformatics/btab007
 ```
 
 ## Usage
