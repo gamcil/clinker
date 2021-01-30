@@ -26,7 +26,7 @@ def humanise(rows):
 def get_link_values(link, decimals=4):
     return [
         link.query.label,
-        link.query.label,
+        link.target.label,
         f"{link.identity:.{decimals}f}",
         f"{link.similarity:.{decimals}f}",
     ]
@@ -41,7 +41,7 @@ def format_links(
     """Generates a summary table for a hit cluster.
 
     Args:
-        hits (list): collection of Hit objects
+        links (list): collection of Link objects
         decimals (int): number of decimal points to show
         show_headers (bool): show column headers in output
         human (bool): use human-readable format
