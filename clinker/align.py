@@ -341,6 +341,8 @@ class Globaligner(Serializer):
         alignment = Alignment(query=one, target=two)
         for locusA, locusB in product(one.loci, two.loci):
             for geneA, geneB in product(locusA.genes, locusB.genes):
+                if not geneA.translation or not geneB.translation:
+                    continue
                 aln = aligner.align(geneA.translation, geneB.translation)
                 identity, similarity = compute_identity(aln[0])
                 if identity < cutoff:
