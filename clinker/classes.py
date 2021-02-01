@@ -133,7 +133,8 @@ def parse_gff(path):
                     " Using coding sequence coordinates instead."
                 )
             gene = Gene.from_seqfeature(feature, record, start=start, end=end)
-            genes.append(gene)
+            if gene:
+                genes.append(gene)
 
         locus = Locus(record.id, genes, 0, len(record))
         loci.append(locus)
