@@ -445,12 +445,6 @@ class Gene(Serializer):
         }
         sequence = feature.extract(record.seq)
         translation = qualifiers.pop("translation", None) or sequence.translate()
-        print(
-            feature.location.start,
-            feature.location.end,
-            feature.location.strand,
-            start, end, sequence[:10], translation[:10]
-        )
         return cls(
             names=qualifiers,
             label=get_value(qualifiers, tags),
