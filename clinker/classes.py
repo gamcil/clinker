@@ -86,6 +86,10 @@ def parse_gff(path):
         if not features:
             raise ValueError(f"Found no CDS features in {record.id} [{path}]")
 
+        # Calculate offset based on start of record
+        # sequence-region not zero-indexed, so +1
+        record_start -= 1
+
         previous = None
         for feature in features:
             # Check if this feature is part of the previous one for merging
@@ -98,9 +102,11 @@ def parse_gff(path):
             # Necessary for extracted GFF3 files that still store coordinates
             # relative to the entire region. If no sequence-region directive
             # is found, assumes 1 (i.e. default sequence start).
+            # Note: to_seqfeature automatically zero indexes coordinates, which
+            # does not happen by default in GFFUtils, hence no -1 here
             feature = biopython_integration.to_seqfeature(feature)
             feature.location = FeatureLocation(
-                feature.location.start - record_start - 1,
+                feature.location.start - record_start,
                 feature.location.end - record_start,
                 strand=feature.location.strand
             )
@@ -122,11 +128,11 @@ def parse_gff(path):
         # features), warns user and defaults to CDS start/end.
         genes = []
         for feature in record.features:
-            parent = list(gff.parents(gff[feature.id], featuretype="gene"))
+            parents = [p for p in gff.parents(gff[feature.id], featuretype="gene")]
             start, end = None, None
-            if parent:
-                start = parent[0].start - record_start - 1
-                end = parent[0].end - record_start
+            if parents:
+                start = parents[0].start - record_start - 1
+                end = parents[0].end - record_start
             else:
                 LOG.warning(
                     f"Could not find parent gene of {feature.id}."
@@ -439,8 +445,6 @@ class Gene(Serializer):
         }
         sequence = feature.extract(record.seq)
         translation = qualifiers.pop("translation", None) or sequence.translate()
-        if not translation:
-            return
         return cls(
             names=qualifiers,
             label=get_value(qualifiers, tags),
