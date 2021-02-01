@@ -134,6 +134,16 @@ def get_parser():
         epilog="Example usage\n-------------\n"
         "Align clusters, plot results and print scores to screen:\n"
         "  $ clinker files/*.gbk\n\n"
+        "Only save gene-gene links when identity is over 50%:\n"
+        "  $ clinker files/*.gbk -i 0.5\n\n"
+        "Save an alignment session for later:\n"
+        "  $ clinker files/*.gbk -s session.json\n\n"
+        "Save alignments to file, in comma-delimited format, with 4 decimal places:\n"
+        "  $ clinker files/*.gbk -o alignments.csv -dl \",\" -dc 4\n\n"
+        "Generate visualisation:\n"
+        "  $ clinker files/*.gbk -p\n\n"
+        "Save visualisation as a static HTML document:\n"
+        "  $ clinker files/*.gbk -p plot.html\n\n"
         "Cameron Gilchrist, 2020",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -149,21 +159,21 @@ def get_parser():
     alignment.add_argument(
         "-i",
         "--identity",
-        help="Minimum alignment sequence identity",
+        help="Minimum alignment sequence identity [default: 0.3]",
         type=float,
         default=0.3
     )
     alignment.add_argument(
         "-j",
         "--jobs",
-        help="Number of alignments to run in parallel (0 to use the number of CPUs)",
+        help="Number of alignments to run in parallel (0 to use the number of CPUs) [default: 0]",
         type=int,
         default=0,
     )
 
     output = parser.add_argument_group("Output options")
     output.add_argument("-s", "--session", help="Path to clinker session")
-    output.add_argument("-ji", "--json_indent", type=int, help="Number of spaces to indent JSON")
+    output.add_argument("-ji", "--json_indent", type=int, help="Number of spaces to indent JSON [default: none]")
     output.add_argument("-f", "--force", help="Overwrite previous output file", action="store_true")
     output.add_argument("-o", "--output", help="Save alignments to file")
     output.add_argument(
@@ -176,8 +186,8 @@ def get_parser():
         " clinker will generate a portable HTML file at that path. Otherwise,"
         " the plot will be served dynamically using Python's HTTP server."
     )
-    output.add_argument("-dl", "--delimiter", help="Character to delimit output by")
-    output.add_argument("-dc", "--decimals", help="Number of decimal places in output", default=2)
+    output.add_argument("-dl", "--delimiter", help="Character to delimit output by [default: human readable]")
+    output.add_argument("-dc", "--decimals", help="Number of decimal places in output [default: 2]", default=2)
     output.add_argument(
         "-hl",
         "--hide_link_headers",
