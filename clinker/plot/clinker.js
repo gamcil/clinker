@@ -9,7 +9,7 @@ function serialise(svg) {
 	const xmlns = "http://www.w3.org/2000/xmlns/";
 	const xlinkns = "http://www.w3.org/1999/xlink";
 	const xhtml = "http://www.w3.org/1999/xhtml";
-	const svgns = "http://www.w3.org/2000/node";
+	const svgns = "http://www.w3.org/2000/svg";
 	const bbox = svg.select("g").node().getBBox()
 
 	node = node.cloneNode(true);
@@ -27,7 +27,7 @@ function serialise(svg) {
 
 	const serializer = new window.XMLSerializer;
 	const string = serializer.serializeToString(node);
-	return new Blob([string], {type: "image/node+xml"});
+	return new Blob([string], {type: "image/svg+xml"});
 }
 
 function download(blob, filename) {
