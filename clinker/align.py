@@ -56,6 +56,24 @@ def align_clusters(*args, cutoff=0.3, aligner_config=None, jobs=None):
     return aligner
 
 
+def consolidate(arr):
+    """Recursively merges a list of sets.
+
+    Used for generating homology gene groups based on gene-gene links.
+
+    Taken from: rosettacode.org/wiki/Set_consolidation#Python:_Recursive
+    """
+    if len(arr) < 2:
+        return arr
+    r, b = [arr[0]], consolidate(arr[1:])
+    for x in b:
+        if r[0].intersection(x):
+            r[0].update(x)
+        else:
+            r.append(x)
+    return r
+
+
 def assign_groups(links, threshold=0.3):
     """Groups sequences in alignment links by single-linkage."""
     groups = []
@@ -170,6 +188,7 @@ class Globaligner(Serializer):
         self._cluster_names = defaultdict(dict)
 
         self.alignments = {}
+        self.groups = []
         self.clusters = OrderedDict()
 
         if aligner_config is None:
@@ -209,6 +228,7 @@ class Globaligner(Serializer):
                 uid: gene.to_dict()
                 for uid, gene in self._genes.items()
             },
+            "groups": [group.to_dict() for group in self.groups],
             "alignments": {
                 uid: alignment.to_dict(uids_only=True)
                 for uid, alignment in self.alignments.items()
@@ -298,6 +318,7 @@ class Globaligner(Serializer):
                 for alignment in self.alignments.values()
                 for link in alignment.links
             ],
+            "groups": [group.to_dict() for group in self.groups]
         }
 
     @property
@@ -374,6 +395,19 @@ class Globaligner(Serializer):
 
         for alignment in alignments:
             self.add_alignment(alignment)
+
+        self.build_gene_groups()
+
+    def build_gene_groups(self):
+        """Builds gene groups based on currently stored gene-gene links."""
+        links = [
+            set([link.query.uid, link.target.uid])
+            for link in self._links.values()
+        ]
+        self.groups = []
+        for genes in consolidate(links):
+            group = Group(label=f"Group {len(self.groups)}", genes=list(genes))
+            self.groups.append(group)
 
     def configure_aligner(self, **kwargs):
         """Change properties on the BioPython.PairwiseAligner object.
@@ -605,3 +639,33 @@ class Link(Serializer):
         d["query"] = load_child(d["query"], Gene)
         d["target"] = load_child(d["target"], Gene)
         return cls(**d)
+
+
+class Group(Serializer):
+    """A gene homology group."""
+
+    def __init__(self, uid=None, label=None, genes=None, hidden=False, colour=None):
+        self.uid = uid if uid else str(uuid.uuid4())
+        self.label = label if label else f"Group {self.uid}"
+        self.genes = genes if genes else []
+        self.hidden = hidden
+        self.colour = colour
+
+    def to_dict(self):
+        return {
+            "uid": self.uid,
+            "label": self.label,
+            "genes": self.genes,
+            "hidden": self.hidden,
+            "colour": self.colour,
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(
+            uid=d.get("uid"),
+            label=d.get("label"),
+            genes=d.get("genes"),
+            hidden=d.get("hidden"),
+            colour=d.get("colour"),
+        )
