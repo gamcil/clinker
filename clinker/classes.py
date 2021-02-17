@@ -311,9 +311,9 @@ class Cluster(Serializer):
         loci = [Locus.from_seqrecord(record) for record in args]
         return cls(name=name if name else loci[0].name, loci=loci)
 
-    def get_gene(self, name):
+    def get_gene(self, label):
         for locus in self.loci:
-            gene = locus.get_gene(name)
+            gene = locus.get_gene(label)
             if gene:
                 return gene
 
@@ -321,7 +321,14 @@ class Cluster(Serializer):
 class Locus(Serializer):
     """A cluster locus."""
 
-    def __init__(self, name, genes, start=None, end=None, uid=None):
+    def __init__(
+        self,
+        name,
+        genes,
+        start=None,
+        end=None,
+        uid=None,
+    ):
         self.uid = uid if uid else str(uuid.uuid4())
         self.name = name
         self.genes = genes
@@ -379,9 +386,9 @@ class Locus(Serializer):
                 genes.append(gene)
         return cls(name=record.name, start=0, end=len(record), genes=genes)
 
-    def get_gene(self, name):
+    def get_gene(self, label):
         for gene in self.genes:
-            if gene.name == name:
+            if gene.label == label:
                 return gene
 
 
