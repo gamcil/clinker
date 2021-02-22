@@ -57,21 +57,21 @@ def align_clusters(*args, cutoff=0.3, aligner_config=None, jobs=None):
 
 
 def consolidate(arr):
-    """Recursively merges a list of sets.
+    """Merges intersecting sets in a list of sets.
 
-    Used for generating homology gene groups based on gene-gene links.
+    Taken from: http://rosettacode.org/wiki/Set_consolidation#Python:_Iterative
 
-    Taken from: rosettacode.org/wiki/Set_consolidation#Python:_Recursive
+    Recursive version will hit max recursion depth.
     """
-    if len(arr) < 2:
-        return arr
-    r, b = [arr[0]], consolidate(arr[1:])
-    for x in b:
-        if r[0].intersection(x):
-            r[0].update(x)
-        else:
-            r.append(x)
-    return r
+    sets = [s for s in arr if s]
+    for i, s1 in enumerate(sets):
+        if s1:
+            for s2 in sets[i+1:]:
+                if s1.intersection(s2):
+                    s2.update(s1)
+                    s1.clear()
+                    s1 = s2
+    return [s for s in sets if s]
 
 
 def assign_groups(links, threshold=0.3):
