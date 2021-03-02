@@ -22,6 +22,8 @@ from scipy.spatial.distance import squareform
 from Bio import Align
 from Bio.Align import substitution_matrices
 
+from disjoint_set import DisjointSet
+
 from clinker.formatters import format_alignment, format_globaligner
 from clinker.classes import Serializer, Cluster, Locus, Gene, load_child, load_children
 
@@ -54,24 +56,6 @@ def align_clusters(*args, cutoff=0.3, aligner_config=None, jobs=None):
     else:
         aligner.align_stored_clusters(cutoff, jobs=jobs)
     return aligner
-
-
-def consolidate(arr):
-    """Merges intersecting sets in a list of sets.
-
-    Taken from: http://rosettacode.org/wiki/Set_consolidation#Python:_Iterative
-
-    Recursive version will hit max recursion depth.
-    """
-    sets = [s for s in arr if s]
-    for i, s1 in enumerate(sets):
-        if s1:
-            for s2 in sets[i+1:]:
-                if s1.intersection(s2):
-                    s2.update(s1)
-                    s1.clear()
-                    s1 = s2
-    return [s for s in sets if s]
 
 
 def assign_groups(links, threshold=0.3):
@@ -400,12 +384,10 @@ class Globaligner(Serializer):
 
     def build_gene_groups(self):
         """Builds gene groups based on currently stored gene-gene links."""
-        links = [
-            set([link.query.uid, link.target.uid])
-            for link in self._links.values()
-        ]
-        self.groups = []
-        for genes in consolidate(links):
+        ds = DisjointSet()
+        for link in self._links.values():
+            ds.union(link.query.uid, link.target.uid)
+        for genes in ds.itersets():
             group = Group(label=f"Group {len(self.groups)}", genes=list(genes))
             self.groups.append(group)
 
