@@ -266,6 +266,10 @@ class Globaligner(Serializer):
             ga._alignment_indices[aln.target.uid][aln.query.uid] = aln.uid
             ga._cluster_names[aln.uid] = (aln.query.uid, aln.target.uid)
 
+        for group in d["groups"]:
+            gr = Group.from_dict(group)
+            ga.groups.append(gr)
+
         return ga
 
     def __str__(self):
