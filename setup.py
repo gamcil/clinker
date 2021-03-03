@@ -36,7 +36,7 @@ setup(
         "biopython>=1.75",
         "numpy>=1.13.3",
         "scipy>=1.3.3",
-        "disjoint-set>=0.7.1"
+        "disjoint-set>=0.7.1",
         "gffutils",
     ],
     python_requires=">=3.6",
