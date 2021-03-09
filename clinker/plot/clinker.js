@@ -78,9 +78,9 @@ function plot(data) {
 		.data([data])
     .call(chart)
 
-  let svg = div.select("svg")
   d3.select("#btn-save-svg")
     .on("click", () => {
+			const svg = div.select("svg.clusterMap")
 			const blob = serialise(svg)
 			download(blob, "clinker.svg")
 		})
