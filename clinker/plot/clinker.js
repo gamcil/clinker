@@ -15,15 +15,12 @@ function serialise(svg) {
 
 	// Draw filtered node in hidden <div> to calculate real bounding box
 	let container = svg.node().parentNode
-	let bboxDiv = document.createElement("div")
-	bboxDiv.setAttribute("visibility", "hidden")
-	bboxDiv.appendChild(node)
-	container.appendChild(bboxDiv)
-	let bbox = d3.select(bboxDiv)
-		.select("g.clusterMapG")
-		.node()
-		.getBBox()
-	bboxDiv.remove()
+	let div = d3.select(container)
+		.append("div")
+		.attr("visibility", "hidden")
+	div.append(() => node)
+	let bbox = div.select("g.clusterMapG").node().getBBox()
+	div.remove()
 
 	const xmlns = "http://www.w3.org/2000/xmlns/"
 	const xlinkns = "http://www.w3.org/1999/xlink"
