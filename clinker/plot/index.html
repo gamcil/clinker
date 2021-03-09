@@ -38,7 +38,14 @@
           Cameron L.M. Gilchrist, Yit-Heng Chooi
           Bioinformatics. doi: https://doi.org/10.1093/bioinformatics/btab007
         </pre>
-        <button id="btn-save-svg">Save SVG</button>
+				<div class="save-buttons">
+					<div class="save-buttons-item">
+						<label for="input-load-data">Load data:</label>
+						<input id="input-load-data" type="file" >
+					</div>
+					<button class="save-buttons-item" id="btn-save-data">Save Data</button>
+					<button class="save-buttons-item" id="btn-save-svg">Save SVG</button>
+				</div>
         <p>Plot arrangement</p>
         <div class="setting">
           <label for="input-scale-factor">Scale factor:</label>
@@ -73,7 +80,7 @@
           <label for="input-locus-name-size">Locus name font size:</label>
           <input type="number" id="input-locus-name-size" min="1" max="20" value="10" default="10">
         </div>
-        <p>Gene arrow shape</p>
+        <p>Gene arrows</p>
         <div class="setting">
           <label for="input-body-height">Body height:</label>
           <input type="number" id="input-body-height" min="1" max="25" value="12" default="12">
@@ -85,6 +92,14 @@
         <div class="setting">
           <label for="input-tip-length">Tip length:</label>
           <input type="number" id="input-tip-length" min="0" max="20" value="12" default="12">
+        </div>
+        <div class="setting">
+          <label for="input-gene-stroke-colour">Stroke colour:</label>
+          <input type="color" id="input-gene-stroke-colour" default="#000000">
+        </div>
+        <div class="setting">
+          <label for="input-gene-stroke-width">Stroke width:</label>
+          <input type="number" id="input-gene-stroke-width" min="0" step=0.1 value="0.5" default="0.5">
         </div>
         <p>Gene labels</p>
         <div class="setting">
@@ -114,6 +129,18 @@
         <div class="setting">
           <label for="select-label-type">Label type:</label>
           <select id="select-label-type"></select>
+        </div>
+        <div class="setting">
+          <label for="input-label-spacing">Spacing from gene:</label>
+          <input type="number" id="input-label-spacing" min="0" value="2" default="2">
+        </div>
+        <div class="setting">
+          <label for="select-label-position">Label position:</label>
+          <select id="select-label-position" name="select-label-position" default="top" value="top">
+            <option value="top">Top</option>
+            <option value="middle">Middle</option>
+            <option value="bottom">Bottom</option>
+          </select>
         </div>
         <p>Scale bar</p>
         <div class="setting">

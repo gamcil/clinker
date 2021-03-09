@@ -1,8 +1,8 @@
 body {
-	margin: 0;
-	padding: 0;
-	overflow: hidden;
-	font-family: sans-serif;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: sans-serif;
 }
 
 div#plot {
@@ -27,28 +27,28 @@ div#plot {
 }
 
 .tooltip:before {
-	content: " ";
-	position: absolute;
-	bottom: 100%;
-	left: 50% ;
-	margin-left: -7px;
+  content: " ";
+  position: absolute;
+  bottom: 100%;
+  left: 50% ;
+  margin-left: -7px;
   border: 10px solid transparent;
   border-bottom-color: black;
 }
 
 .tooltip:after {
-	content: " ";
-	position: absolute;
-	bottom: 100%;
-	left: 50%;
-	margin-left: -5px;
+  content: " ";
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-left: -5px;
   border: 8px solid transparent;
   border-bottom-color: #ddd;
 }
 
 .wrapper-svg {
-	width: 100vw;
-	height: 100vh;
+  width: 100vw;
+  height: 100vh;
 }
 
 .collapsible {
@@ -112,6 +112,19 @@ div#plot {
   font-weight: bold;
 }
 
+.save-buttons {
+	display: flex;
+	flex-direction: column;
+	margin-bottom: 4px;
+}
+
+.save-buttons input {
+	width: 200px;
+}
+.save-buttons-item {
+	margin-bottom: 4px;
+}
+
 .setting {
   display: flex;
   align-items: center;
@@ -141,6 +154,6 @@ div#plot {
   font-size: 11pt;
 }
 
-#div-summary input {
+#div-summary input:not([type=file]) {
 	width: 50px;
 }
