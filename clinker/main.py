@@ -57,7 +57,7 @@ def clinker(
             )
         return
 
-    elif load_session:
+    if load_session:
         LOG.info("Loading session from: %s", session)
         with open(session) as fp:
             globaligner = align.Globaligner.from_json(fp)
