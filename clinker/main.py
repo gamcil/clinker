@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 
 from clinker import align
-from clinker.plot import plot_clusters
+from clinker.plot import plot_clusters, plot_data
 from clinker.classes import find_files, parse_files
 
 
@@ -44,6 +44,18 @@ def clinker(
     LOG.info("Starting clinker")
 
     load_session = session and Path(session).exists()
+
+    # Allow no files, so that user can generate a blank clinker web app
+    # and load in previously saved figure data
+    if not files:
+        LOG.info("No files provided!")
+        if plot:
+            LOG.info("Opening empty clinker web app...")
+            plot_data(
+                dict(clusters=[], links=[], groups=[]),
+                output=None if plot is True else plot
+            )
+        return
 
     if load_session:
         LOG.info("Loading session from: %s", session)
@@ -147,7 +159,7 @@ def get_parser():
         "Cameron Gilchrist, 2020",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("files", help="Gene cluster GenBank files", nargs="+")
+    parser.add_argument("files", help="Gene cluster GenBank files", nargs="*")
 
     alignment = parser.add_argument_group("Alignment options")
     alignment.add_argument(
