@@ -55,7 +55,7 @@ def find_regions(directives):
     return regions
 
 
-def parse_gff(path):
+def cluster_from_gff(path, ranges=None):
     """Parses a GFF3 file using GFFUtils."""
 
     # Check for FASTA file
@@ -77,18 +77,37 @@ def parse_gff(path):
     # Find features for each record in the FASTA file
     loci = []
     for record in fasta:
+        # Check for matching ##sequence-region directive
         try:
-            record_start, _ = regions[record.id]
+            record_start, record_end = regions[record.id]
         except KeyError:
-            record_start = 1
-        features = list(gff.region(seqid=record.id, featuretype="CDS"))
-        features.sort(key=lambda f: f.start)
+            record_start, record_end = 1, len(record)
+
+        # Check for user-specified range
+        if ranges and record.id in ranges:
+            record_start, record_end = ranges[record.id]
+            LOG.info("    Parsing range %s:%i-%i", record.id, record_start, record_end)
+
+            # Adjust FASTA record to match record_start and record_end
+            # -- Default: 0 to end of record
+            # -- ##sequence-region: start to end of directive
+            # -- User-specified range: start to end of range
+            record = record[record_start - 1: record_end]
+
+        # Zero-index the start of the record
+        record_start -= 1
+
+        # Extract features from record within range
+        region = gff.region(
+            seqid=record.id,
+            featuretype="CDS",
+            start=record_start,
+            end=record_end,
+            completely_within=True,
+        )
+        features = sorted(region, key=lambda f: f.start)
         if not features:
             raise ValueError(f"Found no CDS features in {record.id} [{path}]")
-
-        # Calculate offset based on start of record
-        # sequence-region not zero-indexed, so +1
-        record_start -= 1
 
         previous = None
         for feature in features:
@@ -129,19 +148,24 @@ def parse_gff(path):
         genes = []
         for feature in record.features:
             parents = [p for p in gff.parents(gff[feature.id], featuretype="gene")]
-            start, end = None, None
             if parents:
-                start = parents[0].start - record_start - 1
-                end = parents[0].end - record_start
+                # e.g. CDS is within range, but gene UTR is not
+                parent, *_ = parents
+                if parent.start < record_start or parent.end > record_end:
+                    continue
+                start = parent.start
+                end = parent.end
             else:
                 LOG.warning(
                     f"Could not find parent gene of {feature.id}."
                     " Using coding sequence coordinates instead."
                 )
+                start = feature.location.start + record_start
+                end = feature.location.end + record_start
             gene = Gene.from_seqfeature(feature, record, start=start, end=end)
             genes.append(gene)
 
-        locus = Locus(record.id, genes, 0, len(record))
+        locus = Locus(record.id, genes, start=record_start, end=record_end)
         loci.append(locus)
 
     return Cluster(Path(path).stem, loci)
@@ -174,12 +198,27 @@ def get_value(d, keys):
             return d[key]
 
 
-def parse_genbank(path):
+def cluster_from_genbank(path, ranges=None):
+    """Instantiates a new Cluster object from a GenBank file at `path`.
+
+    Args:
+        path (str): Path to GenBank file
+        ranges (dict): Dictionary of scaffold ranges
+    Returns:
+        Cluster
+    """
     path = Path(path)
+    loci = []
     with path.open() as fp:
-        records = SeqIO.parse(fp, "genbank")
-        cluster = Cluster.from_seqrecords(*records, name=path.stem)
-    return cluster
+        for record in SeqIO.parse(fp, "genbank"):
+            if ranges and record.id in ranges:
+                # Look for user-specified range for this record
+                start, end = ranges[record.id]
+                locus = Locus.from_seqrecord(record, start=start, end=end)
+            else:
+                locus = Locus.from_seqrecord(record)
+            loci.append(locus)
+    return Cluster(path.stem, loci)
 
 
 def find_files(paths, recurse=True, level=0):
@@ -197,13 +236,14 @@ def find_files(paths, recurse=True, level=0):
     return files
 
 
-def parse_files(paths):
+def parse_files(paths, ranges=None):
     clusters = []
     for path in paths:
+        LOG.info("  %s", Path(path).name)
         if Path(path).suffix.lower() in GBK_SUFFIXES:
-            cluster = parse_genbank(path)
+            cluster = cluster_from_genbank(path, ranges=ranges)
         elif Path(path).suffix.lower() in GFF_SUFFIXES:
-            cluster = parse_gff(path)
+            cluster = cluster_from_gff(path, ranges=ranges)
         else:
             raise TypeError("File %s does not have GenBank or GFF3 extension")
         clusters.append(cluster)
@@ -358,10 +398,28 @@ class Locus(Serializer):
         )
 
     @classmethod
-    def from_seqrecord(cls, record):
+    def from_seqrecord(cls, record, start=None, end=None):
         """Builds a new Locus from a BioPython SeqRecord."""
+
         if not isinstance(record, SeqRecord.SeqRecord):
-            raise NotImplementedError('Supplied argument is not a valid SeqRecord object')
+            raise TypeError("Expected SeqRecord object")
+
+        ranged = start or end
+        start = start if start else 0
+        end = end if end else len(record)
+        
+        # Manually filter SeqRecord if start or end is specified.
+        # Can directly slice SeqRecord objects, but will automatically adjust
+        # feature locations - we want them as is, since they'll be normalised
+        # by the range during visualisation.
+        if ranged:
+            LOG.info("    Parsing range %s:%i-%i", record.id, start, end)
+            record.features = [
+                feature
+                for feature in record.features
+                if feature.location.start >= start and feature.location.end <= end
+            ]
+            record.seq = record.seq[start - 1: end]
 
         # Find all CDS SeqFeature and gene FeatureLocations
         features = [f for f in record.features if f.type == "CDS"]
@@ -379,12 +437,19 @@ class Locus(Serializer):
             gene = Gene.from_seqfeature(
                 feature,
                 record,
-                start=match.start if match else None,
-                end=match.end if match else None,
+                start=int(match.start) if match else None,
+                end=int(match.end) if match else None,
             )
             if gene:
                 genes.append(gene)
-        return cls(name=record.name, start=0, end=len(record), genes=genes)
+
+        # Instantiate the Locus object
+        return cls(
+            name=record.name,
+            start=start if start else 0,
+            end=end if end else len(record),
+            genes=genes,
+        )
 
     def get_gene(self, label):
         for gene in self.genes:
@@ -438,7 +503,13 @@ class Gene(Serializer):
         return [(key, *self.smcog[key]) for key in ordered]
 
     @classmethod
-    def from_seqfeature(cls, feature, record, start=None, end=None):
+    def from_seqfeature(
+        cls,
+        feature,
+        record,
+        start=None,
+        end=None,
+    ):
         """Builds a new Gene object from a BioPython SeqFeature.
 
         Parameters:
@@ -451,7 +522,7 @@ class Gene(Serializer):
             for k, v in feature.qualifiers.items()
         }
         sequence = feature.extract(record.seq)
-        translation = qualifiers.pop("translation", None) or sequence.translate()
+        translation = qualifiers.pop("translation", sequence.translate())
         return cls(
             names=qualifiers,
             label=get_value(qualifiers, tags),
