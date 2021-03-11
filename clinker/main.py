@@ -24,6 +24,43 @@ logging.basicConfig(
 LOG = logging.getLogger(__name__)
 
 
+def parse_range(string):
+    """Extracts the scaffold name, start and end of a scaffold range string.
+
+    Expects the format scaffold:start-stop (e.g. scaffold_1:100-3000).
+
+    Args:
+        string (str): Scaffold range string
+    Returns:
+        scaffold (str): Scaffold name
+        start (int): Range start
+        end (int): Range end
+    Raises:
+        ValueError: If range is in invalid format (can't split by '-' or ':')
+        TypeError: Range values are not integers
+    """
+    try:
+        scaffold, coordinates = string.split(":")
+        start, end = coordinates.split("-")
+    except ValueError as e:
+        raise ValueError("Expected format scaffold:start-stop (e.g. scaf_1:100-3000)") from e
+    if not start.isdigit() or not end.isdigit():
+        raise TypeError("Expected range values to be type int")
+    return scaffold, int(start), int(end)
+
+
+def parse_ranges(strings):
+    ranges = {}
+    for string in strings:
+        try:
+            scaffold, start, end = parse_range(string)
+        except (ValueError, TypeError):
+            LOG.exception("Failed to read range, please check it's in the right format")
+            raise
+        ranges[scaffold] = (start, end)
+    return ranges
+
+
 def clinker(
     files,
     session=None,
@@ -39,6 +76,7 @@ def clinker(
     use_file_order=False,
     json_indent=None,
     jobs=None,
+    ranges=None,
 ):
     """Entry point for running the script."""
     LOG.info("Starting clinker")
@@ -57,6 +95,10 @@ def clinker(
             )
         return
 
+    # Parse range strings, if any specified
+    if ranges:
+        ranges = parse_ranges(ranges)
+
     if load_session:
         LOG.info("Loading session from: %s", session)
         with open(session) as fp:
@@ -66,8 +108,8 @@ def clinker(
             if not paths:
                 LOG.error("No files found")
                 raise SystemExit
-            LOG.info("Parsing GenBank files: %s", paths)
-            clusters = parse_files(paths)
+            LOG.info("Parsing files:")
+            clusters = parse_files(paths, ranges=ranges)
 
             LOG.info("Adding clusters to loaded session and aligning")
             globaligner.add_clusters(*clusters)
@@ -79,8 +121,8 @@ def clinker(
         if not paths:
             LOG.error("No files found")
             raise SystemExit
-        LOG.info("Parsing GenBank files: %s", paths)
-        clusters = parse_files(paths)
+        LOG.info("Parsing files:")
+        clusters = parse_files(paths, ranges=ranges)
 
         # Align all clusters
         if no_align:
@@ -159,8 +201,18 @@ def get_parser():
         "Cameron Gilchrist, 2020",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("files", help="Gene cluster GenBank files", nargs="*")
     parser.add_argument("--version", action='version', version=f"clinker v{__version__}")
+
+    inputs = parser.add_argument_group("Input options")
+    inputs.add_argument("files", help="Gene cluster GenBank files", nargs="*")
+    inputs.add_argument(
+        "-r",
+        "--ranges",
+        help="Scaffold extraction ranges. If a range is specified, only features within"
+        " the range will be extracted from the scaffold. Ranges should be formatted"
+        " like: scaffold:start-end (e.g. scaffold_1:15000-40000)",
+        nargs="+",
+    )
 
     alignment = parser.add_argument_group("Alignment options")
     alignment.add_argument(
@@ -242,7 +294,8 @@ def main():
         hide_link_headers=args.hide_link_headers,
         hide_alignment_headers=args.hide_aln_headers,
         use_file_order=args.use_file_order,
-        jobs=args.jobs if args.jobs > 0 else None
+        jobs=args.jobs if args.jobs > 0 else None,
+        ranges=args.ranges,
     )
 
 
