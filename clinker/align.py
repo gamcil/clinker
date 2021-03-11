@@ -143,6 +143,19 @@ def compute_identity(alignment):
     return matches / length, (matches + similar) / length
 
 
+def extend_matrix_alphabet(matrix, codes='BXZJUO'):
+    """Extends the alphabet of a given substitution matrix.
+
+    Primarily for adding extended IUPAC codes to a matrix which does
+    not contain them (e.g. BLOSUM62), resulting in a ValueError
+    being thrown during sequence alignment.
+    """
+    missing_codes = set(codes).difference(matrix.alphabet)
+    if missing_codes:
+        missing_codes = ''.join(missing_codes)
+        matrix = matrix.select(matrix.alphabet + missing_codes)
+
+
 class Globaligner(Serializer):
     """Performs and stores alignments.
 
@@ -339,11 +352,20 @@ class Globaligner(Serializer):
         LOG.info("%s vs %s", one.name, two.name)
 
         aligner = Align.PairwiseAligner()
+
+        # Select the substitution matrix.
+        # Defaults to BLOSUM62 when none or invalid matrix specified.
         matrix = config.pop("substitution_matrix", "BLOSUM62")
         if matrix not in substitution_matrices.load():
-            LOG.warning("Invalid substitution matrix (%s), defaulting to BLOSUM62", matrix)
+            LOG.warning("Invalid substitution matrix '(%s)', defaulting to BLOSUM62", matrix)
             matrix = "BLOSUM62"
         aligner.substitution_matrix = substitution_matrices.load(matrix)
+
+        # ValueError is thrown during sequence alignment when a letter
+        # in the sequence is not found in the substitution matrix.
+        # Extended IUPAC codes (BXZJUO) are added to mitigate this.
+        extend_matrix_alphabet(aligner.subsitution_matrix, codes='BXZJUO')
+
         for k, v in config.items():
             setattr(aligner, k, v)
 
