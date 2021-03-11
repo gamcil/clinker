@@ -11,7 +11,7 @@ import logging
 
 from pathlib import Path
 
-from clinker import align
+from clinker import __version__, align
 from clinker.plot import plot_clusters, plot_data
 from clinker.classes import find_files, parse_files
 
@@ -160,6 +160,7 @@ def get_parser():
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("files", help="Gene cluster GenBank files", nargs="*")
+    parser.add_argument("--version", action='version', version=f"clinker v{__version__}")
 
     alignment = parser.add_argument_group("Alignment options")
     alignment.add_argument(
