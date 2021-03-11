@@ -364,7 +364,7 @@ class Globaligner(Serializer):
         # ValueError is thrown during sequence alignment when a letter
         # in the sequence is not found in the substitution matrix.
         # Extended IUPAC codes (BXZJUO) are added to mitigate this.
-        extend_matrix_alphabet(aligner.subsitution_matrix, codes='BXZJUO')
+        extend_matrix_alphabet(aligner.substitution_matrix, codes='BXZJUO')
 
         for k, v in config.items():
             setattr(aligner, k, v)
