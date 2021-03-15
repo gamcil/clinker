@@ -149,8 +149,8 @@ def cluster_from_gff(path, ranges=None):
         for feature in record.features:
             parents = [p for p in gff.parents(gff[feature.id], featuretype="gene")]
             if parents:
-                # e.g. CDS is within range, but gene UTR is not
                 parent, *_ = parents
+                # e.g. CDS is within range, but gene UTR is not
                 if parent.start < record_start or parent.end > record_end:
                     continue
                 start = parent.start
@@ -212,9 +212,8 @@ def cluster_from_genbank(path, ranges=None):
     with path.open() as fp:
         for record in SeqIO.parse(fp, "genbank"):
             if ranges and record.id in ranges:
-                # Look for user-specified range for this record
                 start, end = ranges[record.id]
-                locus = Locus.from_seqrecord(record, start=start, end=end)
+                locus = Locus.from_seqrecord(record, start=start - 1, end=end)
             else:
                 locus = Locus.from_seqrecord(record)
             loci.append(locus)
