@@ -154,6 +154,7 @@ def extend_matrix_alphabet(matrix, codes='BXZJUO'):
     if missing_codes:
         missing_codes = ''.join(missing_codes)
         matrix = matrix.select(matrix.alphabet + missing_codes)
+    return matrix
 
 
 class Globaligner(Serializer):
@@ -364,7 +365,10 @@ class Globaligner(Serializer):
         # ValueError is thrown during sequence alignment when a letter
         # in the sequence is not found in the substitution matrix.
         # Extended IUPAC codes (BXZJUO) are added to mitigate this.
-        extend_matrix_alphabet(aligner.substitution_matrix, codes='BXZJUO')
+        aligner.substitution_matrix = extend_matrix_alphabet(
+            aligner.substitution_matrix,
+            codes='BXZJUO',
+        )
 
         for k, v in config.items():
             setattr(aligner, k, v)
@@ -374,7 +378,14 @@ class Globaligner(Serializer):
             for geneA, geneB in product(locusA.genes, locusB.genes):
                 if not geneA.translation or not geneB.translation:
                     continue
-                aln = aligner.align(geneA.translation, geneB.translation)
+                try:
+                    aln = aligner.align(geneA.translation.strip(),
+                                        geneB.translation.strip())
+                except:
+                    print("Matrix", aligner.substitution_matrix.alphabet)
+                    print("A", geneA.translation)
+                    print("B", geneB.translation)
+                    raise
                 identity, similarity = compute_identity(aln[0])
                 if identity < cutoff:
                     continue
