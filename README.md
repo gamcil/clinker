@@ -1,6 +1,4 @@
 # clinker
-[![DOI](https://zenodo.org/badge/193022148.svg)](https://zenodo.org/badge/latestdoi/193022148)
-
 Gene cluster comparison figure generator
 
 ## What is it?
