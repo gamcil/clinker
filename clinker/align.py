@@ -367,7 +367,7 @@ class Globaligner(Serializer):
         # Extended IUPAC codes (BXZJUO) are added to mitigate this.
         aligner.substitution_matrix = extend_matrix_alphabet(
             aligner.substitution_matrix,
-            codes='BXZJUO',
+            codes='BXZJUO-.',
         )
 
         for k, v in config.items():
