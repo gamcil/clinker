@@ -382,9 +382,6 @@ class Globaligner(Serializer):
                     aln = aligner.align(geneA.translation.strip(),
                                         geneB.translation.strip())
                 except:
-                    print("Matrix", aligner.substitution_matrix.alphabet)
-                    print("A", geneA.translation)
-                    print("B", geneB.translation)
                     raise
                 identity, similarity = compute_identity(aln[0])
                 if identity < cutoff:
