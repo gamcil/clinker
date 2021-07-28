@@ -1,0 +1,13 @@
+cff-version: 1.1.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Gilchrist
+    given-names: Cameron
+    orcid: https://orcid.org/0000-0001-7798-427X
+  - family-names: Chooi
+    given-names: Yit-Heng
+    orcid: https://orcid.org/0000-0001-7719-7524
+title: "clinker & clustermap.js: automatic generation of gene cluster comparison figures"
+version: 0.0.21
+doi: 10.1093/bioinformatics/btab007
+date-released: 2021-05-28
