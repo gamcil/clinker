@@ -540,6 +540,18 @@ class Globaligner(Serializer):
             np.fill_diagonal(matrix, 0)
         return matrix
 
+    def format_matrix(self, delimiter=",", **kwargs):
+        """Generates a formatted distance matrix of stored clusters."""
+        matrix = self.matrix(**kwargs)
+        names = [self.clusters[uid].name for uid in self.clusters]
+        header = ["", *names]
+        result = [header]
+        for index, row in enumerate(matrix):
+            name = names[index]
+            values = [str(value) for value in row]
+            result.append([name, *values])
+        return "\n".join(delimiter.join(row) for row in result)
+
     def order(self, i=0.5, method="ward"):
         """Determines optimal order of clusters using hierarchical clustering.
 

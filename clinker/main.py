@@ -77,6 +77,7 @@ def clinker(
     json_indent=None,
     jobs=None,
     ranges=None,
+    matrix_out=None,
 ):
     """Entry point for running the script."""
     LOG.info("Starting clinker")
@@ -152,6 +153,12 @@ def clinker(
                     fp.write(summary)
         else:
             print(summary)
+        if matrix_out:
+            LOG.info("Writing synteny matrix to: %s", matrix_out)
+            matrix = globaligner.format_matrix(normalise=True, as_distance=True)
+            with open(matrix_out, "w") as fp:
+                fp.write(matrix)
+
     else:
         LOG.info("No alignments were generated")
 
@@ -265,6 +272,7 @@ def get_parser():
         help="Hide alignment cluster name headers",
         action="store_true",
     )
+    output.add_argument("-mo", "--matrix_out", help="Save cluster similarity matrix to file")
 
     viz = parser.add_argument_group("Visualisation options")
     viz.add_argument(
@@ -296,6 +304,7 @@ def main():
         use_file_order=args.use_file_order,
         jobs=args.jobs if args.jobs > 0 else None,
         ranges=args.ranges,
+        matrix_out=args.matrix_out,
     )
 
 
