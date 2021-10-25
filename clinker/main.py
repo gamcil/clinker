@@ -8,8 +8,11 @@ Cameron Gilchrist
 
 import argparse
 import logging
+import csv
 
 from pathlib import Path
+from collections import defaultdict
+from typing import TextIO, Dict, List
 
 from clinker import __version__, align
 from clinker.plot import plot_clusters, plot_data
@@ -61,6 +64,20 @@ def parse_ranges(strings):
     return ranges
 
 
+def parse_gene_functions(fp: TextIO) -> Dict[str, List[str]]:
+    """Parses gene functions from a table.
+
+    Gene        Function
+    GENE_001    Cytochrome P450 
+    GENE_002    Methyltransferase
+    ...
+    """
+    functions = defaultdict(list)
+    for gene, function in csv.reader(fp):
+        functions[function].append(gene)
+    return functions
+
+
 def clinker(
     files,
     session=None,
@@ -78,6 +95,7 @@ def clinker(
     jobs=None,
     ranges=None,
     matrix_out=None,
+    gene_functions=None,
 ):
     """Entry point for running the script."""
     LOG.info("Starting clinker")
@@ -100,6 +118,10 @@ def clinker(
     if ranges:
         ranges = parse_ranges(ranges)
 
+    # Parse any gene functions for grouping, if specified
+    if gene_functions:
+        gene_functions = parse_gene_functions(gene_functions)
+
     if load_session:
         LOG.info("Loading session from: %s", session)
         with open(session) as fp:
@@ -115,6 +137,7 @@ def clinker(
             LOG.info("Adding clusters to loaded session and aligning")
             globaligner.add_clusters(*clusters)
             globaligner.align_stored_clusters(cutoff=identity, jobs=jobs)
+            globaligner.build_gene_groups(functions=gene_functions)
             load_session = False
     else:
         # Parse files, generate objects
@@ -134,6 +157,7 @@ def clinker(
         else:
             LOG.info("Starting cluster alignments")
             globaligner = align.align_clusters(*clusters, cutoff=identity, jobs=jobs)
+            globaligner.build_gene_groups(functions=gene_functions)
 
     if globaligner.alignments:
         LOG.info("Generating results summary...")
@@ -220,6 +244,13 @@ def get_parser():
         " like: scaffold:start-end (e.g. scaffold_1:15000-40000)",
         nargs="+",
     )
+    inputs.add_argument(
+        "-gf",
+        "--gene_functions",
+        help="2-column CSV file containing gene functions, used to build gene groups"
+        " from same function instead of sequence similarity.",
+        type=argparse.FileType("r")
+    )
 
     alignment = parser.add_argument_group("Alignment options")
     alignment.add_argument(
@@ -305,6 +336,7 @@ def main():
         jobs=args.jobs if args.jobs > 0 else None,
         ranges=args.ranges,
         matrix_out=args.matrix_out,
+        gene_functions=args.gene_functions,
     )
 
 
