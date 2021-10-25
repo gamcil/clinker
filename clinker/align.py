@@ -8,11 +8,13 @@ Cameron Gilchrist
 
 import logging
 import uuid
+import csv
 
 from collections import defaultdict, OrderedDict
 from functools import partial
 from itertools import combinations, product
 from multiprocessing import Pool
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -414,12 +416,37 @@ class Globaligner(Serializer):
         for alignment in alignments:
             self.add_alignment(alignment)
 
-        self.build_gene_groups()
+    def get_gene_uid(self, gene: str) -> Optional[str]:
+        """Find UID of a gene stored in the Globaligner given some label."""
+        for uid, _gene in self._genes.items():
+            if _gene.label == gene:
+                return uid
 
-    def build_gene_groups(self):
+    def get_gene_uids(self, genes: List[str]) -> Optional[List[str]]:
+        """Find UIDs of a collection of genes stored in the Globaligner."""
+        uids = []
+        for gene in genes:
+            uid = self.get_gene_uid(gene)
+            if not uid:
+                LOG.warning("Failed to find gene: %s", gene)
+                continue
+            uids.append(uid)
+        return uids
+
+    def build_gene_groups(self, functions: Optional[Dict[str, List[str]]]=None) -> None:
         """Builds gene groups based on currently stored gene-gene links."""
+        self.groups = []
+        seen = set()
+        if functions:
+            for function, genes in functions.items():
+                uids = self.get_gene_uids(genes)
+                group = Group(label=function, genes=uids)
+                self.groups.append(group)
+                seen.update(uids)
         ds = DisjointSet()
         for link in self._links.values():
+            if link.query.uid in seen or link.target.uid in seen:
+                continue
             ds.union(link.query.uid, link.target.uid)
         for genes in ds.itersets():
             group = Group(label=f"Group {len(self.groups)}", genes=list(genes))
