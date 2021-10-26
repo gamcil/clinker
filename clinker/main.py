@@ -248,7 +248,7 @@ def get_parser():
         "-gf",
         "--gene_functions",
         help="2-column CSV file containing gene functions, used to build gene groups"
-        " from same function instead of sequence similarity.",
+        " from same function instead of sequence similarity (e.g. GENE_001,PKS-NRPS).",
         type=argparse.FileType("r")
     )
 
