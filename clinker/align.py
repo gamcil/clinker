@@ -434,23 +434,39 @@ class Globaligner(Serializer):
         return uids
 
     def build_gene_groups(self, functions: Optional[Dict[str, List[str]]]=None) -> None:
-        """Builds gene groups based on currently stored gene-gene links."""
+        """Builds gene groups based on functions and stored gene-gene links.
+
+        `functions` maps genes to user-assigned functions; keys should correspond
+        to the `label` property of Gene objects. If specified, groups will first
+        be built from these functional groups and extended using gene-gene links.
+        If not, all groups will be built purely from gene-gene links.
+
+        e.g. If genes A and B are both assigned as category Z, and have links to
+             genes C and D, respectively, the result will be a single group Z,
+             containing genes A, B, C and D. Group Z is first made with genes A and B,
+             then extended to include C (because of link to A) and D (link to B).
+        """
         self.groups = []
-        seen = set()
         if functions:
             for function, genes in functions.items():
                 uids = self.get_gene_uids(genes)
-                group = Group(label=function, genes=uids)
+                group = Group(label=function, genes=set(uids))
                 self.groups.append(group)
-                seen.update(uids)
         ds = DisjointSet()
         for link in self._links.values():
-            if link.query.uid in seen or link.target.uid in seen:
-                continue
             ds.union(link.query.uid, link.target.uid)
         for genes in ds.itersets():
-            group = Group(label=f"Group {len(self.groups)}", genes=list(genes))
-            self.groups.append(group)
+            merged = False
+            for group in self.groups:
+                if not genes.isdisjoint(group.genes):
+                    group.genes.update(genes)
+                    merged = True
+                    break
+            if not merged:
+                group = Group(label=f"Group {len(self.groups)}", genes=set(genes))
+                self.groups.append(group)
+        for group in self.groups:
+            group.genes = list(group.genes)
 
     def configure_aligner(self, **kwargs):
         """Change properties on the BioPython.PairwiseAligner object.
