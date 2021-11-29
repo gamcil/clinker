@@ -66,7 +66,7 @@ def serve_html(data):
         # Automatically open web browser to bound address
         address, port = httpd.server_address
         url = f"http://{address}:{port}/"
-        webbrowser.open(url)
+        # webbrowser.open(url)
 
         # Start serving the plot; shutdown on a keyboard interrupt
         try:
@@ -118,6 +118,5 @@ def plot_clusters(clusters, output=None, use_file_order=False):
 def plot_data(data, output=None):
     if output:
         save_html(data, output)
-        webbrowser.open(output)
     else:
         serve_html(data)
