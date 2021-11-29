@@ -152,6 +152,7 @@ def clinker(
         if no_align:
             globaligner = align.Globaligner()
             globaligner.add_clusters(*clusters)
+            globaligner.build_gene_groups(functions=gene_functions)
         elif len(clusters) == 1:
             globaligner = align.align_clusters(clusters[0], jobs=1)
         else:

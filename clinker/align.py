@@ -419,7 +419,7 @@ class Globaligner(Serializer):
     def get_gene_uid(self, gene: str) -> Optional[str]:
         """Find UID of a gene stored in the Globaligner given some label."""
         for uid, _gene in self._genes.items():
-            if _gene.label == gene:
+            if any(gene == value for value in _gene.names.values()):
                 return uid
 
     def get_gene_uids(self, genes: List[str]) -> Optional[List[str]]:
@@ -452,6 +452,10 @@ class Globaligner(Serializer):
                 uids = self.get_gene_uids(genes)
                 group = Group(label=function, genes=set(uids))
                 self.groups.append(group)
+        if not self._links:
+            for group in self.groups:
+                group.genes = list(group.genes)
+            return
         ds = DisjointSet()
         for link in self._links.values():
             ds.union(link.query.uid, link.target.uid)
