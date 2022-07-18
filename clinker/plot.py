@@ -66,7 +66,7 @@ def serve_html(data):
         # Automatically open web browser to bound address
         address, port = httpd.server_address
         url = f"http://{address}:{port}/"
-        # webbrowser.open(url)
+        webbrowser.open(url)
 
         # Start serving the plot; shutdown on a keyboard interrupt
         try:
