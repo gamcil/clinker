@@ -13,6 +13,16 @@ optimal display order based on cluster similarity, and generate an interactive
 visualisation (using [clustermap.js](https://github.com/gamcil/clustermap.js))
 that can be extensively tweaked before being exported as an SVG file.
 
+### A note on scope:
+clinker was designed primarily as a simple way to visualise groups of homologous
+biosynthetic gene clusters, which are typically small genomic regions with not many genes
+(as in the example GIF). It performs pairwise alignments of all genes in all input files using
+the aligner built into BioPython, then generates an interactive SVG document in the browser.
+The alignment stage will scale very poorly to multiple genomes with many genes, and the resulting
+visualisation will also be very slow given how many SVG elements it will contain.
+If you are looking to align entire genomes, you will likely be better served using 
+tools built for that purpose (e.g. [Cactus](https://github.com/ComparativeGenomicsToolkit/cactus)).
+
 ![clinker visualisation demo](images/demo.gif)
 
 ## Installation
