@@ -62,7 +62,12 @@ This will read in all GenBank files inside the folder, align them, and print
 the alignments to the terminal. To generate the visualisation, use the `-p/--plot`
 argument: 
 
-`usage: clinker [-h] [--version] [-r RANGES [RANGES ...]] [-gf GENE_FUNCTIONS] [-na] [-i IDENTITY] [-j JOBS] [-s SESSION] [-ji JSON_INDENT] [-f] [-o OUTPUT] [-p [PLOT]] [-dl DELIMITER] [-dc DECIMALS] [-hl] [-ha] [-mo MATRIX_OUT] [-ufo] [files ...]
+`clinker clusters/*.gbk -p <optional: file name to save static HTML>`
+
+See `-h/--help` for more information:
+
+```
+usage: clinker [-h] [--version] [-r RANGES [RANGES ...]] [-gf GENE_FUNCTIONS] [-na] [-i IDENTITY] [-j JOBS] [-s SESSION] [-ji JSON_INDENT] [-f] [-o OUTPUT] [-p [PLOT]] [-dl DELIMITER] [-dc DECIMALS] [-hl] [-ha] [-mo MATRIX_OUT] [-ufo] [files ...]
 
 clinker: Automatic creation of publication-ready gene cluster comparison figures.
 
@@ -131,5 +136,4 @@ Save visualisation as a static HTML document:
   $ clinker files/*.gbk -p plot.html
 
 Cameron Gilchrist, 2020
-
 ```
