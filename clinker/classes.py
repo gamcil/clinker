@@ -107,7 +107,7 @@ def cluster_from_gff(path, ranges=None):
         )
         features = sorted(region, key=lambda f: f.start)
         if not features:
-            raise ValueError(f"Found no CDS features in {record.id} [{path}]")
+            LOG.warning("Found no CDS features in %s [%s]", record.id, path)
 
         previous = None
         for feature in features:
