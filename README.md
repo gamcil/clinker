@@ -142,3 +142,19 @@ Save visualisation as a static HTML document:
 
 Cameron Gilchrist, 2020
 ```
+
+## Defining gene groups by function
+
+By default, clinker automatically assigns a name and colour for each group of homologous genes.
+You can instead pre-assign names (i.e. functions) using the `-gf/--gene_functions` argument, which
+takes a 2-column comma-separated file like:
+
+```
+GENE_001,Cytochrome P450 
+GENE_002,Cytochrome P450 
+GENE_003,Methyltransferase
+GENE_004,Methyltransferase
+```
+
+This will generate two groups, Cytochrome P450 (GENE_001 and 002), and Methyltransferase (GENE_003, GENE_004).
+If there any other homologous genes are identified, they will automatically be added to these groups.
