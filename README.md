@@ -69,6 +69,13 @@ argument:
 
 `clinker clusters/*.gbk -p <optional: file name to save static HTML>`
 
+clinker can also parse GFF3 files:
+
+`clinker cluster1.gff3 cluster2.gff3 -p`
+
+Note: a corresponding FASTA file of the same name (extensions ".fa", ".fsa", ".fna", ".fasta" or ".faa") must
+be found in the same directory as the GFF3, i.e. `cluster1.fa` and `cluster2.fa`.
+
 See `-h/--help` for more information:
 
 ```
