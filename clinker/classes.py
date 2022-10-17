@@ -10,6 +10,8 @@ import json
 import logging
 import warnings
 import uuid
+import copy
+import operator
 
 from pathlib import Path
 
@@ -17,7 +19,7 @@ import gffutils
 from gffutils import biopython_integration
 
 from Bio import SeqIO, SeqRecord, BiopythonParserWarning
-from Bio.SeqFeature import FeatureLocation
+from Bio.SeqFeature import SeqFeature, FeatureLocation, CompoundLocation
 
 # ignore malformed locus warnings
 warnings.simplefilter('ignore', BiopythonParserWarning)
@@ -27,6 +29,90 @@ LOG = logging.getLogger(__name__)
 FASTA_SUFFIXES = (".fa", ".fsa", ".fna", ".fasta", ".faa")
 GBK_SUFFIXES = (".gbk", ".gb", ".genbank", ".gbf", ".gbff")
 GFF_SUFFIXES = (".gtf", ".gff", ".gff3")
+
+
+def merge_locations(parts):
+    new_parts = []
+    for i in range(0, len(parts), 2):
+        a, b = parts[i], parts[i + 1]
+        if a.end == b.start:
+            c = FeatureLocation(a.start, b.end, a.strand, a.ref, a.ref_db)
+            new_parts.append(c)
+        else:
+            new_parts.extend(new_parts[i: i + 1])
+    return new_parts
+
+
+def shift_origin(record: SeqRecord) -> SeqRecord:
+    """Sets a new origin on a circular SeqRecord and shifts relevant SeqFeatures.
+
+    Adapted from PyDNA
+    https://github.com/BjornFJohansson/pydna/blob/75fa7e2c783eabfa32f580d7c0ea2620f907390b/src/pydna/dseqrecord.py#L1019
+    """
+
+    # Collect features going across the current origin
+    spanning_origin = []
+    for feature in record.features:
+        if feature.type.lower() not in ('gene', 'cds'):
+            continue
+        if feature.location.parts[0].start < feature.location.parts[-1].end:
+            continue
+        spanning_origin.append(feature)
+
+    if not spanning_origin:
+        LOG.info("No features wrapping the origin")
+        return record
+
+    # New origin will just be before the start of the first feature spanning the origin
+    shift = spanning_origin[0].location.parts[0].start
+
+    LOG.info(f"Found {len(spanning_origin)} features wrapping origin")
+    LOG.info(f"Setting new origin to {shift} (start of {feature.qualifiers.get('locus_tag')[0]})")
+
+    # BioPython-recommended way of shifting origin, but deletes SeqFeatures which span the origin
+    record = record[shift:] + record[:shift]
+    length = len(record)
+
+    if not shift % length:
+        return record  # shift is a multiple of ln or 0
+
+    shift = length - (shift % length)
+
+    for feature in spanning_origin:
+        new_parts = []
+        for part in feature.location.parts:
+            part += shift
+            new_start = part.start % length
+            new_end = part.end % length
+
+            if new_start < new_end:
+                fl = FeatureLocation(new_start, new_end, part.strand, part.ref, part.ref_db)
+                new_parts.append(fl)
+
+            # Fix other features if they now wrap the origin
+            elif new_start > new_end:
+                if part.strand == 1:
+                    fls = [
+                        FeatureLocation(new_start, length, part.strand, part.ref, part.ref_db),
+                        FeatureLocation(0, new_end, part.strand, part.ref, part.ref_db),
+                    ]
+                else:
+                    fls = [
+                        FeatureLocation(0, new_end, part.strand, part.ref, part.ref_db),
+                        FeatureLocation(new_start, length, part.strand, part.ref, part.ref_db),
+                    ]
+                new_parts.extend(fls)
+
+        # Merge parts with identical end/start positions
+        if len(new_parts) > 1:
+            new_parts = merge_locations(new_parts)
+        if len(new_parts) > 1:
+            feature.location = CompoundLocation(final)
+        else:
+            feature.location = new_parts[0]
+
+    record.features.extend(spanning_origin)
+    return record
 
 
 def find_fasta(gff_path):
@@ -198,7 +284,7 @@ def get_value(d, keys):
             return d[key]
 
 
-def cluster_from_genbank(path, ranges=None):
+def cluster_from_genbank(path, ranges=None, set_origin=True):
     """Instantiates a new Cluster object from a GenBank file at `path`.
 
     Args:
@@ -213,9 +299,9 @@ def cluster_from_genbank(path, ranges=None):
         for record in SeqIO.parse(fp, "genbank"):
             if ranges and record.id in ranges:
                 start, end = ranges[record.id]
-                locus = Locus.from_seqrecord(record, start=start - 1, end=end)
+                locus = Locus.from_seqrecord(record, start=start - 1, end=end, set_origin=set_origin)
             else:
-                locus = Locus.from_seqrecord(record)
+                locus = Locus.from_seqrecord(record, set_origin=set_origin)
             loci.append(locus)
     return Cluster(path.stem, loci)
 
@@ -235,12 +321,12 @@ def find_files(paths, recurse=True, level=0):
     return files
 
 
-def parse_files(paths, ranges=None):
+def parse_files(paths, ranges=None, set_origin=True):
     clusters = []
     for path in paths:
         LOG.info("  %s", Path(path).name)
         if Path(path).suffix.lower() in GBK_SUFFIXES:
-            cluster = cluster_from_genbank(path, ranges=ranges)
+            cluster = cluster_from_genbank(path, ranges=ranges, set_origin=set_origin)
         elif Path(path).suffix.lower() in GFF_SUFFIXES:
             cluster = cluster_from_gff(path, ranges=ranges)
         else:
@@ -397,11 +483,16 @@ class Locus(Serializer):
         )
 
     @classmethod
-    def from_seqrecord(cls, record, start=None, end=None):
+    def from_seqrecord(cls, record, set_origin=True, start=None, end=None):
         """Builds a new Locus from a BioPython SeqRecord."""
 
         if not isinstance(record, SeqRecord.SeqRecord):
             raise TypeError("Expected SeqRecord object")
+
+        if set_origin and record.annotations.get('topology') == 'circular':
+            LOG.warning(f"{record.id} is circular, checking for genes spanning the origin")
+            LOG.warning("To disable this behaviour, use --dont_set_origin")
+            record = shift_origin(record)
 
         ranged = start or end
         start = start if start else 0

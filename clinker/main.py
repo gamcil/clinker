@@ -96,6 +96,7 @@ def clinker(
     ranges=None,
     matrix_out=None,
     gene_functions=None,
+    set_origin=False,
 ):
     """Entry point for running the script."""
     LOG.info("Starting clinker")
@@ -132,7 +133,7 @@ def clinker(
                 LOG.error("No files found")
                 raise SystemExit
             LOG.info("Parsing files:")
-            clusters = parse_files(paths, ranges=ranges)
+            clusters = parse_files(paths, ranges=ranges, set_origin=set_origin)
 
             LOG.info("Adding clusters to loaded session and aligning")
             globaligner.add_clusters(*clusters)
@@ -146,7 +147,7 @@ def clinker(
             LOG.error("No files found")
             raise SystemExit
         LOG.info("Parsing files:")
-        clusters = parse_files(paths, ranges=ranges)
+        clusters = parse_files(paths, ranges=ranges, set_origin=set_origin)
 
         # Align all clusters
         if no_align:
@@ -252,6 +253,12 @@ def get_parser():
         " from same function instead of sequence similarity (e.g. GENE_001,PKS-NRPS).",
         type=argparse.FileType("r")
     )
+    inputs.add_argument(
+        "-dso",
+        "--dont_set_origin",
+        help="Don't fix features which cross the origin in circular sequences (GenBank format only)",
+        action="store_true",
+    )
 
     alignment = parser.add_argument_group("Alignment options")
     alignment.add_argument(
@@ -338,6 +345,7 @@ def main():
         ranges=args.ranges,
         matrix_out=args.matrix_out,
         gene_functions=args.gene_functions,
+        set_origin=not args.dont_set_origin,
     )
 
 
