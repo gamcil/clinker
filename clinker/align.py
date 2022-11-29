@@ -110,11 +110,7 @@ def compare_pairs(one, two):
 
 def compute_identity(alignment):
     """Calculates sequence identity/similarity of a BioPython alignment object."""
-    # Aligned strings aren't stored separately, have to split
-    one, _, two, _ = str(alignment).split("\n")
-    length = len(one)
 
-    # Amino acid similarity groups
     similar_acids = [
         {"G", "A", "V", "L", "I"},
         {"F", "Y", "W"},
@@ -124,7 +120,17 @@ def compute_identity(alignment):
         {"D", "E", "N", "Q"},
         {"P"},
     ]
+                
+    try:
+        # Default format changed as of BioPython v1.80
+        # https://github.com/biopython/biopython/issues/4183
+        one, two = alignment
+    except NotImplementedError:
+        one, _, two, _ = str(alignment).split("\n")
 
+    length = len(one)
+
+    # Amino acid similarity groups
     matches, similar = 0, 0
     for i in range(length):
         if one[i] == two[i]:
