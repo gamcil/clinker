@@ -21,7 +21,7 @@ import numpy as np
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 
-from Bio import Align
+from Bio import Align, __version__ as biopython_version
 from Bio.Align import substitution_matrices
 
 from disjoint_set import DisjointSet
@@ -121,11 +121,11 @@ def compute_identity(alignment):
         {"P"},
     ]
                 
-    try:
+    if biopython_version >= "1.80":
         # Default format changed as of BioPython v1.80
         # https://github.com/biopython/biopython/issues/4183
         one, two = alignment
-    except NotImplementedError:
+    else:
         one, _, two, _ = str(alignment).split("\n")
 
     length = len(one)
