@@ -103,18 +103,6 @@ def clinker(
 
     load_session = session and Path(session).exists()
 
-    # Allow no files, so that user can generate a blank clinker web app
-    # and load in previously saved figure data
-    if not files:
-        LOG.info("No files provided!")
-        if plot:
-            LOG.info("Opening empty clinker web app...")
-            plot_data(
-                dict(clusters=[], links=[], groups=[]),
-                output=None if plot is True else plot
-            )
-        return
-
     # Parse range strings, if any specified
     if ranges:
         ranges = parse_ranges(ranges)
@@ -126,7 +114,10 @@ def clinker(
     if load_session:
         LOG.info("Loading session from: %s", session)
         with open(session) as fp:
-            globaligner = align.Globaligner.from_json(fp)
+            try:
+                globaligner = align.Globaligner.from_json(fp)
+            except Exception:
+                LOG.exception("Failed to load session, is '%s' a clinker session?", session) 
         if files:
             paths = find_files(files)
             if not paths:
@@ -144,8 +135,17 @@ def clinker(
         # Parse files, generate objects
         paths = find_files(files)
         if not paths:
-            LOG.error("No files found")
-            raise SystemExit
+            # Allow no files, so that user can generate a blank clinker web app
+            # and load in previously saved figure data
+            if plot:
+                LOG.info("Opening empty clinker web app...")
+                plot_data(
+                    dict(clusters=[], links=[], groups=[]),
+                    output=None if plot is True else plot
+                )
+            else:
+                LOG.error("No files provided!")
+                raise SystemExit
         LOG.info("Parsing files:")
         clusters = parse_files(paths, ranges=ranges, set_origin=set_origin)
 
