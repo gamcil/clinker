@@ -1,6 +1,7 @@
 # clinker
 
->Both cblaster and clinker can now be used without installation on the [CAGECAT webserver](http://cagecat.bioinformatics.nl/).
+>**Temporarily down**
+Both cblaster and clinker can now be used without installation on the [CAGECAT webserver](http://cagecat.bioinformatics.nl/).
 
 Gene cluster comparison figure generator
 
