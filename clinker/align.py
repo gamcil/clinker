@@ -439,7 +439,11 @@ class Globaligner(Serializer):
             uids.append(uid)
         return uids
 
-    def build_gene_groups(self, functions: Optional[Dict[str, List[str]]]=None) -> None:
+    def build_gene_groups(
+            self,
+            functions: Optional[Dict[str, List[str]]]=None,
+            colours: Optional[Dict[str, str]]=None
+        ) -> None:
         """Builds gene groups based on functions and stored gene-gene links.
 
         `functions` maps genes to user-assigned functions; keys should correspond
@@ -457,6 +461,8 @@ class Globaligner(Serializer):
             for function, genes in functions.items():
                 uids = self.get_gene_uids(genes)
                 group = Group(label=function, genes=set(uids))
+                if colours and function in colours:
+                    group.colour = colours[function]
                 self.groups.append(group)
         if not self._links:
             for group in self.groups:

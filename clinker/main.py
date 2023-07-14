@@ -78,6 +78,20 @@ def parse_gene_functions(fp: TextIO) -> Dict[str, List[str]]:
     return functions
 
 
+def parse_colour_map(fp: TextIO) -> Dict[str, str]:
+    """Parses colours from a table.
+
+    Function   Colour
+    Type I     #FF0000
+    Type II    #000000
+    ...
+    """
+    colours = {}
+    for function, colour in csv.reader(fp):
+        colours[function] = colour
+    return colours
+
+
 def clinker(
     files,
     session=None,
@@ -96,6 +110,7 @@ def clinker(
     ranges=None,
     matrix_out=None,
     gene_functions=None,
+    colour_map=None,
     set_origin=False,
 ):
     """Entry point for running the script."""
@@ -110,6 +125,8 @@ def clinker(
     # Parse any gene functions for grouping, if specified
     if gene_functions:
         gene_functions = parse_gene_functions(gene_functions)
+    if colour_map:
+        colour_map = parse_colour_map(colour_map)
 
     if load_session:
         LOG.info("Loading session from: %s", session)
@@ -129,7 +146,7 @@ def clinker(
             LOG.info("Adding clusters to loaded session and aligning")
             globaligner.add_clusters(*clusters)
             globaligner.align_stored_clusters(cutoff=identity, jobs=jobs)
-            globaligner.build_gene_groups(functions=gene_functions)
+            globaligner.build_gene_groups(functions=gene_functions, colours=colour_map)
             load_session = False
     else:
         # Parse files, generate objects
@@ -153,13 +170,13 @@ def clinker(
         if no_align:
             globaligner = align.Globaligner()
             globaligner.add_clusters(*clusters)
-            globaligner.build_gene_groups(functions=gene_functions)
+            globaligner.build_gene_groups(functions=gene_functions, colours=colour_map)
         elif len(clusters) == 1:
             globaligner = align.align_clusters(clusters[0], jobs=1)
         else:
             LOG.info("Starting cluster alignments")
             globaligner = align.align_clusters(*clusters, cutoff=identity, jobs=jobs)
-            globaligner.build_gene_groups(functions=gene_functions)
+            globaligner.build_gene_groups(functions=gene_functions, colours=colour_map)
 
     if globaligner.alignments:
         LOG.info("Generating results summary...")
@@ -254,6 +271,12 @@ def get_parser():
         type=argparse.FileType("r")
     )
     inputs.add_argument(
+        "-cm",
+        "--colour_map",
+        help="2-column CSV file containing gene functions and colours (e.g. GENE_001,#FF0000).",
+        type=argparse.FileType("r")
+    )
+    inputs.add_argument(
         "-dso",
         "--dont_set_origin",
         help="Don't fix features which cross the origin in circular sequences (GenBank format only)",
@@ -345,6 +368,7 @@ def main():
         ranges=args.ranges,
         matrix_out=args.matrix_out,
         gene_functions=args.gene_functions,
+        colour_map=args.colour_map,
         set_origin=not args.dont_set_origin,
     )
 
