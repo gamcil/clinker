@@ -164,3 +164,12 @@ GENE_004,Methyltransferase
 
 This will generate two groups, Cytochrome P450 (GENE_001 and 002), and Methyltransferase (GENE_003, GENE_004).
 If there any other homologous genes are identified, they will automatically be added to these groups.
+
+As of clinker v0.0.28, you can now specify colours for genes defined by the
+`-gf/--gene_functions` argument. To do this, use the `-cm/--colour_map` argument which
+also takes a 2-column CSV file containing the group name and hexadecimal colour code like:
+
+```
+Cytochrome P450,#FF0000
+Methyltransferase,#0000FF
+```
