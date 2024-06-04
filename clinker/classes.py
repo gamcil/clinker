@@ -606,7 +606,7 @@ class Gene(Serializer):
             feature (SeqFeature): BioPython SeqFeature object
             record (SeqRecord): BioPython SeqRecord object (parent of feature)
         """
-        tags = ("protein_id", "locus_tag", "id", "gene", "label", "name")
+        tags = ("protein_id", "locus_tag", "id", "ID", "gene", "label", "name")
         qualifiers = {
             k: v[0] if isinstance(v, list) else v
             for k, v in feature.qualifiers.items()
