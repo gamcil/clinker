@@ -112,6 +112,7 @@ def clinker(
     gene_functions=None,
     colour_map=None,
     set_origin=False,
+    as_separate_clusters=False,
 ):
     """Entry point for running the script."""
     LOG.info("Starting clinker")
@@ -164,7 +165,12 @@ def clinker(
                 LOG.error("No files provided!")
                 raise SystemExit
         LOG.info("Parsing files:")
-        clusters = parse_files(paths, ranges=ranges, set_origin=set_origin)
+        clusters = parse_files(
+            paths,
+            ranges=ranges,
+            set_origin=set_origin,
+            as_separate_clusters=as_separate_clusters,
+        )
 
         # Align all clusters
         if no_align:
@@ -282,6 +288,13 @@ def get_parser():
         help="Don't fix features which cross the origin in circular sequences (GenBank format only)",
         action="store_true",
     )
+    inputs.add_argument(
+        "-asc",
+        "--as_separate_clusters",
+        help="Records will be parsed into separate clusters. "
+        "Enable this option when the GenBank file you downloaded from NCBI contains multiple sequences.",
+        action="store_true",
+    )
 
     alignment = parser.add_argument_group("Alignment options")
     alignment.add_argument(
@@ -370,6 +383,7 @@ def main():
         gene_functions=args.gene_functions,
         colour_map=args.colour_map,
         set_origin=not args.dont_set_origin,
+        as_separate_clusters=args.as_separate_clusters,
     )
 
 

@@ -306,6 +306,31 @@ def cluster_from_genbank(path, ranges=None, set_origin=True):
     return Cluster(path.stem, loci)
 
 
+def clusters_from_genbank(path, ranges=None, set_origin=True):
+    """Records are parsed as separate clusters from a single Genbank file.
+
+    Args:
+    path (str): Path to GenBank file
+    ranges (dict): Dictionary of scaffold ranges
+    Returns:
+        Cluster
+    """
+    clusters = []
+    path = Path(path)
+    with open(path) as fp:
+        for record in SeqIO.parse(fp, "genbank"):
+            if ranges and record.id in ranges:
+                start, end = ranges[record.id]
+                locus = Locus.from_seqrecord(
+                    record, start=start - 1, end=end, set_origin=set_origin
+                )
+            else:
+                locus = Locus.from_seqrecord(record, set_origin=set_origin)
+            cluster = Cluster(path.stem + record.id, [locus])
+            clusters.append(cluster)
+    return clusters
+
+
 def find_files(paths, recurse=True, level=0):
     files = []
     for path in paths:
@@ -321,17 +346,25 @@ def find_files(paths, recurse=True, level=0):
     return files
 
 
-def parse_files(paths, ranges=None, set_origin=True):
+def parse_files(paths, ranges=None, set_origin=True, as_separate_clusters=False):
     clusters = []
     for path in paths:
         LOG.info("  %s", Path(path).name)
         if Path(path).suffix.lower() in GBK_SUFFIXES:
-            cluster = cluster_from_genbank(path, ranges=ranges, set_origin=set_origin)
+            if as_separate_clusters:
+                clusters.extend(
+                    clusters_from_genbank(path, ranges=ranges, set_origin=set_origin)
+                )
+            else:
+                cluster = cluster_from_genbank(
+                    path, ranges=ranges, set_origin=set_origin
+                )
+                clusters.append(cluster)
         elif Path(path).suffix.lower() in GFF_SUFFIXES:
             cluster = cluster_from_gff(path, ranges=ranges)
+            clusters.append(cluster)
         else:
             raise TypeError("File %s does not have GenBank or GFF3 extension")
-        clusters.append(cluster)
     return clusters
 
 
