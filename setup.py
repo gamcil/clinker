@@ -33,7 +33,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        "biopython>=1.78",
+        "biopython>=1.80",
         "numpy>=1.13.3",
         "scipy>=1.3.3",
         "disjoint-set>=0.7.1",

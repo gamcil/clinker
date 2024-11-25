@@ -645,11 +645,11 @@ class Gene(Serializer):
             for k, v in feature.qualifiers.items()
         }
         sequence = feature.extract(record.seq)
-        translation = qualifiers.pop("translation", sequence.translate())
+        translation = qualifiers.pop("translation", sequence.translate() if sequence.defined else "")
         return cls(
             names=qualifiers,
             label=get_value(qualifiers, tags),
-            sequence=str(sequence),
+            sequence=str(sequence) if sequence.defined else "",
             translation=str(translation),
             start=start if start else int(feature.location.start),
             end=end if end else int(feature.location.end),
