@@ -67,7 +67,7 @@ def shift_origin(record: SeqRecord) -> SeqRecord:
     shift = spanning_origin[0].location.parts[0].start
 
     LOG.info(f"Found {len(spanning_origin)} features wrapping origin")
-    LOG.info(f"Setting new origin to {shift} (start of {feature.qualifiers.get('locus_tag')[0]})")
+    LOG.info(f"Setting new origin to {shift} (start of {spanning_origin[0].qualifiers.get('locus_tag')[0]})")
 
     # BioPython-recommended way of shifting origin, but deletes SeqFeatures which span the origin
     record = record[shift:] + record[:shift]
