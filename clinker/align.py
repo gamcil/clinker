@@ -472,15 +472,17 @@ class Globaligner(Serializer):
         for link in self._links.values():
             ds.union(link.query.uid, link.target.uid)
         for genes in ds.itersets():
-            merged = False
-            for group in self.groups:
-                if not genes.isdisjoint(group.genes):
-                    group.genes.update(genes)
-                    merged = True
-                    break
-            if not merged:
-                group = Group(label=f"Group {len(self.groups)}", genes=set(genes))
+            genes = set(genes)
+            overlaps = [i for i, _ in enumerate(self.groups) if not genes.isdisjoint(group.genes)]
+            if not overlaps:
+                group = Group(label=f"Group {len(self.groups)}", genes=genes)
                 self.groups.append(group)
+                continue
+            keep_idx = overlaps[0]
+            self.groups[keep_idx].genes.update(genes)
+            for idx in reversed(overlaps[1:]):
+                self.groups[keep_idx].genes.update(self.groups[idx].genes)
+                del self.groups[idx]
         for group in self.groups:
             group.genes = list(group.genes)
 
