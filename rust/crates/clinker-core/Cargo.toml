@@ -1,0 +1,12 @@
+[package]
+name = "clinker-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared analysis core for clinker"
+
+[dependencies]
+gb-io = "0.9"
+thiserror = "2"
+

@@ -1,0 +1,16 @@
+[package]
+name = "clinker-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Native command-line interface for clinker"
+
+[[bin]]
+name = "clinker-rs"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+clinker-core = { path = "../clinker-core" }
+

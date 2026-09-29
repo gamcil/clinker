@@ -1,0 +1,1 @@
+/Users/gamcil/repos/clinker/rust/target/debug/clinker-rs: /Users/gamcil/repos/clinker/rust/crates/clinker-cli/src/main.rs /Users/gamcil/repos/clinker/rust/crates/clinker-core/src/lib.rs /Users/gamcil/repos/clinker/rust/crates/clinker-core/src/model.rs /Users/gamcil/repos/clinker/rust/crates/clinker-core/src/parse_genbank.rs
