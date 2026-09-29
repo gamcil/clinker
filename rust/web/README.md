@@ -1,10 +1,11 @@
 # Static web prototype
 
 This is a deliberately small static frontend. The browser sends uploaded files
-to `worker.js` once for parsing. It then sends each cluster pair to a small
-pool of `worker.js` instances; the workers return pairwise links, which are
-combined with the original cluster metadata before drawing.
-by the existing `clustermap.js` assets. No file contents are uploaded.
+to `worker.js` once for parsing. It then sends small protein-block tiles to a
+pool of `worker.js` instances; the workers perform up to 400 gene comparisons
+per tile and return retained links. Those links are combined with the original
+cluster metadata and drawn by the existing `clustermap.js` assets. No file
+contents are uploaded.
 
 ## Build for local preview or static hosting
 

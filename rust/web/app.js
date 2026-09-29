@@ -3,7 +3,10 @@ const identityInput = document.querySelector("#identity");
 const analyseButton = document.querySelector("#analyse");
 const status = document.querySelector("#status");
 const plot = d3.select("#plot");
-let chart;
+const GENES_PER_TILE_SIDE = 20;
+// Keep one chart instance, as the original clustermap integration does. The
+// library retains its renderer state on this object between redraws.
+const chart = ClusterMap.ClusterMap();
 
 function workerCount(taskCount) {
   // Each worker owns a separate Wasm instance and its alignment buffers. A
@@ -20,12 +23,7 @@ function copyFiles(files, fileIndexes) {
   }));
 }
 
-function clusterPairs(files) {
-  return files.flatMap((_, queryIndex) =>
-    files.slice(queryIndex + 1).map((_, offset) => [queryIndex, queryIndex + offset + 1]));
-}
-
-function parseClusterMetadata(files) {
+function parseInputFiles(files) {
   const worker = new Worker("worker.js", { type: "module" });
   const taskFiles = copyFiles(files, files.map((_, index) => index));
 
@@ -36,7 +34,7 @@ function parseClusterMetadata(files) {
     };
     worker.onmessage = ({ data }) => {
       if (data.type === "error") finish(reject, new Error(data.message));
-      else finish(resolve, data.plotData);
+      else finish(resolve, data.parsed);
     };
     worker.onerror = event => finish(reject, new Error(event.message || "Worker failed"));
     worker.postMessage(
@@ -46,23 +44,59 @@ function parseClusterMetadata(files) {
   });
 }
 
-function plotLink(pairLink, [queryCluster, targetCluster]) {
+function proteinsByCluster(proteins, clusterCount) {
+  const clusters = Array.from({ length: clusterCount }, () => []);
+  proteins.forEach(protein => clusters[protein.cluster].push(protein));
+  return clusters;
+}
+
+function tileCount(clusters) {
+  let count = 0;
+  for (let queryCluster = 0; queryCluster < clusters.length; queryCluster += 1) {
+    for (let targetCluster = queryCluster + 1; targetCluster < clusters.length; targetCluster += 1) {
+      count += Math.ceil(clusters[queryCluster].length / GENES_PER_TILE_SIDE)
+        * Math.ceil(clusters[targetCluster].length / GENES_PER_TILE_SIDE);
+    }
+  }
+  return count;
+}
+
+function* alignmentTiles(clusters) {
+  for (let queryCluster = 0; queryCluster < clusters.length; queryCluster += 1) {
+    for (let targetCluster = queryCluster + 1; targetCluster < clusters.length; targetCluster += 1) {
+      const queryProteins = clusters[queryCluster];
+      const targetProteins = clusters[targetCluster];
+      for (let queryStart = 0; queryStart < queryProteins.length; queryStart += GENES_PER_TILE_SIDE) {
+        for (let targetStart = 0; targetStart < targetProteins.length; targetStart += GENES_PER_TILE_SIDE) {
+          yield {
+            query: queryProteins.slice(queryStart, queryStart + GENES_PER_TILE_SIDE),
+            target: targetProteins.slice(targetStart, targetStart + GENES_PER_TILE_SIDE),
+          };
+        }
+      }
+    }
+  }
+}
+
+function plotLink(link) {
   return {
-    query: { uid: `gene-${queryCluster}-${pairLink.query.locus}-${pairLink.query.gene}` },
-    target: { uid: `gene-${targetCluster}-${pairLink.target.locus}-${pairLink.target.gene}` },
-    identity: pairLink.identity,
-    similarity: pairLink.similarity,
+    query: { uid: `gene-${link.query.cluster}-${link.query.locus}-${link.query.gene}` },
+    target: { uid: `gene-${link.target.cluster}-${link.target.locus}-${link.target.gene}` },
+    identity: link.identity,
+    similarity: link.similarity,
   };
 }
 
-function analysePairsInWorkerPool(files, identity, onProgress) {
-  const pairIndexes = clusterPairs(files);
-  if (pairIndexes.length === 0) return Promise.resolve([]);
+function analyseTilesInWorkerPool(proteins, clusterCount, identity, onProgress) {
+  const clusters = proteinsByCluster(proteins, clusterCount);
+  const totalTiles = tileCount(clusters);
+  if (totalTiles === 0) return Promise.resolve([]);
+  const tiles = alignmentTiles(clusters);
   const workers = Array.from(
-    { length: workerCount(pairIndexes.length) },
+    { length: workerCount(totalTiles) },
     () => new Worker("worker.js", { type: "module" }),
   );
-  const linksByTask = new Array(pairIndexes.length);
+  const linksByTask = new Array(totalTiles);
   let nextTask = 0;
   let completed = 0;
   let settled = false;
@@ -81,14 +115,10 @@ function analysePairsInWorkerPool(files, identity, onProgress) {
     };
 
     const dispatch = worker => {
-      if (nextTask === pairIndexes.length) return;
+      if (nextTask === totalTiles) return;
       const taskIndex = nextTask++;
-      const fileIndexes = pairIndexes[taskIndex];
-      const taskFiles = copyFiles(files, fileIndexes);
-      worker.postMessage(
-        { type: "analyse-pair", files: taskFiles, identity, fileIndexes, taskIndex },
-        taskFiles.map(file => file.bytes.buffer),
-      );
+      const tile = tiles.next().value;
+      worker.postMessage({ type: "analyse-tile", ...tile, identity, taskIndex });
     };
 
     workers.forEach(worker => {
@@ -99,10 +129,10 @@ function analysePairsInWorkerPool(files, identity, onProgress) {
           return;
         }
 
-        linksByTask[data.taskIndex] = data.links.map(link => plotLink(link, data.fileIndexes));
+        linksByTask[data.taskIndex] = data.links.map(plotLink);
         completed += 1;
-        onProgress(completed, pairIndexes.length);
-        if (completed === pairIndexes.length) finish();
+        onProgress(completed, totalTiles);
+        if (completed === totalTiles) finish();
         else dispatch(worker);
       };
       worker.onerror = event => finish(new Error(event.message || "Worker failed"));
@@ -126,22 +156,33 @@ analyseButton.addEventListener("click", async () => {
   analyseButton.disabled = true;
   try {
     status.textContent = "Reading files…";
-    const files = await Promise.all([...filesInput.files].map(async file => ({
+    let files = await Promise.all([...filesInput.files].map(async file => ({
       name: file.name,
       bytes: new Uint8Array(await file.arrayBuffer()),
     })));
     status.textContent = "Parsing GenBank files locally…";
-    const metadata = await parseClusterMetadata(files);
-    const totalPairs = clusterPairs(files).length;
-    status.textContent = `Analysing locally… 0/${totalPairs} cluster pairs`;
-    const links = await analysePairsInWorkerPool(files, identity, (completed, total) => {
-      status.textContent = `Analysing locally… ${completed}/${total} cluster pairs`;
-    });
-    const plotData = { clusters: metadata.clusters, links, groups: [] };
+    const parsed = await parseInputFiles(files);
+    files = null;
+    const totalTiles = tileCount(proteinsByCluster(parsed.proteins, parsed.plotData.clusters.length));
+    status.textContent = `Analysing locally… 0/${totalTiles} protein tiles`;
+    const links = await analyseTilesInWorkerPool(
+      parsed.proteins,
+      parsed.plotData.clusters.length,
+      identity,
+      (completed, total) => {
+        status.textContent = `Analysing locally… ${completed}/${total} protein tiles`;
+      },
+    );
+    const plotData = { clusters: parsed.plotData.clusters, links, groups: [] };
     status.textContent = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links.`;
+
+    // clustermap animates parts of a render. Stop those transitions before
+    // removing its SVG so an old render cannot try to update detached nodes.
+    plot.selectAll("*").interrupt();
     plot.selectAll("*").remove();
-    chart = ClusterMap.ClusterMap();
-    plot.datum(plotData).call(chart);
+    // ClusterMap expects its input through a one-element D3 data join (the
+    // same pattern used by clinker/plot/clinker.js), rather than `datum`.
+    plot.data([plotData]).call(chart);
   } catch (error) {
     status.textContent = `Analysis failed: ${error.message || String(error)}`;
   } finally {

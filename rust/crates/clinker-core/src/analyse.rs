@@ -119,6 +119,19 @@ pub struct Link {
     pub similarity: f32,
 }
 
+/// A retained match between two positions in a protein-comparison tile.
+///
+/// The indices refer to the caller-provided query and target slices rather
+/// than loci or clusters. Browser workers use this compact result while the
+/// coordinator retains the corresponding gene references.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ProteinTileMatch {
+    pub query_index: usize,
+    pub target_index: usize,
+    pub identity: f32,
+    pub similarity: f32,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Analysis {
     pub clusters: Vec<Cluster>,
@@ -225,6 +238,50 @@ pub fn analyse_cluster_pair(query: &Cluster, target: &Cluster, identity_cutoff: 
     links
 }
 
+/// Compare the Cartesian product of two protein slices with the clinker
+/// global-alignment metric.
+///
+/// Callers should keep the slices small enough to form a bounded work tile.
+/// The aligner is reused for every pair in the tile.
+pub fn analyse_protein_tile(
+    query: &[&[u8]],
+    target: &[&[u8]],
+    identity_cutoff: f32,
+) -> Vec<ProteinTileMatch> {
+    let mut aligner = ProteinAligner::with_capacity(
+        query
+            .iter()
+            .map(|protein| protein.len())
+            .max()
+            .unwrap_or_default(),
+        target
+            .iter()
+            .map(|protein| protein.len())
+            .max()
+            .unwrap_or_default(),
+    );
+    let mut matches = Vec::new();
+
+    for (query_index, query_protein) in query.iter().enumerate() {
+        for (target_index, target_protein) in target.iter().enumerate() {
+            let ProteinMatch {
+                identity,
+                similarity,
+            } = aligner.compare(query_protein, target_protein);
+            if identity >= identity_cutoff {
+                matches.push(ProteinTileMatch {
+                    query_index,
+                    target_index,
+                    identity,
+                    similarity,
+                });
+            }
+        }
+    }
+
+    matches
+}
+
 fn max_protein_length(cluster: &Cluster) -> usize {
     cluster
         .loci
@@ -237,7 +294,7 @@ fn max_protein_length(cluster: &Cluster) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{AnalysisOptions, InputFile, analyse_genbank};
+    use super::{AnalysisOptions, InputFile, analyse_genbank, analyse_protein_tile};
 
     const FORWARD_CDS: &[u8] =
         br#"LOCUS       FIRST                      9 bp    DNA     linear   UNA 01-JAN-2000
@@ -282,5 +339,18 @@ ORIGIN
             analysis.format_link_summary(),
             "first vs second\n---------------\nQuery  Target  Identity  Similarity\nfirst  second  1.0000    1.0000    "
         );
+    }
+
+    #[test]
+    fn compares_a_bounded_cartesian_product_of_proteins() {
+        let query: [&[u8]; 2] = [b"MST", b"AAA"];
+        let target: [&[u8]; 2] = [b"GGG", b"MST"];
+
+        let matches = analyse_protein_tile(&query, &target, 0.99);
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].query_index, 0);
+        assert_eq!(matches[0].target_index, 1);
+        assert_eq!(matches[0].identity, 1.0);
     }
 }

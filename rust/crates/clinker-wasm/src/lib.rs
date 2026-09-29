@@ -4,8 +4,7 @@
 //! in the platform-independent core crate so the CLI and browser agree.
 
 use clinker_core::{
-    Analysis, AnalysisError, GeneRef, InputFile, Link, PlotData, analyse_cluster_pair,
-    parse_input_files,
+    Analysis, AnalysisError, InputFile, PlotData, analyse_protein_tile, parse_input_files,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -16,42 +15,51 @@ struct BrowserFile {
     bytes: Vec<u8>,
 }
 
-/// A link returned by one cluster-pair worker.
+/// The compact alignment input for one parsed CDS gene.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct BrowserProtein {
+    cluster: usize,
+    locus: usize,
+    gene: usize,
+    translation: String,
+}
+
+/// Metadata and alignment inputs produced by the one-time parsing stage.
 #[derive(Debug, Serialize)]
-struct PairLink {
-    query: PairGeneRef,
-    target: PairGeneRef,
+#[serde(rename_all = "camelCase")]
+struct ParsedBrowserFiles {
+    plot_data: PlotData,
+    proteins: Vec<BrowserProtein>,
+}
+
+/// A retained link returned by an alignment-only worker tile.
+#[derive(Debug, Serialize)]
+struct TileLink {
+    query: BrowserProteinRef,
+    target: BrowserProteinRef,
     identity: f32,
     similarity: f32,
 }
 
 #[derive(Debug, Serialize)]
-struct PairGeneRef {
+struct BrowserProteinRef {
+    cluster: usize,
     locus: usize,
     gene: usize,
 }
 
-impl From<GeneRef> for PairGeneRef {
-    fn from(reference: GeneRef) -> Self {
+impl From<&BrowserProtein> for BrowserProteinRef {
+    fn from(protein: &BrowserProtein) -> Self {
         Self {
-            locus: reference.locus,
-            gene: reference.gene,
+            cluster: protein.cluster,
+            locus: protein.locus,
+            gene: protein.gene,
         }
     }
 }
 
-impl From<Link> for PairLink {
-    fn from(link: Link) -> Self {
-        Self {
-            query: link.query.into(),
-            target: link.target.into(),
-            identity: link.identity,
-            similarity: link.similarity,
-        }
-    }
-}
-
-/// Parse browser-uploaded GenBank files and return plot-ready cluster metadata.
+/// Parse browser-uploaded GenBank files once and return plot metadata plus
+/// compact protein records for alignment workers.
 ///
 /// `files` is an array of `{ name, bytes }` objects. In JavaScript, `bytes`
 /// should be a `Uint8Array`; it is copied into Rust-owned memory before
@@ -60,26 +68,43 @@ impl From<Link> for PairLink {
 pub fn parse_files(files: JsValue) -> Result<JsValue, JsValue> {
     let files = serde_wasm_bindgen::from_value::<Vec<BrowserFile>>(files)
         .map_err(|error| JsValue::from_str(&format!("invalid browser input: {error}")))?;
-    let plot_data =
+    let parsed =
         parse_browser_files(&files).map_err(|error| JsValue::from_str(&error.to_string()))?;
-    serde_wasm_bindgen::to_value(&plot_data)
-        .map_err(|error| JsValue::from_str(&format!("could not encode plot data: {error}")))
+    serde_wasm_bindgen::to_value(&parsed)
+        .map_err(|error| JsValue::from_str(&format!("could not encode parsed files: {error}")))
 }
 
-/// Align exactly two browser-uploaded GenBank files and return their links.
+/// Align the Cartesian product of two compact protein blocks.
 #[wasm_bindgen]
-pub fn analyse_pair(files: JsValue, identity_cutoff: f32) -> Result<JsValue, JsValue> {
-    let files = serde_wasm_bindgen::from_value::<Vec<BrowserFile>>(files)
-        .map_err(|error| JsValue::from_str(&format!("invalid browser input: {error}")))?;
-    if files.len() != 2 {
-        return Err(JsValue::from_str(
-            "a pairwise analysis requires exactly two files",
-        ));
-    }
-    let links = analyse_browser_pair(&files, identity_cutoff)
-        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+pub fn analyse_tile(
+    query: JsValue,
+    target: JsValue,
+    identity_cutoff: f32,
+) -> Result<JsValue, JsValue> {
+    let query = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(query)
+        .map_err(|error| JsValue::from_str(&format!("invalid query proteins: {error}")))?;
+    let target = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(target)
+        .map_err(|error| JsValue::from_str(&format!("invalid target proteins: {error}")))?;
+    let query_sequences = query
+        .iter()
+        .map(|protein| protein.translation.as_bytes())
+        .collect::<Vec<_>>();
+    let target_sequences = target
+        .iter()
+        .map(|protein| protein.translation.as_bytes())
+        .collect::<Vec<_>>();
+    let links = analyse_protein_tile(&query_sequences, &target_sequences, identity_cutoff)
+        .into_iter()
+        .map(|alignment| TileLink {
+            query: (&query[alignment.query_index]).into(),
+            target: (&target[alignment.target_index]).into(),
+            identity: alignment.identity,
+            similarity: alignment.similarity,
+        })
+        .collect::<Vec<_>>();
+
     serde_wasm_bindgen::to_value(&links)
-        .map_err(|error| JsValue::from_str(&format!("could not encode pair links: {error}")))
+        .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
 }
 
 fn input_files(files: &[BrowserFile]) -> Vec<InputFile<'_>> {
@@ -92,34 +117,48 @@ fn input_files(files: &[BrowserFile]) -> Vec<InputFile<'_>> {
         .collect()
 }
 
-fn parse_browser_files(files: &[BrowserFile]) -> Result<PlotData, AnalysisError> {
+fn parse_browser_files(files: &[BrowserFile]) -> Result<ParsedBrowserFiles, AnalysisError> {
     let clusters = parse_input_files(&input_files(files))?;
-    Ok(Analysis {
+    let proteins = clusters
+        .iter()
+        .enumerate()
+        .flat_map(|(cluster_index, cluster)| {
+            cluster
+                .loci
+                .iter()
+                .enumerate()
+                .flat_map(move |(locus_index, locus)| {
+                    locus
+                        .genes
+                        .iter()
+                        .enumerate()
+                        .map(move |(gene_index, gene)| BrowserProtein {
+                            cluster: cluster_index,
+                            locus: locus_index,
+                            gene: gene_index,
+                            translation: gene.translation.clone(),
+                        })
+                })
+        })
+        .collect();
+    let plot_data = Analysis {
         clusters,
         links: Vec::new(),
     }
-    .to_plot_data())
-}
-
-fn analyse_browser_pair(
-    files: &[BrowserFile],
-    identity_cutoff: f32,
-) -> Result<Vec<PairLink>, AnalysisError> {
-    let clusters = parse_input_files(&input_files(files))?;
-    Ok(
-        analyse_cluster_pair(&clusters[0], &clusters[1], identity_cutoff)
-            .into_iter()
-            .map(PairLink::from)
-            .collect(),
-    )
+    .to_plot_data();
+    Ok(ParsedBrowserFiles {
+        plot_data,
+        proteins,
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{BrowserFile, analyse_browser_pair, parse_browser_files};
+    use super::{BrowserFile, analyse_tile, parse_browser_files};
+    use wasm_bindgen::JsValue;
 
     #[test]
-    fn adapter_separates_parsing_from_pairwise_alignment() {
+    fn adapter_separates_parsing_from_tile_alignment() {
         let record = b"LOCUS       TEST                       9 bp    DNA     linear   UNA 01-JAN-2000\nFEATURES             Location/Qualifiers\n     CDS             1..9\n                     /locus_tag=\"test\"\nORIGIN\n        1 atggcttaa\n//\n";
         let files = vec![
             BrowserFile {
@@ -133,11 +172,13 @@ mod tests {
         ];
 
         let data = parse_browser_files(&files).unwrap();
-        let links = analyse_browser_pair(&files, 0.30).unwrap();
-        assert_eq!(data.clusters.len(), 2);
-        assert!(data.links.is_empty());
-        assert_eq!(links.len(), 1);
-        assert_eq!(links[0].query.locus, 0);
-        assert_eq!(links[0].target.gene, 0);
+        assert_eq!(data.plot_data.clusters.len(), 2);
+        assert!(data.plot_data.links.is_empty());
+        assert_eq!(data.proteins.len(), 2);
+
+        // The exported function is exercised by browser/WASM integration; the
+        // parsing test above keeps native unit tests independent of JsValue.
+        let _ = analyse_tile as fn(JsValue, JsValue, f32) -> Result<JsValue, JsValue>;
+        assert_eq!(data.proteins[0].translation, "MA*");
     }
 }

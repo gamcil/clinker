@@ -10,8 +10,8 @@ mod plot_data;
 
 pub use align::ProteinMatch;
 pub use analyse::{
-    Analysis, AnalysisError, AnalysisOptions, GeneRef, InputFile, Link, analyse_cluster_pair,
-    analyse_genbank, parse_input_files,
+    Analysis, AnalysisError, AnalysisOptions, GeneRef, InputFile, Link, ProteinTileMatch,
+    analyse_cluster_pair, analyse_genbank, analyse_protein_tile, parse_input_files,
 };
 pub use model::{Cluster, Gene, Locus};
 pub use parse_genbank::{ParseError, parse_genbank};
