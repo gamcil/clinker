@@ -22,11 +22,8 @@ pub enum ParseError {
     },
 }
 
-/// Parse all records in one GenBank file into a clinker cluster.
-///
 pub fn parse_genbank(file_name: &str, bytes: &[u8]) -> Result<Cluster, ParseError> {
     let mut loci = Vec::new();
-
     for record in SeqReader::new(Cursor::new(bytes)) {
         let record = record?;
         let end = record.len() as usize;
@@ -38,7 +35,6 @@ pub fn parse_genbank(file_name: &str, bytes: &[u8]) -> Result<Cluster, ParseErro
             .enumerate()
             .map(|(index, feature)| gene_from_feature(&record, feature, index))
             .collect::<Result<Vec<_>, _>>()?;
-
         loci.push(Locus {
             name,
             start: 0,
@@ -46,7 +42,6 @@ pub fn parse_genbank(file_name: &str, bytes: &[u8]) -> Result<Cluster, ParseErro
             genes,
         });
     }
-
     Ok(Cluster {
         name: cluster_name(file_name),
         loci,
@@ -80,9 +75,7 @@ fn gene_from_feature(record: &Seq, feature: &Feature, index: usize) -> Result<Ge
             })?;
         translate_standard(&coding_sequence)
     };
-
     let strand = location_strand(&feature.location).unwrap_or(1);
-
     Ok(Gene {
         label,
         names,
@@ -93,13 +86,6 @@ fn gene_from_feature(record: &Seq, feature: &Feature, index: usize) -> Result<Ge
     })
 }
 
-/// Return the enclosing interval for a GenBank location.
-///
-/// `Location::find_bounds` follows the order of `Join` members. That is wrong
-/// for valid reverse-strand spliced CDS written as
-/// `join(complement(high..high), complement(low..low))`: its first start is
-/// greater than its last end. Plot coordinates need the genomic envelope, so
-/// compound locations use the minimum start and maximum end instead.
 fn location_bounds(location: &Location) -> Result<(i64, i64), LocationError> {
     match location {
         Location::Range((start, _), (end, _)) => Ok((*start, *end)),
@@ -117,7 +103,6 @@ fn location_bounds(location: &Location) -> Result<(i64, i64), LocationError> {
 fn bounds_for_parts(parts: &[Location]) -> Result<(i64, i64), LocationError> {
     let mut bounds = parts.iter().map(location_bounds);
     let (mut start, mut end) = bounds.next().ok_or(LocationError::Empty)??;
-
     for part in bounds {
         let (part_start, part_end) = part?;
         start = start.min(part_start);
@@ -126,8 +111,6 @@ fn bounds_for_parts(parts: &[Location]) -> Result<(i64, i64), LocationError> {
     Ok((start, end))
 }
 
-/// Determine a feature's orientation even when each exon carries its own
-/// `complement`, as seen in several GenBank submissions.
 fn location_strand(location: &Location) -> Option<i8> {
     fn visit(location: &Location, orientation: i8) -> Option<i8> {
         match location {
@@ -145,15 +128,10 @@ fn location_strand(location: &Location) -> Option<i8> {
             Location::External(_, None) | Location::Gap(_) => None,
         }
     }
-
     visit(location, 1)
 }
 
 /// Translate an extracted CDS using the standard genetic code.
-///
-/// Unknown codons become `X`, and trailing incomplete codons are ignored. This
-/// matches the useful behavior needed for drawing protein-homology links while
-/// keeping translation independent of Python or a browser runtime.
 fn translate_standard(coding_sequence: &[u8]) -> String {
     coding_sequence
         .chunks_exact(3)

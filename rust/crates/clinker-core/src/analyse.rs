@@ -1,8 +1,8 @@
 use thiserror::Error;
 
-use crate::{Cluster, ProteinMatch, compare_proteins, parse_genbank};
+use crate::align::ProteinAligner;
+use crate::{Cluster, ProteinMatch, parse_genbank};
 
-/// An in-memory input boundary shared by native and browser front ends.
 #[derive(Debug, Clone, Copy)]
 pub struct InputFile<'a> {
     pub name: &'a str,
@@ -23,12 +23,10 @@ impl Default for AnalysisOptions {
 }
 
 impl Analysis {
-    /// Format retained links in the same cluster-pair table layout as the
-    /// original CLI. This is presentation only: callers that need structured
-    /// results should use [`Self::links`] or [`Self::to_plot_data`].
+    /// Format alignment output as in original clinker.
+    /// For structured results use [`Self::links`] or [`Self::to_plot_data`].
     pub fn format_link_summary(&self) -> String {
         let mut sections = Vec::new();
-
         for query_cluster in 0..self.clusters.len() {
             for target_cluster in query_cluster + 1..self.clusters.len() {
                 let links = self
@@ -41,7 +39,6 @@ impl Analysis {
                 if links.is_empty() {
                     continue;
                 }
-
                 let header = format!(
                     "{} vs {}",
                     self.clusters[query_cluster].name, self.clusters[target_cluster].name
@@ -134,15 +131,7 @@ pub fn analyse_genbank(
     files: &[InputFile<'_>],
     options: AnalysisOptions,
 ) -> Result<Analysis, AnalysisError> {
-    let clusters = files
-        .iter()
-        .map(|file| {
-            parse_genbank(file.name, file.bytes).map_err(|source| AnalysisError::Parse {
-                file_name: file.name.to_owned(),
-                source,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+    let clusters = parse_input_files(files)?;
 
     Ok(Analysis {
         links: cross_cluster_links(&clusters, options.identity_cutoff),
@@ -150,46 +139,83 @@ pub fn analyse_genbank(
     })
 }
 
+/// Parse inputs without comparing proteins.
+///
+/// Browser callers use this first to obtain cluster metadata, then distribute
+/// independent pairwise comparisons to workers.
+pub fn parse_input_files(files: &[InputFile<'_>]) -> Result<Vec<Cluster>, AnalysisError> {
+    files
+        .iter()
+        .map(|file| {
+            parse_genbank(file.name, file.bytes).map_err(|source| AnalysisError::Parse {
+                file_name: file.name.to_owned(),
+                source,
+            })
+        })
+        .collect()
+}
+
 fn cross_cluster_links(clusters: &[Cluster], identity_cutoff: f32) -> Vec<Link> {
     let mut links = Vec::new();
 
     for query_cluster_index in 0..clusters.len() {
         for target_cluster_index in query_cluster_index + 1..clusters.len() {
-            for (query_locus_index, query_locus) in
-                clusters[query_cluster_index].loci.iter().enumerate()
-            {
-                for (query_gene_index, query_gene) in query_locus.genes.iter().enumerate() {
-                    for (target_locus_index, target_locus) in
-                        clusters[target_cluster_index].loci.iter().enumerate()
-                    {
-                        for (target_gene_index, target_gene) in
-                            target_locus.genes.iter().enumerate()
-                        {
-                            let ProteinMatch {
-                                identity,
-                                similarity,
-                            } = compare_proteins(
-                                query_gene.translation.as_bytes(),
-                                target_gene.translation.as_bytes(),
-                            );
+            links.extend(
+                analyse_cluster_pair(
+                    &clusters[query_cluster_index],
+                    &clusters[target_cluster_index],
+                    identity_cutoff,
+                )
+                .into_iter()
+                .map(|mut link| {
+                    link.query.cluster = query_cluster_index;
+                    link.target.cluster = target_cluster_index;
+                    link
+                }),
+            );
+        }
+    }
 
-                            if identity >= identity_cutoff {
-                                links.push(Link {
-                                    query: GeneRef {
-                                        cluster: query_cluster_index,
-                                        locus: query_locus_index,
-                                        gene: query_gene_index,
-                                    },
-                                    target: GeneRef {
-                                        cluster: target_cluster_index,
-                                        locus: target_locus_index,
-                                        gene: target_gene_index,
-                                    },
-                                    identity,
-                                    similarity,
-                                });
-                            }
-                        }
+    links
+}
+
+/// Compare every gene in `query` with every gene in `target`.
+///
+/// Returned references are local to this pair: query genes use cluster index
+/// zero and target genes use index one. A caller that combines several pair
+/// jobs assigns their global cluster indices from its own task metadata.
+pub fn analyse_cluster_pair(query: &Cluster, target: &Cluster, identity_cutoff: f32) -> Vec<Link> {
+    let mut links = Vec::new();
+    let mut aligner =
+        ProteinAligner::with_capacity(max_protein_length(query), max_protein_length(target));
+
+    for (query_locus_index, query_locus) in query.loci.iter().enumerate() {
+        for (query_gene_index, query_gene) in query_locus.genes.iter().enumerate() {
+            for (target_locus_index, target_locus) in target.loci.iter().enumerate() {
+                for (target_gene_index, target_gene) in target_locus.genes.iter().enumerate() {
+                    let ProteinMatch {
+                        identity,
+                        similarity,
+                    } = aligner.compare(
+                        query_gene.translation.as_bytes(),
+                        target_gene.translation.as_bytes(),
+                    );
+
+                    if identity >= identity_cutoff {
+                        links.push(Link {
+                            query: GeneRef {
+                                cluster: 0,
+                                locus: query_locus_index,
+                                gene: query_gene_index,
+                            },
+                            target: GeneRef {
+                                cluster: 1,
+                                locus: target_locus_index,
+                                gene: target_gene_index,
+                            },
+                            identity,
+                            similarity,
+                        });
                     }
                 }
             }
@@ -197,6 +223,16 @@ fn cross_cluster_links(clusters: &[Cluster], identity_cutoff: f32) -> Vec<Link> 
     }
 
     links
+}
+
+fn max_protein_length(cluster: &Cluster) -> usize {
+    cluster
+        .loci
+        .iter()
+        .flat_map(|locus| &locus.genes)
+        .map(|gene| gene.translation.len())
+        .max()
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

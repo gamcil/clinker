@@ -1,7 +1,9 @@
 # Static web prototype
 
 This is a deliberately small static frontend. The browser sends uploaded files
-to `worker.js`; the worker invokes `clinker-wasm`; returned plot data is drawn
+to `worker.js` once for parsing. It then sends each cluster pair to a small
+pool of `worker.js` instances; the workers return pairwise links, which are
+combined with the original cluster metadata before drawing.
 by the existing `clustermap.js` assets. No file contents are uploaded.
 
 ## Build for local preview or static hosting

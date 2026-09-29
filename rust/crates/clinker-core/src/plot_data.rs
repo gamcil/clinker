@@ -4,10 +4,7 @@ use serde::Serialize;
 
 use crate::{Analysis, GeneRef};
 
-/// The JSON shape consumed by the existing clustermap.js renderer.
-///
-/// Coordinates remain zero-based and end-exclusive, matching the core model.
-/// The renderer displays them as one-based coordinates itself.
+/// JSON object consumed by clustermap.js.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PlotData {
     pub clusters: Vec<PlotCluster>,
@@ -65,10 +62,8 @@ pub struct PlotGroup {
     pub colour: Option<String>,
 }
 
+/// Convert analysis output to clustermap.js data contract
 impl Analysis {
-    /// Convert analysis output into the stable, compact data contract used by
-    /// the JavaScript visualizer. Protein translations are intentionally left
-    /// out: they are no longer needed once links have been calculated.
     pub fn to_plot_data(&self) -> PlotData {
         let clusters = self
             .clusters
