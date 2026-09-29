@@ -14,8 +14,6 @@ pub enum ParseError {
     GenBank(#[from] gb_io::reader::GbParserError),
     #[error("GenBank record has no LOCUS name")]
     MissingRecordName,
-    #[error("CDS feature {label} has no /translation qualifier")]
-    MissingTranslation { label: String },
     #[error("could not determine coordinates for CDS feature {label}: {source}")]
     FeatureLocation {
         label: String,
@@ -67,33 +65,23 @@ fn gene_from_feature(record: &Seq, feature: &Feature, index: usize) -> Result<Ge
         .collect::<Vec<_>>();
     let label = label_for(feature, index);
     let (start, end) =
-        feature
-            .location
-            .find_bounds()
+        location_bounds(&feature.location).map_err(|source| ParseError::FeatureLocation {
+            label: label.clone(),
+            source,
+        })?;
+    let translation = if let Some(translation) = feature.qualifier_values("translation").next() {
+        translation.split_whitespace().collect()
+    } else {
+        let coding_sequence = record
+            .extract_location(&feature.location)
             .map_err(|source| ParseError::FeatureLocation {
                 label: label.clone(),
                 source,
             })?;
-    let translation = feature
-        .qualifier_values("translation")
-        .next()
-        .map(|translation| translation.split_whitespace().collect())
-        .ok_or_else(|| ParseError::MissingTranslation {
-            label: label.clone(),
-        })?;
-
-    // `gb-io` locations preserve a top-level complement, which is sufficient
-    // for valid CDS locations emitted by the GenBank fixtures used here.
-    let strand = if matches!(feature.location, Location::Complement(_)) {
-        -1
-    } else {
-        1
+        translate_standard(&coding_sequence)
     };
 
-    // Keep `record` in the signature so the next increment can derive a
-    // translation from `record.extract_location(&feature.location)` when an
-    // input CDS has no /translation qualifier.
-    let _ = record;
+    let strand = location_strand(&feature.location).unwrap_or(1);
 
     Ok(Gene {
         label,
@@ -103,6 +91,92 @@ fn gene_from_feature(record: &Seq, feature: &Feature, index: usize) -> Result<Ge
         strand,
         translation,
     })
+}
+
+/// Return the enclosing interval for a GenBank location.
+///
+/// `Location::find_bounds` follows the order of `Join` members. That is wrong
+/// for valid reverse-strand spliced CDS written as
+/// `join(complement(high..high), complement(low..low))`: its first start is
+/// greater than its last end. Plot coordinates need the genomic envelope, so
+/// compound locations use the minimum start and maximum end instead.
+fn location_bounds(location: &Location) -> Result<(i64, i64), LocationError> {
+    match location {
+        Location::Range((start, _), (end, _)) => Ok((*start, *end)),
+        Location::Between(start, end) => Ok((*start, end + 1)),
+        Location::Complement(inner) => location_bounds(inner),
+        Location::Join(parts)
+        | Location::Order(parts)
+        | Location::Bond(parts)
+        | Location::OneOf(parts) => bounds_for_parts(parts),
+        Location::External(_, Some(inner)) => location_bounds(inner),
+        _ => location.find_bounds(),
+    }
+}
+
+fn bounds_for_parts(parts: &[Location]) -> Result<(i64, i64), LocationError> {
+    let mut bounds = parts.iter().map(location_bounds);
+    let (mut start, mut end) = bounds.next().ok_or(LocationError::Empty)??;
+
+    for part in bounds {
+        let (part_start, part_end) = part?;
+        start = start.min(part_start);
+        end = end.max(part_end);
+    }
+    Ok((start, end))
+}
+
+/// Determine a feature's orientation even when each exon carries its own
+/// `complement`, as seen in several GenBank submissions.
+fn location_strand(location: &Location) -> Option<i8> {
+    fn visit(location: &Location, orientation: i8) -> Option<i8> {
+        match location {
+            Location::Range(..) | Location::Between(..) => Some(orientation),
+            Location::Complement(inner) => visit(inner, -orientation),
+            Location::Join(parts)
+            | Location::Order(parts)
+            | Location::Bond(parts)
+            | Location::OneOf(parts) => {
+                let mut strands = parts.iter().filter_map(|part| visit(part, orientation));
+                let strand = strands.next()?;
+                strands.all(|other| other == strand).then_some(strand)
+            }
+            Location::External(_, Some(inner)) => visit(inner, orientation),
+            Location::External(_, None) | Location::Gap(_) => None,
+        }
+    }
+
+    visit(location, 1)
+}
+
+/// Translate an extracted CDS using the standard genetic code.
+///
+/// Unknown codons become `X`, and trailing incomplete codons are ignored. This
+/// matches the useful behavior needed for drawing protein-homology links while
+/// keeping translation independent of Python or a browser runtime.
+fn translate_standard(coding_sequence: &[u8]) -> String {
+    coding_sequence
+        .chunks_exact(3)
+        .map(|codon| amino_acid(codon).unwrap_or('X'))
+        .collect()
+}
+
+fn amino_acid(codon: &[u8]) -> Option<char> {
+    const TABLE: &[u8; 64] = b"FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG";
+    let first = base_index(codon[0])?;
+    let second = base_index(codon[1])?;
+    let third = base_index(codon[2])?;
+    Some(TABLE[first * 16 + second * 4 + third] as char)
+}
+
+fn base_index(base: u8) -> Option<usize> {
+    match base.to_ascii_uppercase() {
+        b'T' | b'U' => Some(0),
+        b'C' => Some(1),
+        b'A' => Some(2),
+        b'G' => Some(3),
+        _ => None,
+    }
 }
 
 fn label_for(feature: &Feature, index: usize) -> String {

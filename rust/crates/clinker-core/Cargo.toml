@@ -7,6 +7,7 @@ repository.workspace = true
 description = "Shared analysis core for clinker"
 
 [dependencies]
+bio = "4"
 gb-io = "0.9"
+serde = { version = "1", features = ["derive"] }
 thiserror = "2"
-

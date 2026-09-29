@@ -1,0 +1,35 @@
+# Static web prototype
+
+This is a deliberately small static frontend. The browser sends uploaded files
+to `worker.js`; the worker invokes `clinker-wasm`; returned plot data is drawn
+by the existing `clustermap.js` assets. No file contents are uploaded.
+
+## Build for local preview or static hosting
+
+The development machine needs Rust's `wasm32-unknown-unknown` target and
+[`wasm-pack`](https://rustwasm.github.io/docs/wasm-pack/). The Homebrew Rust
+installation can coexist with rustup, but the build script explicitly selects
+rustup's Cargo toolchain because that is where the WASM target is installed.
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack
+cd rust/web
+sh build.sh
+python3 -m http.server
+```
+
+`build.sh` finds Cargo-installed `wasm-pack` at `~/.cargo/bin/wasm-pack`, so
+adding that directory to your shell `PATH` is optional.
+
+The WASM package explicitly enables `getrandom`'s browser backend because the
+shared `bio` dependency reaches it transitively. No browser-side randomness is
+used by clinker itself.
+
+Release builds currently skip wasm-opt because wasm-pack does not provide a
+usable Apple Silicon binary in this setup. This changes file size, not analysis
+correctness.
+
+Open the reported local URL; do not open `index.html` directly because module
+workers and WASM modules require HTTP serving. Deploy the contents of this
+directory, including `pkg/`, to GitHub Pages or another static host.

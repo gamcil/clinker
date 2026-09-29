@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>clinker</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="d3.min.js"></script>
+    <script src="clustermap.min.js"></script>
+  </head>
+  <body>
+    <main>
+      <h1>clinker</h1>
+      <p>All parsing and protein comparison run locally in this browser.</p>
+      <label>GenBank files <input id="files" type="file" accept=".gb,.gbk,.genbank" multiple></label>
+      <label>Identity cutoff <input id="identity" type="number" min="0" max="1" step="0.01" value="0.30"></label>
+      <button id="analyse" type="button">Analyse</button>
+      <p id="status" role="status"></p>
+      <div id="plot"></div>
+    </main>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

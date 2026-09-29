@@ -13,4 +13,4 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 clinker-core = { path = "../clinker-core" }
-
+serde_json = "1"

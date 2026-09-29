@@ -1,0 +1,26 @@
+[package]
+name = "clinker-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "WebAssembly adapter for clinker-core"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+clinker-core = { path = "../clinker-core" }
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+wasm-bindgen = "0.2"
+
+# `bio` reaches `getrandom` transitively. On wasm32 without WASI, its browser
+# backend must be selected explicitly.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+
+[package.metadata.wasm-pack.profile.release]
+# wasm-pack has no usable prebuilt wasm-opt for this Apple Silicon setup. This
+# affects output size only; run a compatible optimizer separately later.
+wasm-opt = false
