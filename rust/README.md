@@ -29,6 +29,16 @@ Run all tests from this directory:
 cargo test --workspace
 ```
 
+Run the slower five-example compatibility baseline in release mode:
+
+```bash
+cargo test --release -p clinker-core --test golden_examples -- --ignored
+```
+
+It compares Rust's retained links against a baseline produced by clinker 0.0.32
+with Biopython 1.80, at identity cutoffs of 0.30 and 0.70. It intentionally
+does not assert exact traceback coordinates or all floating-point scores.
+
 Run the early CLI against an existing fixture:
 
 ```bash
