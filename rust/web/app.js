@@ -132,6 +132,8 @@ analyseButton.addEventListener("click", async () => {
     })));
     status.textContent = "Parsing GenBank files locally…";
     const metadata = await parseClusterMetadata(files);
+    const totalPairs = clusterPairs(files).length;
+    status.textContent = `Analysing locally… 0/${totalPairs} cluster pairs`;
     const links = await analysePairsInWorkerPool(files, identity, (completed, total) => {
       status.textContent = `Analysing locally… ${completed}/${total} cluster pairs`;
     });
