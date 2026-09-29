@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
+cd "$(dirname "$0")"
+
 rustup_cargo=$(rustup which cargo)
 rustup_bin=$(dirname "$rustup_cargo")
 wasm_pack="${CARGO_HOME:-$HOME/.cargo}/bin/wasm-pack"
