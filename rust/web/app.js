@@ -8,11 +8,13 @@ const status = document.querySelector("#status");
 const plot = d3.select("#plot");
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
+
 // Keep one chart instance, as the original clustermap integration does. The
 // library retains its renderer state on this object between redraws.
 const chart = ClusterMap.ClusterMap().config({
   link: { bestOnly: true },
   plot: { renderer: "webgpu" },
+  legend: { columns: 4, position: "bottom" },
 });
 let latestSimilarity = null;
 
@@ -362,7 +364,7 @@ analyseButton.addEventListener("click", async () => {
       name: file.name,
       bytes: new Uint8Array(await file.arrayBuffer()),
     })));
-    status.textContent = "Parsing GenBank files locally…";
+    status.textContent = "Parsing GenBank files…";
     const prefilter = {
       enabled: prefilterInput.checked,
       kmerSize: 3,
@@ -371,14 +373,14 @@ analyseButton.addEventListener("click", async () => {
     };
     const parsed = await parseInputFiles(files, prefilter);
     files = null;
-    status.textContent = "Analysing locally… 0%";
+    status.textContent = "Aligning genes… 0%";
     const links = await analyseTilesInWorkerPool(
       parsed.proteins,
       parsed.layout.clusters.length,
       identity,
       parsed.candidatePairs,
       (completedPairs, total) => {
-        status.textContent = `Analysing locally… ${progressPercent(completedPairs, total)}%`;
+        status.textContent = `Aligning genes… ${progressPercent(completedPairs, total)}%`;
       },
     );
     status.textContent = "Building homology groups and ordering clusters…";
