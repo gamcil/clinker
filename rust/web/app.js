@@ -9,13 +9,18 @@ const plot = d3.select("#plot");
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
 
-// Keep one chart instance, as the original clustermap integration does. The
-// library retains its renderer state on this object between redraws.
-const chart = ClusterMap.ClusterMap().config({
-  link: { bestOnly: true },
-  plot: { renderer: "webgpu" },
-  legend: { columns: 4, position: "bottom" },
-});
+function createChart() {
+  return ClusterMap.ClusterMap().config({
+    link: { bestOnly: true },
+    plot: { renderer: "webgpu" },
+    legend: { columns: 4, position: "bottom" },
+  });
+}
+
+// A chart keeps its camera and editable locus state. Each completed analysis
+// is a new dataset, so give it a fresh instance rather than carrying state
+// between positional IDs such as `cluster-0` and `locus-0-0`.
+let chart = createChart();
 let latestSimilarity = null;
 
 function workerCount(taskCount) {
@@ -398,9 +403,9 @@ analyseButton.addEventListener("click", async () => {
     };
     status.textContent = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links; ${displayData.links.length} displayed best links.`;
 
-    // Keep clustermap's SVG mounted. The chart retains it as the target for
-    // controls and D3 transitions; its own joins update the old plot safely.
-    plot.data([displayData]).call(chart);
+    chart.destroy();
+    chart = createChart();
+    plot.datum(displayData).call(chart);
     svgButton.disabled = false;
   } catch (error) {
     status.textContent = `Analysis failed: ${error.message || String(error)}`;
