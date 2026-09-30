@@ -3,6 +3,7 @@ const identityInput = document.querySelector("#identity");
 const prefilterInput = document.querySelector("#prefilter");
 const analyseButton = document.querySelector("#analyse");
 const matrixButton = document.querySelector("#download-matrix");
+const svgButton = document.querySelector("#download-svg");
 const status = document.querySelector("#status");
 const plot = d3.select("#plot");
 const GENES_PER_TILE_SIDE = 40;
@@ -225,6 +226,26 @@ matrixButton.addEventListener("click", () => {
   if (latestSimilarity) downloadSimilarityCsv(latestSimilarity);
 });
 
+function downloadSvg() {
+  const svg = chart.exportSvg();
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  const download = document.createElement("a");
+  download.href = url;
+  download.download = "clinker.svg";
+  document.body.append(download);
+  download.click();
+  download.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+svgButton.addEventListener("click", () => {
+  try {
+    downloadSvg();
+  } catch (error) {
+    status.textContent = `SVG export failed: ${error.message || String(error)}`;
+  }
+});
+
 function postProcess(layout, links) {
   const worker = new Worker("worker.js", { type: "module" });
   return new Promise((resolve, reject) => {
@@ -333,6 +354,7 @@ analyseButton.addEventListener("click", async () => {
 
   analyseButton.disabled = true;
   matrixButton.disabled = true;
+  svgButton.disabled = true;
   latestSimilarity = null;
   try {
     status.textContent = "Reading files…";
@@ -377,6 +399,7 @@ analyseButton.addEventListener("click", async () => {
     // Keep clustermap's SVG mounted. The chart retains it as the target for
     // controls and D3 transitions; its own joins update the old plot safely.
     plot.data([displayData]).call(chart);
+    svgButton.disabled = false;
   } catch (error) {
     status.textContent = `Analysis failed: ${error.message || String(error)}`;
   } finally {
