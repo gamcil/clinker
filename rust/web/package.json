@@ -2,7 +2,7 @@
   "name": "clinker-rust-web",
   "private": true,
   "dependencies": {
-    "clustermap.js": "https://codeload.github.com/gamcil/clustermap.js/tar.gz/3ca8ec2f8aacead65f7261911eeee239422bbc08",
+    "clustermap.js": "https://codeload.github.com/gamcil/clustermap.js/tar.gz/4cbac229efabe79341540f151a83c133978aed45",
     "d3": "7.9.0"
   }
 }

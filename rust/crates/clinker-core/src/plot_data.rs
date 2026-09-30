@@ -26,6 +26,9 @@ pub struct PlotLocus {
     pub name: String,
     pub start: usize,
     pub end: usize,
+    /// Initial horizontal placement in sequence-coordinate units.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<f64>,
     pub genes: Vec<PlotGene>,
 }
 
@@ -90,6 +93,7 @@ impl Analysis {
                             name: locus.name.clone(),
                             start: locus.start,
                             end: locus.end,
+                            offset: None,
                             genes: locus
                                 .genes
                                 .iter()
@@ -143,6 +147,7 @@ impl Analysis {
                 .into_iter()
                 .map(|placement| {
                     let mut locus = original[placement.locus].clone();
+                    locus.offset = placement.offset;
                     if placement.reversed {
                         let sum = locus.start + locus.end;
                         for gene in &mut locus.genes {
@@ -266,5 +271,35 @@ ORIGIN
         assert_eq!(data.clusters[0].uid, "cluster-1");
         assert_eq!(data.links[0].query.uid, "gene-0-0-0");
         assert_eq!(data.links[0].target.uid, "gene-1-0-0");
+    }
+
+    #[test]
+    fn auto_layout_emits_locus_offsets_in_plot_data() {
+        let input =
+            br#"LOCUS       FIRST                      9 bp    DNA     linear   UNA 01-JAN-2000
+FEATURES             Location/Qualifiers
+     CDS             1..9
+                     /locus_tag=\"first\"
+ORIGIN
+        1 atggcttaa
+//
+"#;
+        let files = [
+            InputFile {
+                name: "first.gbk",
+                bytes: input,
+            },
+            InputFile {
+                name: "second.gbk",
+                bytes: input,
+            },
+        ];
+        let analysis = analyse_genbank(&files, AnalysisOptions::default()).unwrap();
+
+        let data = analysis.to_auto_arranged_plot_data(&[0, 1]);
+
+        // A zero offset is meaningful: it overrides default locus packing and
+        // aligns this homologous locus to the first cluster.
+        assert_eq!(data.clusters[1].loci[0].offset, Some(0.0));
     }
 }
