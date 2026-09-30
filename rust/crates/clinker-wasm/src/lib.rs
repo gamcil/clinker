@@ -4,7 +4,8 @@
 //! in the platform-independent core crate so the CLI and browser agree.
 
 use clinker_core::{
-    Analysis, AnalysisError, InputFile, PlotData, analyse_protein_tile, parse_input_files,
+    Analysis, AnalysisError, GeneRef, InputFile, Link, PlotData, PlotGroup, analyse_protein_tile,
+    build_plot_groups, parse_input_files,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -41,11 +42,32 @@ struct TileLink {
     similarity: f32,
 }
 
-#[derive(Debug, Serialize)]
+/// Link shape returned by an alignment worker and later sent to the grouping
+/// worker. It uses positions, rather than renderer UIDs, so Rust can form
+/// groups without reparsing strings.
+#[derive(Debug, Deserialize)]
+struct BrowserLink {
+    query: BrowserProteinRef,
+    target: BrowserProteinRef,
+    identity: f32,
+    similarity: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 struct BrowserProteinRef {
     cluster: usize,
     locus: usize,
     gene: usize,
+}
+
+impl From<BrowserProteinRef> for GeneRef {
+    fn from(reference: BrowserProteinRef) -> Self {
+        Self {
+            cluster: reference.cluster,
+            locus: reference.locus,
+            gene: reference.gene,
+        }
+    }
 }
 
 impl From<&BrowserProtein> for BrowserProteinRef {
@@ -107,6 +129,24 @@ pub fn analyse_tile(
         .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
 }
 
+/// Form homology groups after all alignment tiles have completed.
+#[wasm_bindgen]
+pub fn build_groups(links: JsValue) -> Result<JsValue, JsValue> {
+    let links = serde_wasm_bindgen::from_value::<Vec<BrowserLink>>(links)
+        .map_err(|error| JsValue::from_str(&format!("invalid browser links: {error}")))?
+        .into_iter()
+        .map(|link| Link {
+            query: link.query.into(),
+            target: link.target.into(),
+            identity: link.identity,
+            similarity: link.similarity,
+        })
+        .collect::<Vec<_>>();
+    let groups: Vec<PlotGroup> = build_plot_groups(&links);
+    serde_wasm_bindgen::to_value(&groups)
+        .map_err(|error| JsValue::from_str(&format!("could not encode homology groups: {error}")))
+}
+
 fn input_files(files: &[BrowserFile]) -> Vec<InputFile<'_>> {
     files
         .iter()
@@ -154,7 +194,7 @@ fn parse_browser_files(files: &[BrowserFile]) -> Result<ParsedBrowserFiles, Anal
 
 #[cfg(test)]
 mod tests {
-    use super::{BrowserFile, analyse_tile, parse_browser_files};
+    use super::{BrowserFile, analyse_tile, build_groups, parse_browser_files};
     use wasm_bindgen::JsValue;
 
     #[test]
@@ -179,6 +219,7 @@ mod tests {
         // The exported function is exercised by browser/WASM integration; the
         // parsing test above keeps native unit tests independent of JsValue.
         let _ = analyse_tile as fn(JsValue, JsValue, f32) -> Result<JsValue, JsValue>;
+        let _ = build_groups as fn(JsValue) -> Result<JsValue, JsValue>;
         assert_eq!(data.proteins[0].translation, "MA*");
     }
 }

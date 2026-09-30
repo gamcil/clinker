@@ -4,6 +4,7 @@
 
 mod align;
 mod analyse;
+mod groups;
 mod model;
 mod parse_genbank;
 mod plot_data;
@@ -13,6 +14,7 @@ pub use analyse::{
     Analysis, AnalysisError, AnalysisOptions, GeneRef, InputFile, Link, ProteinTileMatch,
     analyse_cluster_pair, analyse_genbank, analyse_protein_tile, parse_input_files,
 };
+pub use groups::{GeneGroup, build_gene_groups};
 pub use model::{Cluster, Gene, Locus};
 pub use parse_genbank::{ParseError, parse_genbank};
-pub use plot_data::PlotData;
+pub use plot_data::{PlotData, PlotGroup, build_plot_groups};

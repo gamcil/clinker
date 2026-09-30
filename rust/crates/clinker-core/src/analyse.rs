@@ -104,7 +104,7 @@ pub enum AnalysisError {
 }
 
 /// A stable position within this analysis result.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct GeneRef {
     pub cluster: usize,
     pub locus: usize,
@@ -139,7 +139,7 @@ pub struct Analysis {
 }
 
 /// Parse GenBank inputs and retain cross-cluster gene links at the identity
-/// cutoff. Grouping and plot-data serialization follow in later increments.
+/// cutoff.
 pub fn analyse_genbank(
     files: &[InputFile<'_>],
     options: AnalysisOptions,

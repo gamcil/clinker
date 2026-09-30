@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::{Analysis, GeneRef};
+use crate::{Analysis, GeneRef, Link, build_gene_groups};
 
 /// JSON object consumed by clustermap.js.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -52,7 +52,6 @@ pub struct PlotGeneRef {
     pub uid: String,
 }
 
-/// Reserved renderer fields for the later connected-component grouping step.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct PlotGroup {
     pub uid: String,
@@ -119,9 +118,24 @@ impl Analysis {
         PlotData {
             clusters,
             links,
-            groups: Vec::new(),
+            groups: build_plot_groups(&self.links),
         }
     }
+}
+
+/// Convert retained links into clustermap.js homology groups.
+pub fn build_plot_groups(links: &[Link]) -> Vec<PlotGroup> {
+    build_gene_groups(links)
+        .into_iter()
+        .enumerate()
+        .map(|(index, group)| PlotGroup {
+            uid: format!("group-{index}"),
+            label: format!("Group {index}"),
+            genes: group.genes.into_iter().map(gene_ref_id).collect(),
+            hidden: false,
+            colour: None,
+        })
+        .collect()
 }
 
 fn cluster_id(cluster: usize) -> String {
@@ -183,6 +197,7 @@ ORIGIN
         assert_eq!(data.clusters[0].loci[0].genes[0].uid, "gene-0-0-0");
         assert_eq!(data.links[0].query.uid, "gene-0-0-0");
         assert_eq!(data.links[0].target.uid, "gene-1-0-0");
-        assert!(data.groups.is_empty());
+        assert_eq!(data.groups.len(), 1);
+        assert_eq!(data.groups[0].genes, ["gene-0-0-0", "gene-1-0-0"]);
     }
 }

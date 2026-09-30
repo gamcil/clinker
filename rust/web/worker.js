@@ -1,4 +1,4 @@
-import init, { analyse_tile, parse_files } from "./pkg/clinker_wasm.js";
+import init, { analyse_tile, build_groups, parse_files } from "./pkg/clinker_wasm.js";
 
 const wasm = init();
 
@@ -15,6 +15,9 @@ self.onmessage = async ({ data }) => {
         links,
         taskIndex: data.taskIndex,
       });
+    } else if (data.type === "groups") {
+      const groups = build_groups(data.links);
+      self.postMessage({ type: "groups", groups });
     }
   } catch (error) {
     self.postMessage({ type: "error", message: String(error) });

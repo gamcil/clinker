@@ -80,11 +80,43 @@ function* alignmentTiles(clusters) {
 
 function plotLink(link) {
   return {
-    query: { uid: `gene-${link.query.cluster}-${link.query.locus}-${link.query.gene}` },
-    target: { uid: `gene-${link.target.cluster}-${link.target.locus}-${link.target.gene}` },
+    // Keep positional references too: the grouping worker needs them to build
+    // Rust-side union-find components, while clustermap.js uses only `uid`.
+    query: {
+      ...link.query,
+      uid: `gene-${link.query.cluster}-${link.query.locus}-${link.query.gene}`,
+    },
+    target: {
+      ...link.target,
+      uid: `gene-${link.target.cluster}-${link.target.locus}-${link.target.gene}`,
+    },
     identity: link.identity,
     similarity: link.similarity,
   };
+}
+
+function buildGroups(links) {
+  const worker = new Worker("worker.js", { type: "module" });
+  return new Promise((resolve, reject) => {
+    const finish = (callback, value) => {
+      worker.terminate();
+      callback(value);
+    };
+    worker.onmessage = ({ data }) => {
+      if (data.type === "error") finish(reject, new Error(data.message));
+      else finish(resolve, data.groups);
+    };
+    worker.onerror = event => finish(reject, new Error(event.message || "Worker failed"));
+    worker.postMessage({
+      type: "groups",
+      links: links.map(link => ({
+        query: link.query,
+        target: link.target,
+        identity: link.identity,
+        similarity: link.similarity,
+      })),
+    });
+  });
 }
 
 function analyseTilesInWorkerPool(proteins, clusterCount, identity, onProgress) {
@@ -173,7 +205,9 @@ analyseButton.addEventListener("click", async () => {
         status.textContent = `Analysing locally… ${completed}/${total} protein tiles`;
       },
     );
-    const plotData = { clusters: parsed.plotData.clusters, links, groups: [] };
+    status.textContent = "Building homology groups…";
+    const groups = await buildGroups(links);
+    const plotData = { clusters: parsed.plotData.clusters, links, groups };
     status.textContent = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links.`;
 
     // clustermap animates parts of a render. Stop those transitions before
