@@ -9,18 +9,30 @@ self.onmessage = async ({ data }) => {
       const parsed = parse_files(data.files, data.prefilter);
       self.postMessage({ type: "parsed", parsed });
     } else if (data.type === "analyse-tile") {
-      const links = analyse_tile(data.query, data.target, data.identity);
+      const progress = processedPairs => self.postMessage({
+        type: "tile-progress",
+        taskIndex: data.taskIndex,
+        processedPairs,
+      });
+      const links = analyse_tile(data.query, data.target, data.identity, progress);
       self.postMessage({
         type: "tile-result",
         links,
         taskIndex: data.taskIndex,
+        pairCount: data.pairCount,
       });
     } else if (data.type === "analyse-pairs") {
-      const links = analyse_pairs(data.proteins, data.pairs, data.identity);
+      const progress = processedPairs => self.postMessage({
+        type: "tile-progress",
+        taskIndex: data.taskIndex,
+        processedPairs,
+      });
+      const links = analyse_pairs(data.proteins, data.pairs, data.identity, progress);
       self.postMessage({
         type: "tile-result",
         links,
         taskIndex: data.taskIndex,
+        pairCount: data.pairCount,
       });
     } else if (data.type === "post-process") {
       const result = post_process(data.layout, data.links);

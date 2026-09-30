@@ -4,8 +4,8 @@ const prefilterInput = document.querySelector("#prefilter");
 const analyseButton = document.querySelector("#analyse");
 const status = document.querySelector("#status");
 const plot = d3.select("#plot");
-const GENES_PER_TILE_SIDE = 20;
-const PAIRS_PER_TILE = 400;
+const GENES_PER_TILE_SIDE = 40;
+const PAIRS_PER_TILE = 1600;
 // Keep one chart instance, as the original clustermap integration does. The
 // library retains its renderer state on this object between redraws.
 const chart = ClusterMap.ClusterMap();
@@ -61,7 +61,7 @@ function* candidateTiles(proteins, candidatePairs) {
       queryIndex: localIndex(pair.queryIndex),
       targetIndex: localIndex(pair.targetIndex),
     }));
-    yield { type: "analyse-pairs", proteins: tileProteins, pairs };
+    yield { type: "analyse-pairs", proteins: tileProteins, pairs, pairCount: pairs.length };
   }
 }
 
@@ -82,6 +82,16 @@ function tileCount(clusters) {
   return count;
 }
 
+function pairCount(clusters) {
+  let count = 0;
+  for (let queryCluster = 0; queryCluster < clusters.length; queryCluster += 1) {
+    for (let targetCluster = queryCluster + 1; targetCluster < clusters.length; targetCluster += 1) {
+      count += clusters[queryCluster].length * clusters[targetCluster].length;
+    }
+  }
+  return count;
+}
+
 function* alignmentTiles(clusters) {
   for (let queryCluster = 0; queryCluster < clusters.length; queryCluster += 1) {
     for (let targetCluster = queryCluster + 1; targetCluster < clusters.length; targetCluster += 1) {
@@ -93,6 +103,8 @@ function* alignmentTiles(clusters) {
             type: "analyse-tile",
             query: queryProteins.slice(queryStart, queryStart + GENES_PER_TILE_SIDE),
             target: targetProteins.slice(targetStart, targetStart + GENES_PER_TILE_SIDE),
+            pairCount: Math.min(GENES_PER_TILE_SIDE, queryProteins.length - queryStart)
+              * Math.min(GENES_PER_TILE_SIDE, targetProteins.length - targetStart),
           };
         }
       }
@@ -149,11 +161,13 @@ function analyseTilesInWorkerPool(proteins, clusterCount, identity, candidatePai
     : tileCount(clusters);
   if (totalTiles === 0) return Promise.resolve([]);
   const tiles = candidatePairs ? candidateTiles(proteins, candidatePairs) : alignmentTiles(clusters);
+  const totalPairs = candidatePairs ? candidatePairs.length : pairCount(clusters);
   const workers = Array.from(
     { length: workerCount(totalTiles) },
     () => new Worker("worker.js", { type: "module" }),
   );
   const linksByTask = new Array(totalTiles);
+  const processedPairsByTask = new Array(totalTiles).fill(0);
   let nextTask = 0;
   let completed = 0;
   let settled = false;
@@ -175,6 +189,7 @@ function analyseTilesInWorkerPool(proteins, clusterCount, identity, candidatePai
       if (nextTask === totalTiles) return;
       const taskIndex = nextTask++;
       const tile = tiles.next().value;
+      processedPairsByTask[taskIndex] = 0;
       worker.postMessage({ ...tile, identity, taskIndex });
     };
 
@@ -186,9 +201,19 @@ function analyseTilesInWorkerPool(proteins, clusterCount, identity, candidatePai
           return;
         }
 
+        if (data.type === "tile-progress") {
+          processedPairsByTask[data.taskIndex] = data.processedPairs;
+          onProgress(processedPairsByTask.reduce((sum, count) => sum + count, 0), totalPairs);
+          return;
+        }
+
         linksByTask[data.taskIndex] = data.links.map(plotLink);
+        processedPairsByTask[data.taskIndex] = Math.max(
+          processedPairsByTask[data.taskIndex],
+          data.pairCount || processedPairsByTask[data.taskIndex],
+        );
         completed += 1;
-        onProgress(completed, totalTiles);
+        onProgress(processedPairsByTask.reduce((sum, count) => sum + count, 0), totalPairs);
         if (completed === totalTiles) finish();
         else dispatch(worker);
       };
@@ -226,20 +251,16 @@ analyseButton.addEventListener("click", async () => {
     };
     const parsed = await parseInputFiles(files, prefilter);
     files = null;
-    const totalTiles = parsed.candidatePairs
-      ? Math.ceil(parsed.candidatePairs.length / PAIRS_PER_TILE)
-      : tileCount(proteinsByCluster(parsed.proteins, parsed.layout.clusters.length));
-    const mode = parsed.candidatePairs
-      ? `${parsed.candidatePairs.length} k-mer candidate pairs`
-      : `${totalTiles} protein tiles`;
-    status.textContent = `Analysing locally… 0/${totalTiles} ${mode}`;
+    const clusters = proteinsByCluster(parsed.proteins, parsed.layout.clusters.length);
+    const totalPairs = parsed.candidatePairs ? parsed.candidatePairs.length : pairCount(clusters);
+    status.textContent = `Analysing locally… 0/${totalPairs.toLocaleString()} protein pairs`;
     const links = await analyseTilesInWorkerPool(
       parsed.proteins,
       parsed.layout.clusters.length,
       identity,
       parsed.candidatePairs,
-      (completed, total) => {
-        status.textContent = `Analysing locally… ${completed}/${total} protein tiles`;
+      (completedPairs, total) => {
+        status.textContent = `Analysing locally… ${completedPairs.toLocaleString()}/${total.toLocaleString()} protein pairs`;
       },
     );
     status.textContent = "Building homology groups and ordering clusters…";

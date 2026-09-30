@@ -5,9 +5,10 @@
 
 use clinker_core::{
     Analysis, AnalysisError, Cluster, Gene, GeneRef, InputFile, KmerPrefilter, Link, Locus,
-    PlotData, ProteinPair, analyse_protein_pairs, analyse_protein_tile, kmer_candidate_pairs,
-    parse_input_files,
+    PlotData, ProteinPair, analyse_protein_pairs_with_progress, analyse_protein_tile_with_progress,
+    kmer_candidate_pairs, parse_input_files,
 };
+use js_sys::Function;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -160,6 +161,7 @@ pub fn analyse_tile(
     query: JsValue,
     target: JsValue,
     identity_cutoff: f32,
+    progress: &Function,
 ) -> Result<JsValue, JsValue> {
     let query = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(query)
         .map_err(|error| JsValue::from_str(&format!("invalid query proteins: {error}")))?;
@@ -173,15 +175,20 @@ pub fn analyse_tile(
         .iter()
         .map(|protein| protein.translation.as_bytes())
         .collect::<Vec<_>>();
-    let links = analyse_protein_tile(&query_sequences, &target_sequences, identity_cutoff)
-        .into_iter()
-        .map(|alignment| TileLink {
-            query: (&query[alignment.query_index]).into(),
-            target: (&target[alignment.target_index]).into(),
-            identity: alignment.identity,
-            similarity: alignment.similarity,
-        })
-        .collect::<Vec<_>>();
+    let links = analyse_protein_tile_with_progress(
+        &query_sequences,
+        &target_sequences,
+        identity_cutoff,
+        |processed| report_progress(progress, processed),
+    )
+    .into_iter()
+    .map(|alignment| TileLink {
+        query: (&query[alignment.query_index]).into(),
+        target: (&target[alignment.target_index]).into(),
+        identity: alignment.identity,
+        similarity: alignment.similarity,
+    })
+    .collect::<Vec<_>>();
 
     serde_wasm_bindgen::to_value(&links)
         .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
@@ -193,6 +200,7 @@ pub fn analyse_pairs(
     proteins: JsValue,
     pairs: JsValue,
     identity_cutoff: f32,
+    progress: &Function,
 ) -> Result<JsValue, JsValue> {
     let proteins = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(proteins)
         .map_err(|error| JsValue::from_str(&format!("invalid tile proteins: {error}")))?;
@@ -209,7 +217,10 @@ pub fn analyse_pairs(
             target_index: pair.target_index,
         })
         .collect::<Vec<_>>();
-    let links = analyse_protein_pairs(&sequences, &pairs, identity_cutoff)
+    let links =
+        analyse_protein_pairs_with_progress(&sequences, &pairs, identity_cutoff, |processed| {
+            report_progress(progress, processed)
+        })
         .into_iter()
         .map(|alignment| TileLink {
             query: (&proteins[alignment.query_index]).into(),
@@ -221,6 +232,12 @@ pub fn analyse_pairs(
 
     serde_wasm_bindgen::to_value(&links)
         .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
+}
+
+fn report_progress(progress: &Function, processed: usize) {
+    // `postMessage` only enqueues a parent-worker event; it does not yield or
+    // interrupt the synchronous Wasm alignment loop.
+    let _ = progress.call1(&JsValue::NULL, &JsValue::from_f64(processed as f64));
 }
 
 /// Build groups and the default synteny ordering after browser tile work.
@@ -412,7 +429,7 @@ fn layout_from_clusters(clusters: &[Cluster]) -> BrowserLayout {
 #[cfg(test)]
 mod tests {
     use super::{
-        BrowserFile, BrowserPrefilter, analyse_pairs, analyse_tile, parse_browser_files,
+        BrowserFile, BrowserPrefilter, Function, analyse_pairs, analyse_tile, parse_browser_files,
         post_process,
     };
     use wasm_bindgen::JsValue;
@@ -446,8 +463,8 @@ mod tests {
 
         // The exported function is exercised by browser/WASM integration; the
         // parsing test above keeps native unit tests independent of JsValue.
-        let _ = analyse_tile as fn(JsValue, JsValue, f32) -> Result<JsValue, JsValue>;
-        let _ = analyse_pairs as fn(JsValue, JsValue, f32) -> Result<JsValue, JsValue>;
+        let _ = analyse_tile as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
+        let _ = analyse_pairs as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
         let _ = post_process as fn(JsValue, JsValue) -> Result<JsValue, JsValue>;
         assert_eq!(data.proteins[0].translation, "MA*");
     }

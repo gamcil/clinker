@@ -286,6 +286,17 @@ pub fn analyse_protein_tile(
     target: &[&[u8]],
     identity_cutoff: f32,
 ) -> Vec<ProteinTileMatch> {
+    analyse_protein_tile_with_progress(query, target, identity_cutoff, |_| {})
+}
+
+/// As [`analyse_protein_tile`], reporting the number of processed pairs every
+/// 100 comparisons and once at completion.
+pub fn analyse_protein_tile_with_progress(
+    query: &[&[u8]],
+    target: &[&[u8]],
+    identity_cutoff: f32,
+    mut progress: impl FnMut(usize),
+) -> Vec<ProteinTileMatch> {
     let mut aligner = ProteinAligner::with_capacity(
         query
             .iter()
@@ -299,9 +310,14 @@ pub fn analyse_protein_tile(
             .unwrap_or_default(),
     );
     let mut matches = Vec::new();
+    let mut processed = 0;
 
     for (query_index, query_protein) in query.iter().enumerate() {
         for (target_index, target_protein) in target.iter().enumerate() {
+            processed += 1;
+            if processed % 100 == 0 {
+                progress(processed);
+            }
             if !can_reach_identity(query_protein.len(), target_protein.len(), identity_cutoff) {
                 continue;
             }
@@ -320,6 +336,9 @@ pub fn analyse_protein_tile(
         }
     }
 
+    if processed % 100 != 0 {
+        progress(processed);
+    }
     matches
 }
 
@@ -333,6 +352,17 @@ pub fn analyse_protein_pairs(
     pairs: &[ProteinPair],
     identity_cutoff: f32,
 ) -> Vec<ProteinTileMatch> {
+    analyse_protein_pairs_with_progress(proteins, pairs, identity_cutoff, |_| {})
+}
+
+/// As [`analyse_protein_pairs`], reporting the number of processed pairs
+/// every 100 comparisons and once at completion.
+pub fn analyse_protein_pairs_with_progress(
+    proteins: &[&[u8]],
+    pairs: &[ProteinPair],
+    identity_cutoff: f32,
+    mut progress: impl FnMut(usize),
+) -> Vec<ProteinTileMatch> {
     let capacity = proteins
         .iter()
         .map(|protein| protein.len())
@@ -340,8 +370,13 @@ pub fn analyse_protein_pairs(
         .unwrap_or_default();
     let mut aligner = ProteinAligner::with_capacity(capacity, capacity);
     let mut matches = Vec::new();
+    let mut processed = 0;
 
     for &pair in pairs {
+        processed += 1;
+        if processed % 100 == 0 {
+            progress(processed);
+        }
         let (Some(query), Some(target)) = (
             proteins.get(pair.query_index),
             proteins.get(pair.target_index),
@@ -363,6 +398,9 @@ pub fn analyse_protein_pairs(
                 similarity,
             });
         }
+    }
+    if processed % 100 != 0 {
+        progress(processed);
     }
     matches
 }
@@ -475,7 +513,8 @@ fn max_protein_length(cluster: &Cluster) -> usize {
 mod tests {
     use super::{
         AnalysisOptions, InputFile, KmerPrefilter, ProteinPair, analyse_genbank,
-        analyse_protein_pairs, analyse_protein_tile, can_reach_identity, kmer_candidate_pairs,
+        analyse_protein_pairs, analyse_protein_tile, analyse_protein_tile_with_progress,
+        can_reach_identity, kmer_candidate_pairs,
     };
 
     const FORWARD_CDS: &[u8] =
@@ -565,5 +604,15 @@ ORIGIN
             0.99,
         );
         assert!(matches.is_empty());
+    }
+
+    #[test]
+    fn tile_progress_reports_the_final_processed_pair_count() {
+        let proteins: [&[u8]; 2] = [b"MST", b"AAA"];
+        let mut reports = Vec::new();
+        let _ = analyse_protein_tile_with_progress(&proteins, &proteins, 0.99, |processed| {
+            reports.push(processed)
+        });
+        assert_eq!(reports, vec![4]);
     }
 }

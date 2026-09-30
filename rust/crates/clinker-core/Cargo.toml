@@ -11,3 +11,12 @@ bio = "4"
 gb-io = "0.9"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
+
+[target.'cfg(target_arch = "aarch64")'.dependencies]
+block-aligner = { version = "0.5", features = ["simd_neon"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+block-aligner = { version = "0.5", features = ["simd_wasm"] }
+
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+block-aligner = { version = "0.5", features = ["simd_sse2"] }

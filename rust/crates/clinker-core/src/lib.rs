@@ -16,7 +16,8 @@ pub use align::ProteinMatch;
 pub use analyse::{
     Analysis, AnalysisError, AnalysisOptions, GeneRef, InputFile, KmerPrefilter, Link, ProteinPair,
     ProteinTileMatch, analyse_cluster_pair, analyse_genbank, analyse_protein_pairs,
-    analyse_protein_tile, can_reach_identity, kmer_candidate_pairs, parse_input_files,
+    analyse_protein_pairs_with_progress, analyse_protein_tile, analyse_protein_tile_with_progress,
+    can_reach_identity, kmer_candidate_pairs, parse_input_files,
 };
 pub use groups::{GeneGroup, build_gene_groups};
 pub use model::{Cluster, Gene, Locus};

@@ -146,6 +146,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-aligner"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8986feb1596f749fdcf1046e1b8068dfe802fc45708e6e293b736e4c0bb3b3a5"
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -245,6 +251,7 @@ name = "clinker-core"
 version = "0.1.0"
 dependencies = [
  "bio",
+ "block-aligner",
  "gb-io",
  "serde",
  "thiserror 2.0.21",
@@ -256,6 +263,7 @@ version = "0.1.0"
 dependencies = [
  "clinker-core",
  "getrandom",
+ "js-sys",
  "serde",
  "serde-wasm-bindgen",
  "wasm-bindgen",
