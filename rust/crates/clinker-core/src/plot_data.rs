@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
+use crate::layout::auto_locus_layouts;
 use crate::{Analysis, GeneRef, Link, build_gene_groups};
 
 /// JSON object consumed by clustermap.js.
@@ -64,37 +65,47 @@ pub struct PlotGroup {
 /// Convert analysis output to clustermap.js data contract
 impl Analysis {
     pub fn to_plot_data(&self) -> PlotData {
-        let clusters = self
-            .clusters
+        self.to_plot_data_in_order(&(0..self.clusters.len()).collect::<Vec<_>>())
+    }
+
+    /// Convert analysis output to plot data with clusters in `order`.
+    /// Gene and link IDs retain their original analysis indices, so reordering
+    /// clusters never invalidates cross-references in links or groups.
+    pub fn to_plot_data_in_order(&self, order: &[usize]) -> PlotData {
+        assert_eq!(order.len(), self.clusters.len());
+        let clusters = order
             .iter()
-            .enumerate()
-            .map(|(cluster_index, cluster)| PlotCluster {
-                uid: cluster_id(cluster_index),
-                name: cluster.name.clone(),
-                loci: cluster
-                    .loci
-                    .iter()
-                    .enumerate()
-                    .map(|(locus_index, locus)| PlotLocus {
-                        uid: locus_id(cluster_index, locus_index),
-                        name: locus.name.clone(),
-                        start: locus.start,
-                        end: locus.end,
-                        genes: locus
-                            .genes
-                            .iter()
-                            .enumerate()
-                            .map(|(gene_index, gene)| PlotGene {
-                                uid: gene_id(cluster_index, locus_index, gene_index),
-                                label: gene.label.clone(),
-                                names: gene.names.iter().cloned().collect(),
-                                start: gene.start,
-                                end: gene.end,
-                                strand: gene.strand,
-                            })
-                            .collect(),
-                    })
-                    .collect(),
+            .copied()
+            .map(|cluster_index| {
+                let cluster = &self.clusters[cluster_index];
+                PlotCluster {
+                    uid: cluster_id(cluster_index),
+                    name: cluster.name.clone(),
+                    loci: cluster
+                        .loci
+                        .iter()
+                        .enumerate()
+                        .map(|(locus_index, locus)| PlotLocus {
+                            uid: locus_id(cluster_index, locus_index),
+                            name: locus.name.clone(),
+                            start: locus.start,
+                            end: locus.end,
+                            genes: locus
+                                .genes
+                                .iter()
+                                .enumerate()
+                                .map(|(gene_index, gene)| PlotGene {
+                                    uid: gene_id(cluster_index, locus_index, gene_index),
+                                    label: gene.label.clone(),
+                                    names: gene.names.iter().cloned().collect(),
+                                    start: gene.start,
+                                    end: gene.end,
+                                    strand: gene.strand,
+                                })
+                                .collect(),
+                        })
+                        .collect(),
+                }
             })
             .collect();
 
@@ -120,6 +131,33 @@ impl Analysis {
             links,
             groups: build_plot_groups(&self.links),
         }
+    }
+
+    /// Emit plot data with loci reordered and flipped to follow homology anchors.
+    pub fn to_auto_arranged_plot_data(&self, order: &[usize]) -> PlotData {
+        let layouts = auto_locus_layouts(self, order);
+        let mut data = self.to_plot_data_in_order(order);
+        for (cluster, layout) in data.clusters.iter_mut().zip(layouts) {
+            let original = std::mem::take(&mut cluster.loci);
+            cluster.loci = layout
+                .into_iter()
+                .map(|placement| {
+                    let mut locus = original[placement.locus].clone();
+                    if placement.reversed {
+                        let sum = locus.start + locus.end;
+                        for gene in &mut locus.genes {
+                            let (start, end) = (sum - gene.end, sum - gene.start);
+                            gene.start = start;
+                            gene.end = end;
+                            gene.strand = -gene.strand;
+                        }
+                        locus.genes.reverse();
+                    }
+                    locus
+                })
+                .collect();
+        }
+        data
     }
 }
 
@@ -199,5 +237,34 @@ ORIGIN
         assert_eq!(data.links[0].target.uid, "gene-1-0-0");
         assert_eq!(data.groups.len(), 1);
         assert_eq!(data.groups[0].genes, ["gene-0-0-0", "gene-1-0-0"]);
+    }
+
+    #[test]
+    fn can_reorder_clusters_without_changing_link_ids() {
+        let first =
+            br#"LOCUS       FIRST                      9 bp    DNA     linear   UNA 01-JAN-2000
+FEATURES             Location/Qualifiers
+     CDS             1..9
+                     /locus_tag=\"first\"
+ORIGIN
+        1 atggcttaa
+//
+"#;
+        let files = [
+            InputFile {
+                name: "first.gbk",
+                bytes: first,
+            },
+            InputFile {
+                name: "second.gbk",
+                bytes: first,
+            },
+        ];
+        let analysis = analyse_genbank(&files, AnalysisOptions::default()).unwrap();
+        let data = analysis.to_plot_data_in_order(&[1, 0]);
+
+        assert_eq!(data.clusters[0].uid, "cluster-1");
+        assert_eq!(data.links[0].query.uid, "gene-0-0-0");
+        assert_eq!(data.links[0].target.uid, "gene-1-0-0");
     }
 }

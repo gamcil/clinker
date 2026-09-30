@@ -95,7 +95,7 @@ function plotLink(link) {
   };
 }
 
-function buildGroups(links) {
+function postProcess(layout, links) {
   const worker = new Worker("worker.js", { type: "module" });
   return new Promise((resolve, reject) => {
     const finish = (callback, value) => {
@@ -104,11 +104,12 @@ function buildGroups(links) {
     };
     worker.onmessage = ({ data }) => {
       if (data.type === "error") finish(reject, new Error(data.message));
-      else finish(resolve, data.groups);
+      else finish(resolve, data.result);
     };
     worker.onerror = event => finish(reject, new Error(event.message || "Worker failed"));
     worker.postMessage({
-      type: "groups",
+      type: "post-process",
+      layout,
       links: links.map(link => ({
         query: link.query,
         target: link.target,
@@ -195,19 +196,19 @@ analyseButton.addEventListener("click", async () => {
     status.textContent = "Parsing GenBank files locally…";
     const parsed = await parseInputFiles(files);
     files = null;
-    const totalTiles = tileCount(proteinsByCluster(parsed.proteins, parsed.plotData.clusters.length));
+    const totalTiles = tileCount(proteinsByCluster(parsed.proteins, parsed.layout.clusters.length));
     status.textContent = `Analysing locally… 0/${totalTiles} protein tiles`;
     const links = await analyseTilesInWorkerPool(
       parsed.proteins,
-      parsed.plotData.clusters.length,
+      parsed.layout.clusters.length,
       identity,
       (completed, total) => {
         status.textContent = `Analysing locally… ${completed}/${total} protein tiles`;
       },
     );
-    status.textContent = "Building homology groups…";
-    const groups = await buildGroups(links);
-    const plotData = { clusters: parsed.plotData.clusters, links, groups };
+    status.textContent = "Building homology groups and ordering clusters…";
+    const result = await postProcess(parsed.layout, links);
+    const plotData = result.plotData;
     status.textContent = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links.`;
 
     // clustermap animates parts of a render. Stop those transitions before

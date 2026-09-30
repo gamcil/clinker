@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use clap::Parser;
-use clinker_core::{AnalysisOptions, InputFile, analyse_genbank};
+use clinker_core::{AnalysisOptions, DEFAULT_CONTIGUITY_WEIGHT, InputFile, analyse_genbank};
 
 /// Inspect GenBank input with the in-progress Rust implementation of clinker.
 #[derive(Debug, Parser)]
@@ -22,6 +22,14 @@ struct Args {
     /// Write the retained-link summary to a file instead of standard output.
     #[arg(short, long, value_name = "PATH")]
     output: Option<PathBuf>,
+
+    /// Write the normalized synteny distance matrix as CSV.
+    #[arg(long, value_name = "PATH")]
+    matrix_out: Option<PathBuf>,
+
+    /// Keep the input cluster order in plot JSON instead of synteny ordering.
+    #[arg(long)]
+    use_file_order: bool,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -52,9 +60,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if let Some(path) = args.plot {
-        let json = serde_json::to_string_pretty(&analysis.to_plot_data())?;
+        let order = if args.use_file_order {
+            (0..analysis.clusters.len()).collect()
+        } else {
+            analysis.cluster_order(DEFAULT_CONTIGUITY_WEIGHT)
+        };
+        let json = serde_json::to_string_pretty(&analysis.to_auto_arranged_plot_data(&order))?;
         fs::write(path, json)?;
     }
 
+    if let Some(path) = args.matrix_out {
+        fs::write(path, format_distance_matrix(&analysis))?;
+    }
+
     Ok(())
+}
+
+fn format_distance_matrix(analysis: &clinker_core::Analysis) -> String {
+    let matrix = analysis.synteny_distance_matrix(DEFAULT_CONTIGUITY_WEIGHT);
+    let mut rows = vec![
+        std::iter::once(String::new())
+            .chain(analysis.clusters.iter().map(|cluster| cluster.name.clone()))
+            .collect::<Vec<_>>(),
+    ];
+    rows.extend(matrix.iter().enumerate().map(|(index, row)| {
+        std::iter::once(analysis.clusters[index].name.clone())
+            .chain(row.iter().map(ToString::to_string))
+            .collect()
+    }));
+    rows.into_iter()
+        .map(|row| row.join(","))
+        .collect::<Vec<_>>()
+        .join("\n")
 }

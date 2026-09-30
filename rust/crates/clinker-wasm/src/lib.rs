@@ -4,8 +4,8 @@
 //! in the platform-independent core crate so the CLI and browser agree.
 
 use clinker_core::{
-    Analysis, AnalysisError, GeneRef, InputFile, Link, PlotData, PlotGroup, analyse_protein_tile,
-    build_plot_groups, parse_input_files,
+    Analysis, AnalysisError, Cluster, Gene, GeneRef, InputFile, Link, Locus, PlotData,
+    analyse_protein_tile, parse_input_files,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -29,8 +29,38 @@ struct BrowserProtein {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ParsedBrowserFiles {
-    plot_data: PlotData,
+    layout: BrowserLayout,
     proteins: Vec<BrowserProtein>,
+}
+
+/// Coordinate and annotation metadata retained between parsing and the final
+/// layout pass. Protein sequences stay only in `BrowserProtein` tile inputs.
+#[derive(Debug, Deserialize, Serialize)]
+struct BrowserLayout {
+    clusters: Vec<BrowserLayoutCluster>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct BrowserLayoutCluster {
+    name: String,
+    loci: Vec<BrowserLayoutLocus>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct BrowserLayoutLocus {
+    name: String,
+    start: usize,
+    end: usize,
+    genes: Vec<BrowserLayoutGene>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct BrowserLayoutGene {
+    label: String,
+    names: Vec<(String, String)>,
+    start: usize,
+    end: usize,
+    strand: i8,
 }
 
 /// A retained link returned by an alignment-only worker tile.
@@ -58,6 +88,12 @@ struct BrowserProteinRef {
     cluster: usize,
     locus: usize,
     gene: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BrowserPostProcess {
+    plot_data: PlotData,
 }
 
 impl From<BrowserProteinRef> for GeneRef {
@@ -129,22 +165,70 @@ pub fn analyse_tile(
         .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
 }
 
-/// Form homology groups after all alignment tiles have completed.
+/// Build groups and the default synteny ordering after browser tile work.
 #[wasm_bindgen]
-pub fn build_groups(links: JsValue) -> Result<JsValue, JsValue> {
-    let links = serde_wasm_bindgen::from_value::<Vec<BrowserLink>>(links)
-        .map_err(|error| JsValue::from_str(&format!("invalid browser links: {error}")))?
-        .into_iter()
-        .map(|link| Link {
-            query: link.query.into(),
-            target: link.target.into(),
-            identity: link.identity,
-            similarity: link.similarity,
+pub fn post_process(layout: JsValue, links: JsValue) -> Result<JsValue, JsValue> {
+    let layout = serde_wasm_bindgen::from_value::<BrowserLayout>(layout)
+        .map_err(|error| JsValue::from_str(&format!("invalid layout data: {error}")))?;
+    let links = browser_links(links)?;
+    let analysis = Analysis {
+        clusters: clusters_from_layout(layout),
+        links,
+    };
+    let order = analysis.cluster_order(clinker_core::DEFAULT_CONTIGUITY_WEIGHT);
+    let arranged = analysis.to_auto_arranged_plot_data(&order);
+    let result = BrowserPostProcess {
+        plot_data: arranged,
+    };
+    serde_wasm_bindgen::to_value(&result)
+        .map_err(|error| JsValue::from_str(&format!("could not encode post-processing: {error}")))
+}
+
+fn browser_links(links: JsValue) -> Result<Vec<Link>, JsValue> {
+    serde_wasm_bindgen::from_value::<Vec<BrowserLink>>(links)
+        .map_err(|error| JsValue::from_str(&format!("invalid browser links: {error}")))
+        .map(|links| {
+            links
+                .into_iter()
+                .map(|link| Link {
+                    query: link.query.into(),
+                    target: link.target.into(),
+                    identity: link.identity,
+                    similarity: link.similarity,
+                })
+                .collect()
         })
-        .collect::<Vec<_>>();
-    let groups: Vec<PlotGroup> = build_plot_groups(&links);
-    serde_wasm_bindgen::to_value(&groups)
-        .map_err(|error| JsValue::from_str(&format!("could not encode homology groups: {error}")))
+}
+
+fn clusters_from_layout(layout: BrowserLayout) -> Vec<Cluster> {
+    layout
+        .clusters
+        .into_iter()
+        .map(|cluster| Cluster {
+            name: cluster.name,
+            loci: cluster
+                .loci
+                .into_iter()
+                .map(|locus| Locus {
+                    name: locus.name,
+                    start: locus.start,
+                    end: locus.end,
+                    genes: locus
+                        .genes
+                        .into_iter()
+                        .map(|gene| Gene {
+                            label: gene.label,
+                            names: gene.names.into_iter().collect(),
+                            start: gene.start,
+                            end: gene.end,
+                            strand: gene.strand,
+                            translation: String::new(),
+                        })
+                        .collect(),
+                })
+                .collect(),
+        })
+        .collect()
 }
 
 fn input_files(files: &[BrowserFile]) -> Vec<InputFile<'_>> {
@@ -159,6 +243,7 @@ fn input_files(files: &[BrowserFile]) -> Vec<InputFile<'_>> {
 
 fn parse_browser_files(files: &[BrowserFile]) -> Result<ParsedBrowserFiles, AnalysisError> {
     let clusters = parse_input_files(&input_files(files))?;
+    let layout = layout_from_clusters(&clusters);
     let proteins = clusters
         .iter()
         .enumerate()
@@ -181,20 +266,43 @@ fn parse_browser_files(files: &[BrowserFile]) -> Result<ParsedBrowserFiles, Anal
                 })
         })
         .collect();
-    let plot_data = Analysis {
-        clusters,
-        links: Vec::new(),
+    Ok(ParsedBrowserFiles { layout, proteins })
+}
+
+fn layout_from_clusters(clusters: &[Cluster]) -> BrowserLayout {
+    BrowserLayout {
+        clusters: clusters
+            .iter()
+            .map(|cluster| BrowserLayoutCluster {
+                name: cluster.name.clone(),
+                loci: cluster
+                    .loci
+                    .iter()
+                    .map(|locus| BrowserLayoutLocus {
+                        name: locus.name.clone(),
+                        start: locus.start,
+                        end: locus.end,
+                        genes: locus
+                            .genes
+                            .iter()
+                            .map(|gene| BrowserLayoutGene {
+                                label: gene.label.clone(),
+                                names: gene.names.clone(),
+                                start: gene.start,
+                                end: gene.end,
+                                strand: gene.strand,
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            })
+            .collect(),
     }
-    .to_plot_data();
-    Ok(ParsedBrowserFiles {
-        plot_data,
-        proteins,
-    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{BrowserFile, analyse_tile, build_groups, parse_browser_files};
+    use super::{BrowserFile, analyse_tile, parse_browser_files, post_process};
     use wasm_bindgen::JsValue;
 
     #[test]
@@ -212,14 +320,13 @@ mod tests {
         ];
 
         let data = parse_browser_files(&files).unwrap();
-        assert_eq!(data.plot_data.clusters.len(), 2);
-        assert!(data.plot_data.links.is_empty());
+        assert_eq!(data.layout.clusters.len(), 2);
         assert_eq!(data.proteins.len(), 2);
 
         // The exported function is exercised by browser/WASM integration; the
         // parsing test above keeps native unit tests independent of JsValue.
         let _ = analyse_tile as fn(JsValue, JsValue, f32) -> Result<JsValue, JsValue>;
-        let _ = build_groups as fn(JsValue) -> Result<JsValue, JsValue>;
+        let _ = post_process as fn(JsValue, JsValue) -> Result<JsValue, JsValue>;
         assert_eq!(data.proteins[0].translation, "MA*");
     }
 }
