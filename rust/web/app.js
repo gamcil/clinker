@@ -2,6 +2,7 @@ const filesInput = document.querySelector("#files");
 const identityInput = document.querySelector("#identity");
 const prefilterInput = document.querySelector("#prefilter");
 const analyseButton = document.querySelector("#analyse");
+const exampleButton = document.querySelector("#load-example");
 const matrixButton = document.querySelector("#download-matrix");
 const svgButton = document.querySelector("#download-svg");
 const status = document.querySelector("#status");
@@ -22,6 +23,13 @@ function createChart() {
 // between positional IDs such as `cluster-0` and `locus-0-0`.
 let chart = createChart();
 let latestSimilarity = null;
+const EXAMPLE_FILES = [
+  "P. vexata CBS 129021.gbk",
+  "A. versicolor CBS 583.65.gbk",
+  "A. mulundensis DSM 5745.gbk",
+  "A. burnettii MST-FP2249.gbk",
+  "A. alliaceus CBS 536.65.gbk",
+];
 
 function workerCount(taskCount) {
   // Each worker owns a separate Wasm instance and its alignment buffers. A
@@ -347,12 +355,7 @@ function analyseTilesInWorkerPool(proteins, clusterCount, identity, candidatePai
   });
 }
 
-analyseButton.addEventListener("click", async () => {
-  if (filesInput.files.length === 0) {
-    status.textContent = "Choose at least one GenBank file.";
-    return;
-  }
-
+async function analyseFiles(files) {
   const identity = Number(identityInput.value);
   if (!Number.isFinite(identity) || identity < 0 || identity > 1) {
     status.textContent = "Identity cutoff must be a number between 0 and 1.";
@@ -360,15 +363,11 @@ analyseButton.addEventListener("click", async () => {
   }
 
   analyseButton.disabled = true;
+  exampleButton.disabled = true;
   matrixButton.disabled = true;
   svgButton.disabled = true;
   latestSimilarity = null;
   try {
-    status.textContent = "Reading files…";
-    let files = await Promise.all([...filesInput.files].map(async file => ({
-      name: file.name,
-      bytes: new Uint8Array(await file.arrayBuffer()),
-    })));
     status.textContent = "Parsing GenBank files…";
     const prefilter = {
       enabled: prefilterInput.checked,
@@ -377,7 +376,6 @@ analyseButton.addEventListener("click", async () => {
       identityCutoff: identity,
     };
     const parsed = await parseInputFiles(files, prefilter);
-    files = null;
     status.textContent = "Aligning genes… 0%";
     const links = await analyseTilesInWorkerPool(
       parsed.proteins,
@@ -411,5 +409,42 @@ analyseButton.addEventListener("click", async () => {
     status.textContent = `Analysis failed: ${error.message || String(error)}`;
   } finally {
     analyseButton.disabled = false;
+    exampleButton.disabled = false;
+  }
+}
+
+analyseButton.addEventListener("click", async () => {
+  if (filesInput.files.length === 0) {
+    status.textContent = "Choose at least one GenBank file.";
+    return;
+  }
+  try {
+    status.textContent = "Reading files…";
+    const files = await Promise.all([...filesInput.files].map(async file => ({
+      name: file.name,
+      bytes: new Uint8Array(await file.arrayBuffer()),
+    })));
+    await analyseFiles(files);
+  } catch (error) {
+    status.textContent = `Analysis failed: ${error.message || String(error)}`;
+  }
+});
+
+exampleButton.addEventListener("click", async () => {
+  analyseButton.disabled = true;
+  exampleButton.disabled = true;
+  try {
+    status.textContent = "Loading bundled example files…";
+    const files = await Promise.all(EXAMPLE_FILES.map(async name => {
+      const response = await fetch(`examples/${encodeURIComponent(name)}`);
+      if (!response.ok) throw new Error(`Could not load ${name} (${response.status})`);
+      return { name, bytes: new Uint8Array(await response.arrayBuffer()) };
+    }));
+    await analyseFiles(files);
+  } catch (error) {
+    status.textContent = `Example analysis failed: ${error.message || String(error)}`;
+  } finally {
+    analyseButton.disabled = false;
+    exampleButton.disabled = false;
   }
 });

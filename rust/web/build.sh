@@ -24,3 +24,5 @@ PATH="$wasm_pack_bin:$rustup_bin:$PATH"
 "$wasm_pack" build ../crates/clinker-wasm --target web --out-dir ../../web/pkg --out-name clinker_wasm
 cp node_modules/d3/dist/d3.min.js .
 cp node_modules/clustermap.js/dist/clustermap.min.js .
+mkdir -p examples
+cp ../../examples/*.gbk examples/
