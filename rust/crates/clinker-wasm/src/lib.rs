@@ -4,8 +4,9 @@
 //! in the platform-independent core crate so the CLI and browser agree.
 
 use clinker_core::{
-    Analysis, AnalysisError, Cluster, Gene, GeneRef, InputFile, Link, Locus, PlotData,
-    analyse_protein_tile, parse_input_files,
+    Analysis, AnalysisError, Cluster, Gene, GeneRef, InputFile, KmerPrefilter, Link, Locus,
+    PlotData, ProteinPair, analyse_protein_pairs, analyse_protein_tile, kmer_candidate_pairs,
+    parse_input_files,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -25,12 +26,31 @@ struct BrowserProtein {
     translation: String,
 }
 
+/// Indices into `ParsedBrowserFiles.proteins`, not sequence copies.
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BrowserProteinPair {
+    query_index: usize,
+    target_index: usize,
+}
+
 /// Metadata and alignment inputs produced by the one-time parsing stage.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ParsedBrowserFiles {
     layout: BrowserLayout,
     proteins: Vec<BrowserProtein>,
+    candidate_pairs: Option<Vec<BrowserProteinPair>>,
+}
+
+/// Optional approximate candidate selection for browser alignment work.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BrowserPrefilter {
+    enabled: bool,
+    kmer_size: usize,
+    min_shared_kmers: usize,
+    identity_cutoff: f32,
 }
 
 /// Coordinate and annotation metadata retained between parsing and the final
@@ -123,11 +143,13 @@ impl From<&BrowserProtein> for BrowserProteinRef {
 /// should be a `Uint8Array`; it is copied into Rust-owned memory before
 /// analysis so the caller may release the original file buffers afterwards.
 #[wasm_bindgen]
-pub fn parse_files(files: JsValue) -> Result<JsValue, JsValue> {
+pub fn parse_files(files: JsValue, prefilter: JsValue) -> Result<JsValue, JsValue> {
     let files = serde_wasm_bindgen::from_value::<Vec<BrowserFile>>(files)
         .map_err(|error| JsValue::from_str(&format!("invalid browser input: {error}")))?;
-    let parsed =
-        parse_browser_files(&files).map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let prefilter = serde_wasm_bindgen::from_value::<BrowserPrefilter>(prefilter)
+        .map_err(|error| JsValue::from_str(&format!("invalid prefilter settings: {error}")))?;
+    let parsed = parse_browser_files(&files, prefilter)
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
     serde_wasm_bindgen::to_value(&parsed)
         .map_err(|error| JsValue::from_str(&format!("could not encode parsed files: {error}")))
 }
@@ -156,6 +178,42 @@ pub fn analyse_tile(
         .map(|alignment| TileLink {
             query: (&query[alignment.query_index]).into(),
             target: (&target[alignment.target_index]).into(),
+            identity: alignment.identity,
+            similarity: alignment.similarity,
+        })
+        .collect::<Vec<_>>();
+
+    serde_wasm_bindgen::to_value(&links)
+        .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
+}
+
+/// Align selected pairs from one compact protein tile.
+#[wasm_bindgen]
+pub fn analyse_pairs(
+    proteins: JsValue,
+    pairs: JsValue,
+    identity_cutoff: f32,
+) -> Result<JsValue, JsValue> {
+    let proteins = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(proteins)
+        .map_err(|error| JsValue::from_str(&format!("invalid tile proteins: {error}")))?;
+    let pairs = serde_wasm_bindgen::from_value::<Vec<BrowserProteinPair>>(pairs)
+        .map_err(|error| JsValue::from_str(&format!("invalid tile pairs: {error}")))?;
+    let sequences = proteins
+        .iter()
+        .map(|protein| protein.translation.as_bytes())
+        .collect::<Vec<_>>();
+    let pairs = pairs
+        .iter()
+        .map(|pair| ProteinPair {
+            query_index: pair.query_index,
+            target_index: pair.target_index,
+        })
+        .collect::<Vec<_>>();
+    let links = analyse_protein_pairs(&sequences, &pairs, identity_cutoff)
+        .into_iter()
+        .map(|alignment| TileLink {
+            query: (&proteins[alignment.query_index]).into(),
+            target: (&proteins[alignment.target_index]).into(),
             identity: alignment.identity,
             similarity: alignment.similarity,
         })
@@ -241,10 +299,13 @@ fn input_files(files: &[BrowserFile]) -> Vec<InputFile<'_>> {
         .collect()
 }
 
-fn parse_browser_files(files: &[BrowserFile]) -> Result<ParsedBrowserFiles, AnalysisError> {
+fn parse_browser_files(
+    files: &[BrowserFile],
+    prefilter: BrowserPrefilter,
+) -> Result<ParsedBrowserFiles, AnalysisError> {
     let clusters = parse_input_files(&input_files(files))?;
     let layout = layout_from_clusters(&clusters);
-    let proteins = clusters
+    let proteins: Vec<BrowserProtein> = clusters
         .iter()
         .enumerate()
         .flat_map(|(cluster_index, cluster)| {
@@ -266,7 +327,55 @@ fn parse_browser_files(files: &[BrowserFile]) -> Result<ParsedBrowserFiles, Anal
                 })
         })
         .collect();
-    Ok(ParsedBrowserFiles { layout, proteins })
+    let candidate_pairs = prefilter.enabled.then(|| {
+        let by_cluster = proteins_by_cluster(&proteins, clusters.len());
+        let settings = KmerPrefilter {
+            kmer_size: prefilter.kmer_size,
+            min_shared_kmers: prefilter.min_shared_kmers,
+        };
+        let mut pairs = Vec::new();
+        for query_cluster in 0..by_cluster.len() {
+            for target_cluster in query_cluster + 1..by_cluster.len() {
+                let query = &by_cluster[query_cluster];
+                let target = &by_cluster[target_cluster];
+                let query_sequences = query
+                    .iter()
+                    .map(|&index| proteins[index].translation.as_bytes())
+                    .collect::<Vec<_>>();
+                let target_sequences = target
+                    .iter()
+                    .map(|&index| proteins[index].translation.as_bytes())
+                    .collect::<Vec<_>>();
+                pairs.extend(
+                    kmer_candidate_pairs(
+                        &query_sequences,
+                        &target_sequences,
+                        prefilter.identity_cutoff,
+                        settings,
+                    )
+                    .into_iter()
+                    .map(|pair| BrowserProteinPair {
+                        query_index: query[pair.query_index],
+                        target_index: target[pair.target_index],
+                    }),
+                );
+            }
+        }
+        pairs
+    });
+    Ok(ParsedBrowserFiles {
+        layout,
+        proteins,
+        candidate_pairs,
+    })
+}
+
+fn proteins_by_cluster(proteins: &[BrowserProtein], cluster_count: usize) -> Vec<Vec<usize>> {
+    let mut clusters = vec![Vec::new(); cluster_count];
+    for (index, protein) in proteins.iter().enumerate() {
+        clusters[protein.cluster].push(index);
+    }
+    clusters
 }
 
 fn layout_from_clusters(clusters: &[Cluster]) -> BrowserLayout {
@@ -302,7 +411,10 @@ fn layout_from_clusters(clusters: &[Cluster]) -> BrowserLayout {
 
 #[cfg(test)]
 mod tests {
-    use super::{BrowserFile, analyse_tile, parse_browser_files, post_process};
+    use super::{
+        BrowserFile, BrowserPrefilter, analyse_pairs, analyse_tile, parse_browser_files,
+        post_process,
+    };
     use wasm_bindgen::JsValue;
 
     #[test]
@@ -319,13 +431,23 @@ mod tests {
             },
         ];
 
-        let data = parse_browser_files(&files).unwrap();
+        let data = parse_browser_files(
+            &files,
+            BrowserPrefilter {
+                enabled: false,
+                kmer_size: 3,
+                min_shared_kmers: 3,
+                identity_cutoff: 0.30,
+            },
+        )
+        .unwrap();
         assert_eq!(data.layout.clusters.len(), 2);
         assert_eq!(data.proteins.len(), 2);
 
         // The exported function is exercised by browser/WASM integration; the
         // parsing test above keeps native unit tests independent of JsValue.
         let _ = analyse_tile as fn(JsValue, JsValue, f32) -> Result<JsValue, JsValue>;
+        let _ = analyse_pairs as fn(JsValue, JsValue, f32) -> Result<JsValue, JsValue>;
         let _ = post_process as fn(JsValue, JsValue) -> Result<JsValue, JsValue>;
         assert_eq!(data.proteins[0].translation, "MA*");
     }

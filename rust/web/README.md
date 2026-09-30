@@ -7,6 +7,13 @@ per tile and return retained links. Those links are combined with the original
 cluster metadata and drawn by the existing `clustermap.js` assets. No file
 contents are uploaded.
 
+The optional **Fast k-mer prefilter** indexes distinct protein 3-mers and only
+aligns pairs with at least three shared words. Candidate tiles contain each
+needed protein once plus pair indices, rather than one copied sequence per
+pair. This is deliberately approximate and can miss remote homologues, so it
+is off by default. Exact mode still skips protein pairs whose length ratio
+makes the chosen global-identity cutoff mathematically impossible.
+
 ## Build for local preview or static hosting
 
 The development machine needs Rust's `wasm32-unknown-unknown` target and

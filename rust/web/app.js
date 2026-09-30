@@ -1,9 +1,11 @@
 const filesInput = document.querySelector("#files");
 const identityInput = document.querySelector("#identity");
+const prefilterInput = document.querySelector("#prefilter");
 const analyseButton = document.querySelector("#analyse");
 const status = document.querySelector("#status");
 const plot = d3.select("#plot");
 const GENES_PER_TILE_SIDE = 20;
+const PAIRS_PER_TILE = 400;
 // Keep one chart instance, as the original clustermap integration does. The
 // library retains its renderer state on this object between redraws.
 const chart = ClusterMap.ClusterMap();
@@ -23,7 +25,7 @@ function copyFiles(files, fileIndexes) {
   }));
 }
 
-function parseInputFiles(files) {
+function parseInputFiles(files, prefilter) {
   const worker = new Worker("worker.js", { type: "module" });
   const taskFiles = copyFiles(files, files.map((_, index) => index));
 
@@ -38,10 +40,29 @@ function parseInputFiles(files) {
     };
     worker.onerror = event => finish(reject, new Error(event.message || "Worker failed"));
     worker.postMessage(
-      { type: "parse", files: taskFiles },
+      { type: "parse", files: taskFiles, prefilter },
       taskFiles.map(file => file.bytes.buffer),
     );
   });
+}
+
+function* candidateTiles(proteins, candidatePairs) {
+  for (let start = 0; start < candidatePairs.length; start += PAIRS_PER_TILE) {
+    const proteinIndexes = new Map();
+    const tileProteins = [];
+    const localIndex = index => {
+      if (!proteinIndexes.has(index)) {
+        proteinIndexes.set(index, tileProteins.length);
+        tileProteins.push(proteins[index]);
+      }
+      return proteinIndexes.get(index);
+    };
+    const pairs = candidatePairs.slice(start, start + PAIRS_PER_TILE).map(pair => ({
+      queryIndex: localIndex(pair.queryIndex),
+      targetIndex: localIndex(pair.targetIndex),
+    }));
+    yield { type: "analyse-pairs", proteins: tileProteins, pairs };
+  }
 }
 
 function proteinsByCluster(proteins, clusterCount) {
@@ -69,6 +90,7 @@ function* alignmentTiles(clusters) {
       for (let queryStart = 0; queryStart < queryProteins.length; queryStart += GENES_PER_TILE_SIDE) {
         for (let targetStart = 0; targetStart < targetProteins.length; targetStart += GENES_PER_TILE_SIDE) {
           yield {
+            type: "analyse-tile",
             query: queryProteins.slice(queryStart, queryStart + GENES_PER_TILE_SIDE),
             target: targetProteins.slice(targetStart, targetStart + GENES_PER_TILE_SIDE),
           };
@@ -120,11 +142,13 @@ function postProcess(layout, links) {
   });
 }
 
-function analyseTilesInWorkerPool(proteins, clusterCount, identity, onProgress) {
+function analyseTilesInWorkerPool(proteins, clusterCount, identity, candidatePairs, onProgress) {
   const clusters = proteinsByCluster(proteins, clusterCount);
-  const totalTiles = tileCount(clusters);
+  const totalTiles = candidatePairs
+    ? Math.ceil(candidatePairs.length / PAIRS_PER_TILE)
+    : tileCount(clusters);
   if (totalTiles === 0) return Promise.resolve([]);
-  const tiles = alignmentTiles(clusters);
+  const tiles = candidatePairs ? candidateTiles(proteins, candidatePairs) : alignmentTiles(clusters);
   const workers = Array.from(
     { length: workerCount(totalTiles) },
     () => new Worker("worker.js", { type: "module" }),
@@ -151,7 +175,7 @@ function analyseTilesInWorkerPool(proteins, clusterCount, identity, onProgress) 
       if (nextTask === totalTiles) return;
       const taskIndex = nextTask++;
       const tile = tiles.next().value;
-      worker.postMessage({ type: "analyse-tile", ...tile, identity, taskIndex });
+      worker.postMessage({ ...tile, identity, taskIndex });
     };
 
     workers.forEach(worker => {
@@ -194,14 +218,26 @@ analyseButton.addEventListener("click", async () => {
       bytes: new Uint8Array(await file.arrayBuffer()),
     })));
     status.textContent = "Parsing GenBank files locally…";
-    const parsed = await parseInputFiles(files);
+    const prefilter = {
+      enabled: prefilterInput.checked,
+      kmerSize: 3,
+      minSharedKmers: 3,
+      identityCutoff: identity,
+    };
+    const parsed = await parseInputFiles(files, prefilter);
     files = null;
-    const totalTiles = tileCount(proteinsByCluster(parsed.proteins, parsed.layout.clusters.length));
-    status.textContent = `Analysing locally… 0/${totalTiles} protein tiles`;
+    const totalTiles = parsed.candidatePairs
+      ? Math.ceil(parsed.candidatePairs.length / PAIRS_PER_TILE)
+      : tileCount(proteinsByCluster(parsed.proteins, parsed.layout.clusters.length));
+    const mode = parsed.candidatePairs
+      ? `${parsed.candidatePairs.length} k-mer candidate pairs`
+      : `${totalTiles} protein tiles`;
+    status.textContent = `Analysing locally… 0/${totalTiles} ${mode}`;
     const links = await analyseTilesInWorkerPool(
       parsed.proteins,
       parsed.layout.clusters.length,
       identity,
+      parsed.candidatePairs,
       (completed, total) => {
         status.textContent = `Analysing locally… ${completed}/${total} protein tiles`;
       },
@@ -211,12 +247,8 @@ analyseButton.addEventListener("click", async () => {
     const plotData = result.plotData;
     status.textContent = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links.`;
 
-    // clustermap animates parts of a render. Stop those transitions before
-    // removing its SVG so an old render cannot try to update detached nodes.
-    plot.selectAll("*").interrupt();
-    plot.selectAll("*").remove();
-    // ClusterMap expects its input through a one-element D3 data join (the
-    // same pattern used by clinker/plot/clinker.js), rather than `datum`.
+    // Keep clustermap's SVG mounted. The chart retains it as the target for
+    // controls and D3 transitions; its own joins update the old plot safely.
     plot.data([plotData]).call(chart);
   } catch (error) {
     status.textContent = `Analysis failed: ${error.message || String(error)}`;

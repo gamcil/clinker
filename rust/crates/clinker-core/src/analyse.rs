@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use thiserror::Error;
 
 use crate::align::ProteinAligner;
@@ -132,6 +134,34 @@ pub struct ProteinTileMatch {
     pub similarity: f32,
 }
 
+/// A pair of positions in caller-provided protein slices.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProteinPair {
+    pub query_index: usize,
+    pub target_index: usize,
+}
+
+/// Conservative settings for the optional, approximate protein k-mer filter.
+///
+/// Three-residue protein words are conventional for seed-and-extend search,
+/// while requiring three distinct hits avoids spending global alignment time on
+/// most coincidental single-word matches. These settings can still miss remote
+/// homologues, so callers must keep this filter opt-in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KmerPrefilter {
+    pub kmer_size: usize,
+    pub min_shared_kmers: usize,
+}
+
+impl Default for KmerPrefilter {
+    fn default() -> Self {
+        Self {
+            kmer_size: 3,
+            min_shared_kmers: 3,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Analysis {
     pub clusters: Vec<Cluster>,
@@ -209,10 +239,18 @@ pub fn analyse_cluster_pair(query: &Cluster, target: &Cluster, identity_cutoff: 
                     let ProteinMatch {
                         identity,
                         similarity,
-                    } = aligner.compare(
-                        query_gene.translation.as_bytes(),
-                        target_gene.translation.as_bytes(),
-                    );
+                    } = if can_reach_identity(
+                        query_gene.translation.len(),
+                        target_gene.translation.len(),
+                        identity_cutoff,
+                    ) {
+                        aligner.compare(
+                            query_gene.translation.as_bytes(),
+                            target_gene.translation.as_bytes(),
+                        )
+                    } else {
+                        continue;
+                    };
 
                     if identity >= identity_cutoff {
                         links.push(Link {
@@ -264,6 +302,9 @@ pub fn analyse_protein_tile(
 
     for (query_index, query_protein) in query.iter().enumerate() {
         for (target_index, target_protein) in target.iter().enumerate() {
+            if !can_reach_identity(query_protein.len(), target_protein.len(), identity_cutoff) {
+                continue;
+            }
             let ProteinMatch {
                 identity,
                 similarity,
@@ -282,6 +323,144 @@ pub fn analyse_protein_tile(
     matches
 }
 
+/// Compare selected pairs from one compact protein collection.
+///
+/// This is used after an optional candidate filter, so a worker receives each
+/// protein once per task instead of expanding selected pairs back into a
+/// Cartesian product.
+pub fn analyse_protein_pairs(
+    proteins: &[&[u8]],
+    pairs: &[ProteinPair],
+    identity_cutoff: f32,
+) -> Vec<ProteinTileMatch> {
+    let capacity = proteins
+        .iter()
+        .map(|protein| protein.len())
+        .max()
+        .unwrap_or_default();
+    let mut aligner = ProteinAligner::with_capacity(capacity, capacity);
+    let mut matches = Vec::new();
+
+    for &pair in pairs {
+        let (Some(query), Some(target)) = (
+            proteins.get(pair.query_index),
+            proteins.get(pair.target_index),
+        ) else {
+            continue;
+        };
+        if !can_reach_identity(query.len(), target.len(), identity_cutoff) {
+            continue;
+        }
+        let ProteinMatch {
+            identity,
+            similarity,
+        } = aligner.compare(query, target);
+        if identity >= identity_cutoff {
+            matches.push(ProteinTileMatch {
+                query_index: pair.query_index,
+                target_index: pair.target_index,
+                identity,
+                similarity,
+            });
+        }
+    }
+    matches
+}
+
+/// Return promising pairs from two protein collections using distinct exact
+/// peptide k-mers. The returned pairs still require full global alignment.
+///
+/// This is intentionally a heuristic: unlike the length bound, a k-mer filter
+/// can exclude a remote homologue. It is therefore not used by default.
+pub fn kmer_candidate_pairs(
+    query: &[&[u8]],
+    target: &[&[u8]],
+    identity_cutoff: f32,
+    prefilter: KmerPrefilter,
+) -> Vec<ProteinPair> {
+    if prefilter.kmer_size == 0 || prefilter.kmer_size > 8 || prefilter.min_shared_kmers == 0 {
+        return cartesian_pairs(query, target, identity_cutoff);
+    }
+
+    let mut target_index = HashMap::<u64, Vec<usize>>::new();
+    for (target_index_value, protein) in target.iter().enumerate() {
+        for kmer in distinct_kmers(protein, prefilter.kmer_size) {
+            target_index
+                .entry(kmer)
+                .or_default()
+                .push(target_index_value);
+        }
+    }
+
+    let mut candidates = Vec::new();
+    let mut shared_counts = vec![0_usize; target.len()];
+    let mut touched_targets = Vec::new();
+    for (query_index, protein) in query.iter().enumerate() {
+        for kmer in distinct_kmers(protein, prefilter.kmer_size) {
+            if let Some(targets) = target_index.get(&kmer) {
+                for &target_index in targets {
+                    if shared_counts[target_index] == 0 {
+                        touched_targets.push(target_index);
+                    }
+                    shared_counts[target_index] += 1;
+                }
+            }
+        }
+        for target_index in touched_targets.drain(..) {
+            let count = std::mem::take(&mut shared_counts[target_index]);
+            if count >= prefilter.min_shared_kmers
+                && can_reach_identity(protein.len(), target[target_index].len(), identity_cutoff)
+            {
+                candidates.push(ProteinPair {
+                    query_index,
+                    target_index,
+                });
+            }
+        }
+    }
+    candidates.sort_unstable_by_key(|pair| (pair.query_index, pair.target_index));
+    candidates
+}
+
+/// The largest possible global-alignment identity is the shorter sequence
+/// divided by the longer one. Rejecting pairs below this bound is exact.
+pub fn can_reach_identity(query_length: usize, target_length: usize, identity_cutoff: f32) -> bool {
+    if identity_cutoff <= 0.0 {
+        return true;
+    }
+    let longer = query_length.max(target_length);
+    longer != 0 && query_length.min(target_length) as f32 / longer as f32 >= identity_cutoff
+}
+
+fn cartesian_pairs(query: &[&[u8]], target: &[&[u8]], identity_cutoff: f32) -> Vec<ProteinPair> {
+    query
+        .iter()
+        .enumerate()
+        .flat_map(|(query_index, query_protein)| {
+            target
+                .iter()
+                .enumerate()
+                .filter_map(move |(target_index, target_protein)| {
+                    can_reach_identity(query_protein.len(), target_protein.len(), identity_cutoff)
+                        .then_some(ProteinPair {
+                            query_index,
+                            target_index,
+                        })
+                })
+        })
+        .collect()
+}
+
+fn distinct_kmers(protein: &[u8], kmer_size: usize) -> HashSet<u64> {
+    protein
+        .windows(kmer_size)
+        .map(|kmer| {
+            kmer.iter()
+                .fold(0_u64, |key, &amino_acid| (key << 8) | u64::from(amino_acid))
+        })
+        .collect()
+}
+
 fn max_protein_length(cluster: &Cluster) -> usize {
     cluster
         .loci
@@ -294,7 +473,10 @@ fn max_protein_length(cluster: &Cluster) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{AnalysisOptions, InputFile, analyse_genbank, analyse_protein_tile};
+    use super::{
+        AnalysisOptions, InputFile, KmerPrefilter, ProteinPair, analyse_genbank,
+        analyse_protein_pairs, analyse_protein_tile, can_reach_identity, kmer_candidate_pairs,
+    };
 
     const FORWARD_CDS: &[u8] =
         br#"LOCUS       FIRST                      9 bp    DNA     linear   UNA 01-JAN-2000
@@ -352,5 +534,36 @@ ORIGIN
         assert_eq!(matches[0].query_index, 0);
         assert_eq!(matches[0].target_index, 1);
         assert_eq!(matches[0].identity, 1.0);
+    }
+
+    #[test]
+    fn length_bound_rejects_pairs_that_cannot_meet_global_identity_cutoff() {
+        assert!(can_reach_identity(30, 100, 0.30));
+        assert!(!can_reach_identity(29, 100, 0.30));
+    }
+
+    #[test]
+    fn kmer_prefilter_keeps_only_pairs_with_enough_distinct_shared_words() {
+        let query: [&[u8]; 2] = [b"MSTAVK", b"QQQQQQ"];
+        let target: [&[u8]; 2] = [b"MSTAVR", b"GGGGGG"];
+        let pairs = kmer_candidate_pairs(&query, &target, 0.0, KmerPrefilter::default());
+
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].query_index, 0);
+        assert_eq!(pairs[0].target_index, 0);
+    }
+
+    #[test]
+    fn selected_pair_alignment_does_not_expand_to_a_cartesian_product() {
+        let proteins: [&[u8]; 3] = [b"MST", b"AAA", b"GGG"];
+        let matches = analyse_protein_pairs(
+            &proteins,
+            &[ProteinPair {
+                query_index: 0,
+                target_index: 2,
+            }],
+            0.99,
+        );
+        assert!(matches.is_empty());
     }
 }
