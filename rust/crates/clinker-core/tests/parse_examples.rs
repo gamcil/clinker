@@ -38,9 +38,9 @@ ORIGIN
     let cluster = parse_genbank("derived.gbk", bytes).expect("valid GenBank");
     let genes = &cluster.loci[0].genes;
 
-    assert_eq!(genes[0].translation, "MA*");
+    assert_eq!(genes[0].translation, "MA");
     assert_eq!(genes[0].strand, 1);
-    assert_eq!(genes[1].translation, "MA*");
+    assert_eq!(genes[1].translation, "MA");
     assert_eq!(genes[1].strand, -1);
 }
 

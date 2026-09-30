@@ -23,4 +23,4 @@ pub use groups::{GeneGroup, build_gene_groups};
 pub use model::{Cluster, Gene, Locus};
 pub use parse_genbank::{ParseError, parse_genbank};
 pub use plot_data::{PlotCluster, PlotData, PlotGroup};
-pub use synteny::DEFAULT_CONTIGUITY_WEIGHT;
+pub use synteny::ClusterPairSimilarity;

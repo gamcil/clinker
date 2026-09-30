@@ -20,10 +20,12 @@ makes the chosen global-identity cutoff mathematically impossible.
 
 ## Build for local preview or static hosting
 
-The development machine needs Rust's `wasm32-unknown-unknown` target and
-[`wasm-pack`](https://rustwasm.github.io/docs/wasm-pack/). The Homebrew Rust
-installation can coexist with rustup, but the build script explicitly selects
-rustup's Cargo toolchain because that is where the WASM target is installed.
+The development machine needs Node/npm, Rust's `wasm32-unknown-unknown` target,
+and [`wasm-pack`](https://rustwasm.github.io/docs/wasm-pack/). `npm ci` fetches
+the pinned clustermap.js refactor commit and D3 v7 from `package-lock.json`.
+The Homebrew Rust installation can coexist with rustup, but the build script
+explicitly selects rustup's Cargo toolchain because that is where the WASM
+target is installed.
 
 ```bash
 rustup target add wasm32-unknown-unknown

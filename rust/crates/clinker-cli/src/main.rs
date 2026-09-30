@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use clap::Parser;
-use clinker_core::{AnalysisOptions, DEFAULT_CONTIGUITY_WEIGHT, InputFile, analyse_genbank};
+use clinker_core::{AnalysisOptions, InputFile, analyse_genbank};
 
 /// Inspect GenBank input with the in-progress Rust implementation of clinker.
 #[derive(Debug, Parser)]
@@ -63,7 +63,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let order = if args.use_file_order {
             (0..analysis.clusters.len()).collect()
         } else {
-            analysis.cluster_order(DEFAULT_CONTIGUITY_WEIGHT)
+            analysis.cluster_order()
         };
         let json = serde_json::to_string_pretty(&analysis.to_auto_arranged_plot_data(&order))?;
         fs::write(path, json)?;
@@ -77,7 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn format_distance_matrix(analysis: &clinker_core::Analysis) -> String {
-    let matrix = analysis.synteny_distance_matrix(DEFAULT_CONTIGUITY_WEIGHT);
+    let matrix = analysis.synteny_distance_matrix();
     let mut rows = vec![
         std::iter::once(String::new())
             .chain(analysis.clusters.iter().map(|cluster| cluster.name.clone()))

@@ -3,6 +3,9 @@ set -eu
 
 cd "$(dirname "$0")"
 
+# package-lock.json pins the refactored clustermap.js commit and D3 version.
+npm ci --ignore-scripts
+
 rustup_cargo=$(rustup which cargo)
 rustup_bin=$(dirname "$rustup_cargo")
 wasm_pack="${CARGO_HOME:-$HOME/.cargo}/bin/wasm-pack"
@@ -19,6 +22,5 @@ fi
 wasm_pack_bin=$(dirname "$wasm_pack")
 PATH="$wasm_pack_bin:$rustup_bin:$PATH"
 "$wasm_pack" build ../crates/clinker-wasm --target web --out-dir ../../web/pkg --out-name clinker_wasm
-cp ../../clinker/plot/d3.min.js .
-cp ../../clinker/plot/clustermap.min.js .
-cp ../../clinker/plot/style.css .
+cp node_modules/d3/dist/d3.min.js .
+cp node_modules/clustermap.js/dist/clustermap.min.js .

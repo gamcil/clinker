@@ -1,6 +1,15 @@
-//! Agglomerative hierarchy construction for cluster ordering.
+//! Agglomerative hierarchy construction and leaf ordering for cluster ordering.
+
+use std::collections::BTreeMap;
+
 /// Return the leaves of a Ward-linkage dendrogram for a condensed distance
-/// matrix. The nearest-neighbour-chain method uses O(n²) time and memory.
+/// matrix.
+///
+/// The nearest-neighbour-chain construction uses O(n²) time and memory. Once
+/// the tree is built, optimal leaf ordering chooses the orientation of each
+/// branch that minimizes the sum of distances between displayed neighbours.
+/// This retains Ward's groups while avoiding arbitrary branch boundaries that
+/// can otherwise put two clusters with no links next to one another.
 pub(crate) fn ward_leaf_order(distances: &[f64], count: usize) -> Vec<usize> {
     if count < 2 {
         return (0..count).collect();
@@ -52,9 +61,7 @@ pub(crate) fn ward_leaf_order(distances: &[f64], count: usize) -> Vec<usize> {
     }
 
     let root = first_active(&active);
-    let mut leaves = Vec::with_capacity(count);
-    nodes[root].append_leaves(&mut leaves);
-    leaves
+    optimal_leaf_order(&nodes[root], distances, count)
 }
 
 fn first_active(active: &[bool]) -> usize {
@@ -122,16 +129,98 @@ enum Node {
     Merge(Box<Node>, Box<Node>),
 }
 
-impl Node {
-    fn append_leaves(&self, leaves: &mut Vec<usize>) {
-        match self {
-            Self::Leaf(index) => leaves.push(*index),
-            Self::Merge(left, right) => {
-                left.append_leaves(leaves);
-                right.append_leaves(leaves);
+#[derive(Debug, Clone)]
+struct OrderedLeaves {
+    cost: f64,
+    leaves: Vec<usize>,
+}
+
+/// Find the lowest-cost sequence for every possible pair of endpoints in a
+/// subtree. The recurrence only joins a left and right child, so every result
+/// remains a valid ordering of the Ward dendrogram.
+fn optimal_leaf_order(node: &Node, distances: &[f64], count: usize) -> Vec<usize> {
+    let states = optimal_leaf_order_states(node, distances, count);
+    states
+        .into_values()
+        .min_by(|left, right| compare_orders(left, right))
+        .expect("a dendrogram contains a leaf")
+        .leaves
+}
+
+fn optimal_leaf_order_states(
+    node: &Node,
+    distances: &[f64],
+    count: usize,
+) -> BTreeMap<(usize, usize), OrderedLeaves> {
+    match node {
+        Node::Leaf(index) => BTreeMap::from([(
+            (*index, *index),
+            OrderedLeaves {
+                cost: 0.0,
+                leaves: vec![*index],
+            },
+        )]),
+        Node::Merge(left, right) => {
+            let left_states = optimal_leaf_order_states(left, distances, count);
+            let right_states = optimal_leaf_order_states(right, distances, count);
+            let mut states = BTreeMap::new();
+
+            for (&(left_start, left_end), left_order) in &left_states {
+                for (&(right_start, right_end), right_order) in &right_states {
+                    let cost = left_order.cost
+                        + condensed_distance(distances, count, left_end, right_start)
+                        + right_order.cost;
+                    let mut leaves = left_order.leaves.clone();
+                    leaves.extend_from_slice(&right_order.leaves);
+                    keep_best(
+                        &mut states,
+                        (left_start, right_end),
+                        OrderedLeaves { cost, leaves },
+                    );
+
+                    let cost = right_order.cost
+                        + condensed_distance(distances, count, right_end, left_start)
+                        + left_order.cost;
+                    let mut leaves = right_order.leaves.clone();
+                    leaves.extend_from_slice(&left_order.leaves);
+                    keep_best(
+                        &mut states,
+                        (right_start, left_end),
+                        OrderedLeaves { cost, leaves },
+                    );
+                }
             }
+            states
         }
     }
+}
+
+fn condensed_distance(distances: &[f64], count: usize, one: usize, two: usize) -> f64 {
+    if one == two {
+        return 0.0;
+    }
+    let (row, column) = (one.min(two), one.max(two));
+    let index = row * (2 * count - row - 1) / 2 + (column - row - 1);
+    distances[index]
+}
+
+fn keep_best(
+    states: &mut BTreeMap<(usize, usize), OrderedLeaves>,
+    endpoints: (usize, usize),
+    candidate: OrderedLeaves,
+) {
+    match states.get(&endpoints) {
+        Some(current) if compare_orders(current, &candidate).is_le() => {}
+        _ => {
+            states.insert(endpoints, candidate);
+        }
+    }
+}
+
+fn compare_orders(left: &OrderedLeaves, right: &OrderedLeaves) -> std::cmp::Ordering {
+    left.cost
+        .total_cmp(&right.cost)
+        .then_with(|| left.leaves.cmp(&right.leaves))
 }
 
 #[cfg(test)]
@@ -152,6 +241,25 @@ mod tests {
             order
                 .windows(2)
                 .any(|pair| pair == [2, 3] || pair == [3, 2])
+        );
+    }
+
+    #[test]
+    fn orients_ward_branches_to_keep_linked_clusters_adjacent() {
+        // Ward first forms (0, 1) and (2, 3). The old construction-order
+        // traversal returned 0, 1, 2, 3, making the unlinked 1/2 pair
+        // neighbours. Flipping the second branch preserves both groups and
+        // makes its boundary the linked 1/3 pair instead.
+        let order = ward_leaf_order(&[0.1, 1.0, 1.0, 1.0, 0.2, 0.1], 4);
+        assert!(
+            order
+                .windows(2)
+                .any(|pair| pair == [1, 3] || pair == [3, 1])
+        );
+        assert!(
+            !order
+                .windows(2)
+                .any(|pair| pair == [1, 2] || pair == [2, 1])
         );
     }
 }

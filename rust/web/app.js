@@ -2,13 +2,18 @@ const filesInput = document.querySelector("#files");
 const identityInput = document.querySelector("#identity");
 const prefilterInput = document.querySelector("#prefilter");
 const analyseButton = document.querySelector("#analyse");
+const matrixButton = document.querySelector("#download-matrix");
 const status = document.querySelector("#status");
 const plot = d3.select("#plot");
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
 // Keep one chart instance, as the original clustermap integration does. The
 // library retains its renderer state on this object between redraws.
-const chart = ClusterMap.ClusterMap();
+const chart = ClusterMap.ClusterMap().config({
+  link: { bestOnly: true },
+  plot: { renderer: "webgpu" },
+});
+let latestSimilarity = null;
 
 function workerCount(taskCount) {
   // Each worker owns a separate Wasm instance and its alignment buffers. A
@@ -92,6 +97,11 @@ function pairCount(clusters) {
   return count;
 }
 
+function progressPercent(completed, total) {
+  if (total === 0) return 100;
+  return Math.min(100, Math.floor((completed / total) * 100));
+}
+
 function* alignmentTiles(clusters) {
   for (let queryCluster = 0; queryCluster < clusters.length; queryCluster += 1) {
     for (let targetCluster = queryCluster + 1; targetCluster < clusters.length; targetCluster += 1) {
@@ -128,6 +138,92 @@ function plotLink(link) {
     similarity: link.similarity,
   };
 }
+
+function bestLinksForDisplay(plotData) {
+  // The pinned clustermap refactor applies `link.bestOnly` in SVG but not yet
+  // in its WebGPU renderer. Keep that renderer workaround local: Rust retains
+  // every link for grouping and output, while this copy contains only the
+  // highest-identity overlapping link for each cluster pair.
+  const clusterForGene = new Map();
+  plotData.clusters.forEach(cluster => {
+    cluster.loci.forEach(locus => {
+      locus.genes.forEach(gene => clusterForGene.set(gene.uid, cluster.uid));
+    });
+  });
+  const pairKey = (left, right) => [left, right].sort().join("\u0000");
+  const selectedByPair = new Map();
+
+  for (const link of [...plotData.links].sort((left, right) => right.identity - left.identity)) {
+    const queryCluster = clusterForGene.get(link.query.uid);
+    const targetCluster = clusterForGene.get(link.target.uid);
+    if (!queryCluster || !targetCluster) continue;
+
+    const key = pairKey(queryCluster, targetCluster);
+    const selected = selectedByPair.get(key) || [];
+    const superseded = selected.some(candidate =>
+      link.identity < candidate.identity
+      && (candidate.query.uid === link.query.uid
+        || candidate.query.uid === link.target.uid
+        || candidate.target.uid === link.query.uid
+        || candidate.target.uid === link.target.uid),
+    );
+    if (!superseded) selected.push(link);
+    selectedByPair.set(key, selected);
+  }
+
+  return [...selectedByPair.values()].flat();
+}
+
+function csvCell(value) {
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function downloadSimilarityCsv({ clusterNames, clusterOrder, similarityMatrix }) {
+  const plotPosition = new Map(clusterOrder.map((cluster, index) => [cluster, index + 1]));
+  const rows = [[
+    "query_plot_order",
+    "query_cluster",
+    "query_index",
+    "target_plot_order",
+    "target_cluster",
+    "target_index",
+    "query_to_target_coverage",
+    "target_to_query_coverage",
+    "containment_similarity",
+    "distance",
+  ]];
+  for (let query = 0; query < clusterNames.length; query += 1) {
+    for (let target = query + 1; target < clusterNames.length; target += 1) {
+      const pair = similarityMatrix[query][target];
+      rows.push([
+        plotPosition.get(query),
+        clusterNames[query],
+        query,
+        plotPosition.get(target),
+        clusterNames[target],
+        target,
+        pair.queryCoverage,
+        pair.targetCoverage,
+        pair.similarity,
+        1 - pair.similarity,
+      ]);
+    }
+  }
+  const csv = `${rows.map(row => row.map(csvCell).join(",")).join("\n")}\n`;
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  const download = document.createElement("a");
+  download.href = url;
+  download.download = "clinker-cluster-similarity.csv";
+  document.body.append(download);
+  download.click();
+  download.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+matrixButton.addEventListener("click", () => {
+  if (latestSimilarity) downloadSimilarityCsv(latestSimilarity);
+});
 
 function postProcess(layout, links) {
   const worker = new Worker("worker.js", { type: "module" });
@@ -236,6 +332,8 @@ analyseButton.addEventListener("click", async () => {
   }
 
   analyseButton.disabled = true;
+  matrixButton.disabled = true;
+  latestSimilarity = null;
   try {
     status.textContent = "Reading files…";
     let files = await Promise.all([...filesInput.files].map(async file => ({
@@ -251,26 +349,34 @@ analyseButton.addEventListener("click", async () => {
     };
     const parsed = await parseInputFiles(files, prefilter);
     files = null;
-    const clusters = proteinsByCluster(parsed.proteins, parsed.layout.clusters.length);
-    const totalPairs = parsed.candidatePairs ? parsed.candidatePairs.length : pairCount(clusters);
-    status.textContent = `Analysing locally… 0/${totalPairs.toLocaleString()} protein pairs`;
+    status.textContent = "Analysing locally… 0%";
     const links = await analyseTilesInWorkerPool(
       parsed.proteins,
       parsed.layout.clusters.length,
       identity,
       parsed.candidatePairs,
       (completedPairs, total) => {
-        status.textContent = `Analysing locally… ${completedPairs.toLocaleString()}/${total.toLocaleString()} protein pairs`;
+        status.textContent = `Analysing locally… ${progressPercent(completedPairs, total)}%`;
       },
     );
     status.textContent = "Building homology groups and ordering clusters…";
     const result = await postProcess(parsed.layout, links);
     const plotData = result.plotData;
-    status.textContent = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links.`;
+    latestSimilarity = {
+      clusterNames: result.clusterNames,
+      clusterOrder: result.clusterOrder,
+      similarityMatrix: result.similarityMatrix,
+    };
+    matrixButton.disabled = false;
+    const displayData = {
+      ...plotData,
+      links: bestLinksForDisplay(plotData),
+    };
+    status.textContent = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links; ${displayData.links.length} displayed best links.`;
 
     // Keep clustermap's SVG mounted. The chart retains it as the target for
     // controls and D3 transitions; its own joins update the old plot safely.
-    plot.data([plotData]).call(chart);
+    plot.data([displayData]).call(chart);
   } catch (error) {
     status.textContent = `Analysis failed: ${error.message || String(error)}`;
   } finally {

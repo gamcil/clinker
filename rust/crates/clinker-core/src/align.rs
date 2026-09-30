@@ -159,10 +159,4 @@ mod tests {
         assert_eq!(terminal_gap.identity, 0.75);
         assert_eq!(terminal_gap.similarity, 0.75);
     }
-
-    #[test]
-    fn accepts_genbank_terminal_stop_symbols() {
-        let mut aligner = ProteinAligner::with_capacity(3, 3);
-        assert_eq!(aligner.compare(b"MA*", b"MA*").identity, 1.0);
-    }
 }

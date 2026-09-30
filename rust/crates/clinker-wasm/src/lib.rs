@@ -4,9 +4,9 @@
 //! in the platform-independent core crate so the CLI and browser agree.
 
 use clinker_core::{
-    Analysis, AnalysisError, Cluster, Gene, GeneRef, InputFile, KmerPrefilter, Link, Locus,
-    PlotData, ProteinPair, analyse_protein_pairs_with_progress, analyse_protein_tile_with_progress,
-    kmer_candidate_pairs, parse_input_files,
+    Analysis, AnalysisError, Cluster, ClusterPairSimilarity, Gene, GeneRef, InputFile,
+    KmerPrefilter, Link, Locus, PlotData, ProteinPair, analyse_protein_pairs_with_progress,
+    analyse_protein_tile_with_progress, kmer_candidate_pairs, parse_input_files,
 };
 use js_sys::Function;
 use serde::{Deserialize, Serialize};
@@ -82,6 +82,7 @@ struct BrowserLayoutGene {
     start: usize,
     end: usize,
     strand: i8,
+    protein_length: usize,
 }
 
 /// A retained link returned by an alignment-only worker tile.
@@ -115,6 +116,9 @@ struct BrowserProteinRef {
 #[serde(rename_all = "camelCase")]
 struct BrowserPostProcess {
     plot_data: PlotData,
+    cluster_names: Vec<String>,
+    cluster_order: Vec<usize>,
+    similarity_matrix: Vec<Vec<ClusterPairSimilarity>>,
 }
 
 impl From<BrowserProteinRef> for GeneRef {
@@ -250,10 +254,18 @@ pub fn post_process(layout: JsValue, links: JsValue) -> Result<JsValue, JsValue>
         clusters: clusters_from_layout(layout),
         links,
     };
-    let order = analysis.cluster_order(clinker_core::DEFAULT_CONTIGUITY_WEIGHT);
+    let similarity_matrix = analysis.cluster_similarity_matrix();
+    let order = analysis.cluster_order();
     let arranged = analysis.to_auto_arranged_plot_data(&order);
     let result = BrowserPostProcess {
         plot_data: arranged,
+        cluster_names: analysis
+            .clusters
+            .iter()
+            .map(|cluster| cluster.name.clone())
+            .collect(),
+        cluster_order: order,
+        similarity_matrix,
     };
     serde_wasm_bindgen::to_value(&result)
         .map_err(|error| JsValue::from_str(&format!("could not encode post-processing: {error}")))
@@ -297,7 +309,10 @@ fn clusters_from_layout(layout: BrowserLayout) -> Vec<Cluster> {
                             start: gene.start,
                             end: gene.end,
                             strand: gene.strand,
-                            translation: String::new(),
+                            // Post-processing needs only the amino-acid count
+                            // for length-weighted cluster similarity, not the
+                            // original sequence used by alignment workers.
+                            translation: "X".repeat(gene.protein_length),
                         })
                         .collect(),
                 })
@@ -417,6 +432,7 @@ fn layout_from_clusters(clusters: &[Cluster]) -> BrowserLayout {
                                 start: gene.start,
                                 end: gene.end,
                                 strand: gene.strand,
+                                protein_length: gene.translation.len(),
                             })
                             .collect(),
                     })
@@ -460,12 +476,13 @@ mod tests {
         .unwrap();
         assert_eq!(data.layout.clusters.len(), 2);
         assert_eq!(data.proteins.len(), 2);
+        assert_eq!(data.layout.clusters[0].loci[0].genes[0].protein_length, 2);
 
         // The exported function is exercised by browser/WASM integration; the
         // parsing test above keeps native unit tests independent of JsValue.
         let _ = analyse_tile as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
         let _ = analyse_pairs as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
         let _ = post_process as fn(JsValue, JsValue) -> Result<JsValue, JsValue>;
-        assert_eq!(data.proteins[0].translation, "MA*");
+        assert_eq!(data.proteins[0].translation, "MA");
     }
 }

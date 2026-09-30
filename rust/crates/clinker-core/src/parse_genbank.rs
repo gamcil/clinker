@@ -82,8 +82,14 @@ fn gene_from_feature(record: &Seq, feature: &Feature, index: usize) -> Result<Ge
         start: start as usize,
         end: end as usize,
         strand,
-        translation,
+        translation: normalize_translation(translation),
     })
+}
+
+/// GenBank translations commonly include the terminal stop as `*`, but that
+/// codon is not part of the translated protein sequence.
+fn normalize_translation(translation: String) -> String {
+    translation.trim_end_matches('*').to_owned()
 }
 
 fn location_bounds(location: &Location) -> Result<(i64, i64), LocationError> {
