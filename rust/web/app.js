@@ -1,7 +1,7 @@
 import {
   defineClinkerEditor,
   mountPlotSelectionToolbar,
-} from "./clustermap-editor.mjs?v=20261002-genuine-progress-v5";
+} from "./clustermap-editor.mjs?v=20261002-bundled-d3-v6";
 
 defineClinkerEditor();
 
@@ -44,7 +44,7 @@ const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
-const WORKER_VERSION = "20261002-genuine-progress-v5";
+const WORKER_VERSION = "20261002-bundled-d3-v6";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {

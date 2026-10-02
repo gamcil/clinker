@@ -3,9 +3,9 @@ import init, {
   analyse_tile,
   BrowserFileParser,
   post_process,
-} from "./pkg/clinker_wasm.js?v=20261002-genuine-progress-v5";
+} from "./pkg/clinker_wasm.js?v=20261002-bundled-d3-v6";
 
-const WASM_VERSION = "20261002-genuine-progress-v5";
+const WASM_VERSION = "20261002-bundled-d3-v6";
 const wasmUrl = new URL("./pkg/clinker_wasm_bg.wasm", import.meta.url);
 wasmUrl.searchParams.set("v", WASM_VERSION);
 const wasm = init(wasmUrl);
