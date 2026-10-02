@@ -14,9 +14,19 @@ pub struct GeneGroup {
 /// A group contains every gene reachable through one or more links.
 /// Genes that have no retained link are deliberately omitted.
 pub fn build_gene_groups(links: &[Link]) -> Vec<GeneGroup> {
+    build_gene_groups_with_progress(links, |_| {})
+}
+
+/// As [`build_gene_groups`], reporting completed link operations. Each link is
+/// visited once to index its genes and once to union their components, so the
+/// final reported value is `links.len() * 2`.
+pub fn build_gene_groups_with_progress(
+    links: &[Link],
+    mut progress: impl FnMut(usize),
+) -> Vec<GeneGroup> {
     let mut gene_indices = BTreeMap::new();
     let mut genes = Vec::new();
-    for link in links {
+    for (link_index, link) in links.iter().enumerate() {
         for gene in [link.query, link.target] {
             if !gene_indices.contains_key(&gene) {
                 let index = genes.len();
@@ -24,10 +34,15 @@ pub fn build_gene_groups(links: &[Link]) -> Vec<GeneGroup> {
                 genes.push(gene);
             }
         }
+        progress(link_index + 1);
     }
     let mut sets = DisjointSet::new(genes.len());
-    for link in links {
+    for (link_index, link) in links.iter().enumerate() {
         sets.union(gene_indices[&link.query], gene_indices[&link.target]);
+        progress(links.len() + link_index + 1);
+    }
+    if links.is_empty() {
+        progress(0);
     }
     let mut components = BTreeMap::<usize, Vec<GeneRef>>::new();
     for (index, gene) in genes.into_iter().enumerate() {
@@ -78,7 +93,7 @@ impl DisjointSet {
 
 #[cfg(test)]
 mod tests {
-    use super::build_gene_groups;
+    use super::{build_gene_groups, build_gene_groups_with_progress};
     use crate::{GeneRef, Link};
 
     fn gene(cluster: usize, gene: usize) -> GeneRef {
@@ -109,5 +124,15 @@ mod tests {
         assert_eq!(groups.len(), 2);
         assert_eq!(groups[0].genes, vec![gene(0, 0), gene(1, 0), gene(2, 0)]);
         assert_eq!(groups[1].genes, vec![gene(0, 1), gene(1, 1)]);
+    }
+
+    #[test]
+    fn grouping_reports_both_link_passes() {
+        let links = [link(gene(0, 0), gene(1, 0)), link(gene(1, 0), gene(2, 0))];
+        let mut reports = Vec::new();
+
+        let _ = build_gene_groups_with_progress(&links, |processed| reports.push(processed));
+
+        assert_eq!(reports, vec![1, 2, 3, 4]);
     }
 }

@@ -187,15 +187,31 @@ pub fn analyse_genbank(
 /// Browser callers use this first to obtain cluster metadata, then distribute
 /// independent pairwise comparisons to workers.
 pub fn parse_input_files(files: &[InputFile<'_>]) -> Result<Vec<Cluster>, AnalysisError> {
-    files
-        .iter()
-        .map(|file| {
-            parse_genbank(file.name, file.bytes).map_err(|source| AnalysisError::Parse {
+    parse_input_files_with_progress(files, |_| {})
+}
+
+/// Parse GenBank inputs and report the number of successfully parsed files.
+///
+/// Browser workers use the callback to surface progress without moving file
+/// parsing out of the shared core implementation.
+pub fn parse_input_files_with_progress<F>(
+    files: &[InputFile<'_>],
+    mut progress: F,
+) -> Result<Vec<Cluster>, AnalysisError>
+where
+    F: FnMut(usize),
+{
+    let mut clusters = Vec::with_capacity(files.len());
+    for (index, file) in files.iter().enumerate() {
+        clusters.push(parse_genbank(file.name, file.bytes).map_err(|source| {
+            AnalysisError::Parse {
                 file_name: file.name.to_owned(),
                 source,
-            })
-        })
-        .collect()
+            }
+        })?);
+        progress(index + 1);
+    }
+    Ok(clusters)
 }
 
 fn cross_cluster_links(clusters: &[Cluster], identity_cutoff: f32) -> Vec<Link> {
@@ -416,8 +432,23 @@ pub fn kmer_candidate_pairs(
     identity_cutoff: f32,
     prefilter: KmerPrefilter,
 ) -> Vec<ProteinPair> {
+    kmer_candidate_pairs_with_progress(query, target, identity_cutoff, prefilter, |_| {})
+}
+
+/// As [`kmer_candidate_pairs`], reporting how many possible query-target pairs
+/// have been searched. A query protein accounts for `target.len()` pairs once
+/// all of its k-mers have been inspected.
+pub fn kmer_candidate_pairs_with_progress(
+    query: &[&[u8]],
+    target: &[&[u8]],
+    identity_cutoff: f32,
+    prefilter: KmerPrefilter,
+    mut progress: impl FnMut(usize),
+) -> Vec<ProteinPair> {
     if prefilter.kmer_size == 0 || prefilter.kmer_size > 8 || prefilter.min_shared_kmers == 0 {
-        return cartesian_pairs(query, target, identity_cutoff);
+        let pairs = cartesian_pairs(query, target, identity_cutoff);
+        progress(query.len() * target.len());
+        return pairs;
     }
 
     let mut target_index = HashMap::<u64, Vec<usize>>::new();
@@ -455,6 +486,10 @@ pub fn kmer_candidate_pairs(
                 });
             }
         }
+        progress((query_index + 1) * target.len());
+    }
+    if query.is_empty() {
+        progress(0);
     }
     candidates.sort_unstable_by_key(|pair| (pair.query_index, pair.target_index));
     candidates
@@ -514,7 +549,8 @@ mod tests {
     use super::{
         AnalysisOptions, InputFile, KmerPrefilter, ProteinPair, analyse_genbank,
         analyse_protein_pairs, analyse_protein_tile, analyse_protein_tile_with_progress,
-        can_reach_identity, kmer_candidate_pairs,
+        can_reach_identity, kmer_candidate_pairs, kmer_candidate_pairs_with_progress,
+        parse_input_files_with_progress,
     };
 
     const FORWARD_CDS: &[u8] =
@@ -563,6 +599,27 @@ ORIGIN
     }
 
     #[test]
+    fn parsing_reports_each_completed_file() {
+        let files = [
+            InputFile {
+                name: "first.gbk",
+                bytes: FORWARD_CDS,
+            },
+            InputFile {
+                name: "second.gbk",
+                bytes: REVERSE_CDS,
+            },
+        ];
+        let mut reports = Vec::new();
+
+        let clusters =
+            parse_input_files_with_progress(&files, |processed| reports.push(processed)).unwrap();
+
+        assert_eq!(clusters.len(), 2);
+        assert_eq!(reports, vec![1, 2]);
+    }
+
+    #[test]
     fn compares_a_bounded_cartesian_product_of_proteins() {
         let query: [&[u8]; 2] = [b"MST", b"AAA"];
         let target: [&[u8]; 2] = [b"GGG", b"MST"];
@@ -590,6 +647,23 @@ ORIGIN
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].query_index, 0);
         assert_eq!(pairs[0].target_index, 0);
+    }
+
+    #[test]
+    fn kmer_prefilter_reports_searched_possible_pairs() {
+        let query: [&[u8]; 2] = [b"MSTAVK", b"QQQQQQ"];
+        let target: [&[u8]; 3] = [b"MSTAVR", b"GGGGGG", b"AAAAAA"];
+        let mut reports = Vec::new();
+
+        let _ = kmer_candidate_pairs_with_progress(
+            &query,
+            &target,
+            0.0,
+            KmerPrefilter::default(),
+            |processed| reports.push(processed),
+        );
+
+        assert_eq!(reports, vec![3, 6]);
     }
 
     #[test]

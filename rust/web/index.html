@@ -5,27 +5,163 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="clustermap-editor.css?v=20261002-genuine-progress-v5">
     <script src="d3.min.js"></script>
-    <script src="clustermap.min.js"></script>
+    <script src="clustermap.min.js?v=20261002-genuine-progress-v5"></script>
+    <script type="importmap">
+      { "imports": { "d3": "./d3-esm.js" } }
+    </script>
   </head>
   <body>
     <main>
-      <h1>clinker</h1>
-      <p>All parsing and protein comparison run locally in this browser.</p>
-      <div class="controls">
-        <label>GenBank files <input id="files" type="file" accept=".gb,.gbk,.genbank" multiple></label>
-        <label>Identity cutoff <input id="identity" type="number" min="0" max="1" step="0.01" value="0.30"></label>
-        <label title="Fast, approximate candidate selection; may miss remote homologues.">
-          <input id="prefilter" type="checkbox"> Fast k-mer prefilter
-        </label>
-        <button id="analyse" type="button">Analyse</button>
-        <button id="load-example" type="button">Load example</button>
-        <button id="download-matrix" type="button" disabled>Download similarity CSV</button>
-        <button id="download-svg" type="button" disabled>Download SVG</button>
+      <header class="app-bar">
+        <h1>clinker</h1>
+        <button id="new-run" type="button" aria-controls="run-panel" aria-expanded="false" hidden>New run</button>
+        <nav class="app-actions" aria-label="Plot actions">
+          <details class="menu">
+            <summary>Open</summary>
+            <div class="menu-popover">
+              <button id="load-data" type="button">Plot data…</button>
+              <input id="data-file" type="file" accept="application/json,.json" hidden>
+              <button id="load-project" type="button">Project…</button>
+              <input id="project-file" type="file" accept="application/json,.json" hidden>
+            </div>
+          </details>
+          <details class="menu menu-end">
+            <summary>Export</summary>
+            <div class="menu-popover">
+              <button id="download-svg" type="button" disabled>SVG</button>
+              <button id="download-data" type="button" disabled>Plot data</button>
+              <button id="download-project" type="button" disabled>Project</button>
+              <button id="download-matrix" type="button" disabled>Similarity CSV</button>
+            </div>
+          </details>
+          <span class="action-divider" aria-hidden="true"></span>
+          <button id="edit-plot" type="button" disabled aria-controls="plot-editor" aria-expanded="false">Edit plot</button>
+        </nav>
+        <span class="about-help">
+          <button class="about-button" type="button" aria-label="About clinker web" aria-describedby="about-tooltip">?</button>
+          <span id="about-tooltip" class="about-tooltip" role="tooltip">
+            GenBank parsing and protein comparisons run locally in your browser using WebAssembly. Your files are not uploaded.
+          </span>
+        </span>
+      </header>
+      <div class="plot-stage">
+        <div id="plot"></div>
+        <p id="plot-status" class="plot-status" role="status" hidden></p>
+        <section id="run-panel" class="run-panel" aria-labelledby="run-panel-title">
+          <div class="run-card">
+            <div class="run-card-heading">
+              <div>
+                <h2 id="run-panel-title">New clinker run</h2>
+                <p>Select GenBank files and configure the protein comparison.</p>
+              </div>
+              <button id="cancel-run" class="quiet-action" type="button" hidden>Cancel</button>
+            </div>
+            <div class="run-field">
+              <span class="run-field-label">GenBank files</span>
+              <label class="file-picker">
+                <span class="file-picker-button">Choose files</span>
+                <span id="file-summary" class="file-summary">No files selected</span>
+                <input id="files" class="visually-hidden" type="file" accept=".gb,.gbk,.genbank" multiple>
+              </label>
+            </div>
+            <div class="run-options">
+              <label class="run-field" title="Minimum protein identity retained as a link">
+                <span class="run-field-label">Identity cutoff</span>
+                <input id="identity" class="run-control" type="number" min="0" max="1" step="0.01" value="0.30">
+              </label>
+              <div class="run-field">
+                <span class="run-field-label">Candidate selection</span>
+                <label class="check-control" title="Fast, approximate candidate selection; may miss remote homologues.">
+                  <input id="prefilter" type="checkbox">
+                  <span>k-mer prefilter</span>
+                </label>
+              </div>
+            </div>
+            <details class="run-advanced">
+              <summary>Advanced options</summary>
+              <div class="advanced-options">
+                <label class="run-field">
+                  <span class="run-field-label">Cluster order</span>
+                  <select id="cluster-order" class="run-control">
+                    <option value="synteny">Synteny similarity</option>
+                    <option value="file">Input file order</option>
+                  </select>
+                </label>
+                <label class="run-field">
+                  <span class="run-field-label">k-mer size</span>
+                  <input id="kmer-size" class="run-control" type="number" min="1" max="8" step="1" value="3">
+                </label>
+                <label class="run-field">
+                  <span class="run-field-label">Minimum shared k-mers</span>
+                  <input id="min-shared-kmers" class="run-control" type="number" min="1" step="1" value="3">
+                </label>
+              </div>
+            </details>
+            <div class="run-actions">
+              <button id="analyse" class="primary-action" type="button">Analyse files</button>
+              <button id="load-example" type="button">Load example</button>
+            </div>
+            <div id="run-feedback" class="run-feedback" aria-live="polite" hidden>
+              <ol id="run-steps" class="run-steps" hidden>
+                <li data-run-step="parse" data-state="waiting">
+                  <span class="step-marker" aria-hidden="true">1</span>
+                  <div class="step-content">
+                    <strong>Parse GenBank files</strong>
+                    <span class="step-result">Waiting</span>
+                    <progress max="100" hidden></progress>
+                  </div>
+                </li>
+                <li data-run-step="prefilter" data-state="waiting" hidden>
+                  <span class="step-marker" aria-hidden="true">2</span>
+                  <div class="step-content">
+                    <strong>Filter candidate alignments</strong>
+                    <span class="step-result">Waiting</span>
+                    <progress max="100" hidden></progress>
+                  </div>
+                </li>
+                <li data-run-step="align" data-state="waiting">
+                  <span class="step-marker" aria-hidden="true">3</span>
+                  <div class="step-content">
+                    <strong>Align genes</strong>
+                    <span class="step-result">Waiting</span>
+                    <progress max="100" hidden></progress>
+                  </div>
+                </li>
+                <li data-run-step="order" data-state="waiting">
+                  <span class="step-marker" aria-hidden="true">4</span>
+                  <div class="step-content">
+                    <strong>Score and order clusters</strong>
+                    <span class="step-result">Waiting</span>
+                    <progress max="100" hidden></progress>
+                  </div>
+                </li>
+                <li data-run-step="groups" data-state="waiting">
+                  <span class="step-marker" aria-hidden="true">5</span>
+                  <div class="step-content">
+                    <strong>Build homology groups</strong>
+                    <span class="step-result">Waiting</span>
+                    <progress max="100" hidden></progress>
+                  </div>
+                </li>
+                <li data-run-step="layout" data-state="waiting">
+                  <span class="step-marker" aria-hidden="true">6</span>
+                  <div class="step-content">
+                    <strong>Arrange loci</strong>
+                    <span class="step-result">Waiting</span>
+                    <progress max="100" hidden></progress>
+                  </div>
+                </li>
+              </ol>
+              <p id="run-status" role="status" hidden></p>
+            </div>
+            <p class="run-privacy">Analysis runs locally through WebAssembly; selected files never leave this browser.</p>
+          </div>
+        </section>
+        <clinker-editor id="plot-editor" resizable hidden></clinker-editor>
       </div>
-      <p id="status" role="status"></p>
-      <div id="plot"></div>
     </main>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=20261002-genuine-progress-v5"></script>
   </body>
 </html>

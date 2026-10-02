@@ -35,24 +35,45 @@ impl Analysis {
     /// At `[query][target]`, `query_coverage` is query → target and
     /// `target_coverage` is target → query. The mirrored entry swaps them.
     pub fn cluster_similarity_matrix(&self) -> Vec<Vec<ClusterPairSimilarity>> {
+        self.cluster_similarity_matrix_with_progress(|_| {})
+    }
+
+    /// As [`Analysis::cluster_similarity_matrix`], reporting completed
+    /// unordered cluster pairs.
+    pub fn cluster_similarity_matrix_with_progress(
+        &self,
+        mut progress: impl FnMut(usize),
+    ) -> Vec<Vec<ClusterPairSimilarity>> {
         let count = self.clusters.len();
         let mut matrix = vec![vec![ClusterPairSimilarity::default(); count]; count];
+        let mut links_by_pair = BTreeMap::<(usize, usize), Vec<&Link>>::new();
+        for link in &self.links {
+            links_by_pair
+                .entry((link.query.cluster, link.target.cluster))
+                .or_default()
+                .push(link);
+        }
+        let mut processed = 0;
         for query in 0..count {
             for target in query + 1..count {
-                let links = self
-                    .links
-                    .iter()
-                    .filter(|link| link.query.cluster == query && link.target.cluster == target)
-                    .collect::<Vec<_>>();
+                let links = links_by_pair
+                    .get(&(query, target))
+                    .map(Vec::as_slice)
+                    .unwrap_or_default();
                 let pair =
-                    containment_similarity(&self.clusters[query], &self.clusters[target], &links);
+                    containment_similarity(&self.clusters[query], &self.clusters[target], links);
                 matrix[query][target] = pair;
                 matrix[target][query] = ClusterPairSimilarity {
                     query_coverage: pair.target_coverage,
                     target_coverage: pair.query_coverage,
                     similarity: pair.similarity,
                 };
+                processed += 1;
+                progress(processed);
             }
+        }
+        if processed == 0 {
+            progress(0);
         }
         matrix
     }
@@ -79,17 +100,37 @@ impl Analysis {
     /// strength is the total pairwise similarity within it, then its number of
     /// clusters as a tie-breaker.
     pub fn cluster_order(&self) -> Vec<usize> {
+        let similarities = self.cluster_similarity_matrix();
+        self.cluster_order_from_similarity_matrix(&similarities)
+    }
+
+    /// Order clusters using an already calculated similarity matrix.
+    /// Reusing it avoids recalculating every cluster pair during browser
+    /// post-processing, where the same matrix is also exported as CSV.
+    pub fn cluster_order_from_similarity_matrix(
+        &self,
+        matrix: &[Vec<ClusterPairSimilarity>],
+    ) -> Vec<usize> {
         let count = self.clusters.len();
         if count < 2 || self.links.is_empty() {
             return (0..count).collect();
         }
-        let matrix = self.synteny_distance_matrix();
+        assert_eq!(matrix.len(), count);
+        assert!(matrix.iter().all(|row| row.len() == count));
+        let similarities = matrix
+            .iter()
+            .map(|row| row.iter().map(|pair| pair.similarity).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
         let mut condensed = Vec::with_capacity(count * (count - 1) / 2);
         for row in 0..count {
-            condensed.extend_from_slice(&matrix[row][row + 1..]);
+            condensed.extend(
+                similarities[row][row + 1..]
+                    .iter()
+                    .map(|similarity| 1.0 - similarity),
+            );
         }
         let mut order = ward_leaf_order(&condensed, count);
-        orient_strongest_component_first(&mut order, &self.synteny_matrix());
+        orient_strongest_component_first(&mut order, &similarities);
         order
     }
 }
@@ -277,6 +318,20 @@ mod tests {
         };
 
         assert!((analysis.synteny_matrix()[1][2] - 0.85).abs() < 1e-6);
+    }
+
+    #[test]
+    fn similarity_matrix_reports_each_cluster_pair() {
+        let analysis = Analysis {
+            clusters: vec![cluster("zero", 1), cluster("one", 1), cluster("two", 1)],
+            links: Vec::new(),
+        };
+        let mut reports = Vec::new();
+
+        let _ =
+            analysis.cluster_similarity_matrix_with_progress(|processed| reports.push(processed));
+
+        assert_eq!(reports, vec![1, 2, 3]);
     }
 
     #[test]

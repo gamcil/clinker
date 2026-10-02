@@ -6,7 +6,8 @@
 use clinker_core::{
     Analysis, AnalysisError, Cluster, ClusterPairSimilarity, Gene, GeneRef, InputFile,
     KmerPrefilter, Link, Locus, PlotData, ProteinPair, analyse_protein_pairs_with_progress,
-    analyse_protein_tile_with_progress, kmer_candidate_pairs, parse_input_files,
+    analyse_protein_tile_with_progress, can_reach_identity, kmer_candidate_pairs_with_progress,
+    parse_input_files, parse_input_files_with_progress,
 };
 use js_sys::Function;
 use serde::{Deserialize, Serialize};
@@ -54,6 +55,54 @@ struct BrowserPrefilter {
     identity_cutoff: f32,
 }
 
+/// Incremental parser used by the browser worker so JavaScript regains control
+/// between files and can deliver and paint progress updates.
+#[wasm_bindgen]
+pub struct BrowserFileParser {
+    clusters: Vec<Cluster>,
+    prefilter: BrowserPrefilter,
+}
+
+#[wasm_bindgen]
+impl BrowserFileParser {
+    #[wasm_bindgen(constructor)]
+    pub fn new(prefilter: JsValue) -> Result<BrowserFileParser, JsValue> {
+        let prefilter = serde_wasm_bindgen::from_value::<BrowserPrefilter>(prefilter)
+            .map_err(|error| JsValue::from_str(&format!("invalid prefilter settings: {error}")))?;
+        Ok(Self {
+            clusters: Vec::new(),
+            prefilter,
+        })
+    }
+
+    pub fn parse_file(&mut self, file: JsValue) -> Result<(), JsValue> {
+        let file = serde_wasm_bindgen::from_value::<BrowserFile>(file)
+            .map_err(|error| JsValue::from_str(&format!("invalid browser input: {error}")))?;
+        let input = InputFile {
+            name: &file.name,
+            bytes: &file.bytes,
+        };
+        let mut clusters =
+            parse_input_files(&[input]).map_err(|error| JsValue::from_str(&error.to_string()))?;
+        self.clusters.append(&mut clusters);
+        Ok(())
+    }
+
+    pub fn finish(&mut self, progress: &Function) -> Result<JsValue, JsValue> {
+        let clusters = std::mem::take(&mut self.clusters);
+        let mut last_report = 0;
+        let parsed = prepare_browser_files_with_filter_progress(
+            clusters,
+            &self.prefilter,
+            |completed, total| {
+                report_progress_event_if_due(progress, "filter", completed, total, &mut last_report)
+            },
+        );
+        serde_wasm_bindgen::to_value(&parsed)
+            .map_err(|error| JsValue::from_str(&format!("could not encode parsed files: {error}")))
+    }
+}
+
 /// Coordinate and annotation metadata retained between parsing and the final
 /// layout pass. Protein sequences stay only in `BrowserProtein` tile inputs.
 #[derive(Debug, Deserialize, Serialize)]
@@ -92,6 +141,21 @@ struct TileLink {
     target: BrowserProteinRef,
     identity: f32,
     similarity: f32,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BrowserTileResult {
+    links: Vec<TileLink>,
+    alignment_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BrowserProgress<'a> {
+    stage: &'a str,
+    completed: usize,
+    total: usize,
 }
 
 /// Link shape returned by an alignment worker and later sent to the grouping
@@ -148,13 +212,19 @@ impl From<&BrowserProtein> for BrowserProteinRef {
 /// should be a `Uint8Array`; it is copied into Rust-owned memory before
 /// analysis so the caller may release the original file buffers afterwards.
 #[wasm_bindgen]
-pub fn parse_files(files: JsValue, prefilter: JsValue) -> Result<JsValue, JsValue> {
+pub fn parse_files(
+    files: JsValue,
+    prefilter: JsValue,
+    progress: &Function,
+) -> Result<JsValue, JsValue> {
     let files = serde_wasm_bindgen::from_value::<Vec<BrowserFile>>(files)
         .map_err(|error| JsValue::from_str(&format!("invalid browser input: {error}")))?;
     let prefilter = serde_wasm_bindgen::from_value::<BrowserPrefilter>(prefilter)
         .map_err(|error| JsValue::from_str(&format!("invalid prefilter settings: {error}")))?;
-    let parsed = parse_browser_files(&files, prefilter)
-        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let parsed = parse_browser_files_with_progress(&files, prefilter, |processed| {
+        report_progress(progress, processed)
+    })
+    .map_err(|error| JsValue::from_str(&error.to_string()))?;
     serde_wasm_bindgen::to_value(&parsed)
         .map_err(|error| JsValue::from_str(&format!("could not encode parsed files: {error}")))
 }
@@ -179,6 +249,14 @@ pub fn analyse_tile(
         .iter()
         .map(|protein| protein.translation.as_bytes())
         .collect::<Vec<_>>();
+    let alignment_count = query_sequences
+        .iter()
+        .flat_map(|query| {
+            target_sequences.iter().filter(move |target| {
+                can_reach_identity(query.len(), target.len(), identity_cutoff)
+            })
+        })
+        .count();
     let links = analyse_protein_tile_with_progress(
         &query_sequences,
         &target_sequences,
@@ -194,8 +272,11 @@ pub fn analyse_tile(
     })
     .collect::<Vec<_>>();
 
-    serde_wasm_bindgen::to_value(&links)
-        .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
+    serde_wasm_bindgen::to_value(&BrowserTileResult {
+        links,
+        alignment_count,
+    })
+    .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
 }
 
 /// Align selected pairs from one compact protein tile.
@@ -221,6 +302,18 @@ pub fn analyse_pairs(
             target_index: pair.target_index,
         })
         .collect::<Vec<_>>();
+    let alignment_count = pairs
+        .iter()
+        .filter(|pair| {
+            let (Some(query), Some(target)) = (
+                sequences.get(pair.query_index),
+                sequences.get(pair.target_index),
+            ) else {
+                return false;
+            };
+            can_reach_identity(query.len(), target.len(), identity_cutoff)
+        })
+        .count();
     let links =
         analyse_protein_pairs_with_progress(&sequences, &pairs, identity_cutoff, |processed| {
             report_progress(progress, processed)
@@ -234,8 +327,11 @@ pub fn analyse_pairs(
         })
         .collect::<Vec<_>>();
 
-    serde_wasm_bindgen::to_value(&links)
-        .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
+    serde_wasm_bindgen::to_value(&BrowserTileResult {
+        links,
+        alignment_count,
+    })
+    .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
 }
 
 fn report_progress(progress: &Function, processed: usize) {
@@ -244,9 +340,38 @@ fn report_progress(progress: &Function, processed: usize) {
     let _ = progress.call1(&JsValue::NULL, &JsValue::from_f64(processed as f64));
 }
 
+fn report_progress_event(progress: &Function, stage: &str, completed: usize, total: usize) {
+    if let Ok(value) = serde_wasm_bindgen::to_value(&BrowserProgress {
+        stage,
+        completed,
+        total,
+    }) {
+        let _ = progress.call1(&JsValue::NULL, &value);
+    }
+}
+
+fn report_progress_event_if_due(
+    progress: &Function,
+    stage: &str,
+    completed: usize,
+    total: usize,
+    last_report: &mut usize,
+) {
+    let interval = (total / 100).max(1);
+    if completed == 0 || completed == total || completed.saturating_sub(*last_report) >= interval {
+        report_progress_event(progress, stage, completed, total);
+        *last_report = completed;
+    }
+}
+
 /// Build groups and the default synteny ordering after browser tile work.
 #[wasm_bindgen]
-pub fn post_process(layout: JsValue, links: JsValue) -> Result<JsValue, JsValue> {
+pub fn post_process(
+    layout: JsValue,
+    links: JsValue,
+    use_file_order: bool,
+    progress: &Function,
+) -> Result<JsValue, JsValue> {
     let layout = serde_wasm_bindgen::from_value::<BrowserLayout>(layout)
         .map_err(|error| JsValue::from_str(&format!("invalid layout data: {error}")))?;
     let links = browser_links(links)?;
@@ -254,9 +379,49 @@ pub fn post_process(layout: JsValue, links: JsValue) -> Result<JsValue, JsValue>
         clusters: clusters_from_layout(layout),
         links,
     };
-    let similarity_matrix = analysis.cluster_similarity_matrix();
-    let order = analysis.cluster_order();
-    let arranged = analysis.to_auto_arranged_plot_data(&order);
+    let cluster_count = analysis.clusters.len();
+    let similarity_total = cluster_count.saturating_mul(cluster_count.saturating_sub(1)) / 2;
+    let mut last_similarity_report = 0;
+    let similarity_matrix = analysis.cluster_similarity_matrix_with_progress(|completed| {
+        report_progress_event_if_due(
+            progress,
+            "similarity",
+            completed,
+            similarity_total,
+            &mut last_similarity_report,
+        )
+    });
+    report_progress_event(progress, "ordering", 0, cluster_count);
+    let order = if use_file_order {
+        (0..cluster_count).collect()
+    } else {
+        analysis.cluster_order_from_similarity_matrix(&similarity_matrix)
+    };
+    report_progress_event(progress, "ordering", cluster_count, cluster_count);
+    let group_total = analysis.links.len() * 2;
+    let mut last_group_report = 0;
+    let mut last_layout_report = 0;
+    let arranged = analysis.to_auto_arranged_plot_data_with_progress(
+        &order,
+        |completed| {
+            report_progress_event_if_due(
+                progress,
+                "groups",
+                completed,
+                group_total,
+                &mut last_group_report,
+            )
+        },
+        |completed| {
+            report_progress_event_if_due(
+                progress,
+                "layout",
+                completed,
+                cluster_count,
+                &mut last_layout_report,
+            )
+        },
+    );
     let result = BrowserPostProcess {
         plot_data: arranged,
         cluster_names: analysis
@@ -331,11 +496,41 @@ fn input_files(files: &[BrowserFile]) -> Vec<InputFile<'_>> {
         .collect()
 }
 
+#[cfg(test)]
 fn parse_browser_files(
     files: &[BrowserFile],
     prefilter: BrowserPrefilter,
 ) -> Result<ParsedBrowserFiles, AnalysisError> {
-    let clusters = parse_input_files(&input_files(files))?;
+    parse_browser_files_with_progress(files, prefilter, |_| {})
+}
+
+fn parse_browser_files_with_progress<F>(
+    files: &[BrowserFile],
+    prefilter: BrowserPrefilter,
+    progress: F,
+) -> Result<ParsedBrowserFiles, AnalysisError>
+where
+    F: FnMut(usize),
+{
+    let clusters = parse_input_files_with_progress(&input_files(files), progress)?;
+    Ok(prepare_browser_files(clusters, &prefilter))
+}
+
+fn prepare_browser_files(
+    clusters: Vec<Cluster>,
+    prefilter: &BrowserPrefilter,
+) -> ParsedBrowserFiles {
+    prepare_browser_files_with_filter_progress(clusters, prefilter, |_, _| {})
+}
+
+fn prepare_browser_files_with_filter_progress<F>(
+    clusters: Vec<Cluster>,
+    prefilter: &BrowserPrefilter,
+    mut progress: F,
+) -> ParsedBrowserFiles
+where
+    F: FnMut(usize, usize),
+{
     let layout = layout_from_clusters(&clusters);
     let proteins: Vec<BrowserProtein> = clusters
         .iter()
@@ -361,11 +556,23 @@ fn parse_browser_files(
         .collect();
     let candidate_pairs = prefilter.enabled.then(|| {
         let by_cluster = proteins_by_cluster(&proteins, clusters.len());
+        let total_pairs = by_cluster
+            .iter()
+            .enumerate()
+            .map(|(query_cluster, query)| {
+                by_cluster[query_cluster + 1..]
+                    .iter()
+                    .map(|target| query.len() * target.len())
+                    .sum::<usize>()
+            })
+            .sum::<usize>();
         let settings = KmerPrefilter {
             kmer_size: prefilter.kmer_size,
             min_shared_kmers: prefilter.min_shared_kmers,
         };
         let mut pairs = Vec::new();
+        let mut completed_pairs = 0;
+        progress(0, total_pairs);
         for query_cluster in 0..by_cluster.len() {
             for target_cluster in query_cluster + 1..by_cluster.len() {
                 let query = &by_cluster[query_cluster];
@@ -378,12 +585,14 @@ fn parse_browser_files(
                     .iter()
                     .map(|&index| proteins[index].translation.as_bytes())
                     .collect::<Vec<_>>();
+                let pair_base = completed_pairs;
                 pairs.extend(
-                    kmer_candidate_pairs(
+                    kmer_candidate_pairs_with_progress(
                         &query_sequences,
                         &target_sequences,
                         prefilter.identity_cutoff,
                         settings,
+                        |processed| progress(pair_base + processed, total_pairs),
                     )
                     .into_iter()
                     .map(|pair| BrowserProteinPair {
@@ -391,15 +600,16 @@ fn parse_browser_files(
                         target_index: target[pair.target_index],
                     }),
                 );
+                completed_pairs += query.len() * target.len();
             }
         }
         pairs
     });
-    Ok(ParsedBrowserFiles {
+    ParsedBrowserFiles {
         layout,
         proteins,
         candidate_pairs,
-    })
+    }
 }
 
 fn proteins_by_cluster(proteins: &[BrowserProtein], cluster_count: usize) -> Vec<Vec<usize>> {
@@ -482,7 +692,7 @@ mod tests {
         // parsing test above keeps native unit tests independent of JsValue.
         let _ = analyse_tile as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
         let _ = analyse_pairs as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
-        let _ = post_process as fn(JsValue, JsValue) -> Result<JsValue, JsValue>;
+        let _ = post_process as fn(JsValue, JsValue, bool, &Function) -> Result<JsValue, JsValue>;
         assert_eq!(data.proteins[0].translation, "MA");
     }
 }

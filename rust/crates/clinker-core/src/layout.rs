@@ -21,9 +21,18 @@ struct PositionedGene {
 }
 
 /// Arrange each cluster's loci against the already placed clusters.
+#[cfg(test)]
 pub(crate) fn auto_locus_layouts(
     analysis: &Analysis,
     cluster_order: &[usize],
+) -> Vec<Vec<LocusPlacement>> {
+    auto_locus_layouts_with_progress(analysis, cluster_order, |_| {})
+}
+
+pub(crate) fn auto_locus_layouts_with_progress(
+    analysis: &Analysis,
+    cluster_order: &[usize],
+    mut progress: impl FnMut(usize),
 ) -> Vec<Vec<LocusPlacement>> {
     let scores = link_scores(&analysis.links);
     let mut placed = Vec::<PositionedGene>::new();
@@ -73,6 +82,10 @@ pub(crate) fn auto_locus_layouts(
             );
         }
         layouts.push(layout);
+        progress(layouts.len());
+    }
+    if cluster_order.is_empty() {
+        progress(0);
     }
     layouts
 }

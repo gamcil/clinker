@@ -17,9 +17,10 @@ pub use analyse::{
     Analysis, AnalysisError, AnalysisOptions, GeneRef, InputFile, KmerPrefilter, Link, ProteinPair,
     ProteinTileMatch, analyse_cluster_pair, analyse_genbank, analyse_protein_pairs,
     analyse_protein_pairs_with_progress, analyse_protein_tile, analyse_protein_tile_with_progress,
-    can_reach_identity, kmer_candidate_pairs, parse_input_files,
+    can_reach_identity, kmer_candidate_pairs, kmer_candidate_pairs_with_progress,
+    parse_input_files, parse_input_files_with_progress,
 };
-pub use groups::{GeneGroup, build_gene_groups};
+pub use groups::{GeneGroup, build_gene_groups, build_gene_groups_with_progress};
 pub use model::{Cluster, Gene, Locus};
 pub use parse_genbank::{ParseError, parse_genbank};
 pub use plot_data::{PlotCluster, PlotData, PlotGroup};

@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::layout::auto_locus_layouts;
-use crate::{Analysis, GeneRef, Link, build_gene_groups};
+use crate::layout::auto_locus_layouts_with_progress;
+use crate::{Analysis, GeneRef, Link, build_gene_groups, build_gene_groups_with_progress};
 
 /// JSON object consumed by clustermap.js.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -75,6 +75,14 @@ impl Analysis {
     /// Gene and link IDs retain their original analysis indices, so reordering
     /// clusters never invalidates cross-references in links or groups.
     pub fn to_plot_data_in_order(&self, order: &[usize]) -> PlotData {
+        self.to_plot_data_in_order_with_groups(order, build_plot_groups(&self.links))
+    }
+
+    fn to_plot_data_in_order_with_groups(
+        &self,
+        order: &[usize],
+        groups: Vec<PlotGroup>,
+    ) -> PlotData {
         assert_eq!(order.len(), self.clusters.len());
         let clusters = order
             .iter()
@@ -133,14 +141,26 @@ impl Analysis {
         PlotData {
             clusters,
             links,
-            groups: build_plot_groups(&self.links),
+            groups,
         }
     }
 
     /// Emit plot data with loci reordered and flipped to follow homology anchors.
     pub fn to_auto_arranged_plot_data(&self, order: &[usize]) -> PlotData {
-        let layouts = auto_locus_layouts(self, order);
-        let mut data = self.to_plot_data_in_order(order);
+        self.to_auto_arranged_plot_data_with_progress(order, |_| {}, |_| {})
+    }
+
+    /// As [`Analysis::to_auto_arranged_plot_data`], reporting completed link
+    /// operations while grouping and completed clusters while arranging loci.
+    pub fn to_auto_arranged_plot_data_with_progress(
+        &self,
+        order: &[usize],
+        group_progress: impl FnMut(usize),
+        layout_progress: impl FnMut(usize),
+    ) -> PlotData {
+        let groups = build_plot_groups_with_progress(&self.links, group_progress);
+        let layouts = auto_locus_layouts_with_progress(self, order, layout_progress);
+        let mut data = self.to_plot_data_in_order_with_groups(order, groups);
         for (cluster, layout) in data.clusters.iter_mut().zip(layouts) {
             let original = std::mem::take(&mut cluster.loci);
             cluster.loci = layout
@@ -168,7 +188,15 @@ impl Analysis {
 
 /// Convert retained links into clustermap.js homology groups.
 pub fn build_plot_groups(links: &[Link]) -> Vec<PlotGroup> {
-    build_gene_groups(links)
+    plot_groups(build_gene_groups(links))
+}
+
+fn build_plot_groups_with_progress(links: &[Link], progress: impl FnMut(usize)) -> Vec<PlotGroup> {
+    plot_groups(build_gene_groups_with_progress(links, progress))
+}
+
+fn plot_groups(groups: Vec<crate::GeneGroup>) -> Vec<PlotGroup> {
+    groups
         .into_iter()
         .enumerate()
         .map(|(index, group)| PlotGroup {
