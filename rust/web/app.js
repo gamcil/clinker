@@ -1,7 +1,7 @@
 import {
   defineClinkerEditor,
   mountPlotSelectionToolbar,
-} from "./clustermap-editor.mjs?v=20261002-bundled-d3-v6";
+} from "./clustermap-editor.mjs?v=20261006-label-viewport-v12";
 
 defineClinkerEditor();
 
