@@ -44,7 +44,7 @@ const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
-const WORKER_VERSION = "20261002-bundled-d3-v6";
+const WORKER_VERSION = "20261006-wasm-init-v11";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
@@ -869,6 +869,14 @@ async function analyseFiles(files) {
         } else if (stage === "groups") {
           activeStep = "groups";
           const linkTotal = total / 2;
+          if (completed >= total) {
+            setRunStep(
+              "groups",
+              "complete",
+              `Grouped ${linkTotal.toLocaleString()} links`,
+            );
+            return;
+          }
           const indexing = completed <= linkTotal;
           const phaseCompleted = indexing ? completed : completed - linkTotal;
           setRunStep(
