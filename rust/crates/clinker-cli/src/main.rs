@@ -470,8 +470,8 @@ fn portable_html(plot_json: &str) -> String {
     html.push_str(
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
          <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
-         <title>clinker plot</title><style>html,body{margin:0;min-height:100%;font-family:system-ui,sans-serif}\
-         #plot{min-height:100vh;overflow:auto}svg.clusterMap{display:block}</style></head><body>\
+         <title>clinker plot</title><style>html,body{width:100%;height:100%;margin:0;overflow:hidden;font-family:system-ui,sans-serif}\
+         #plot{position:relative;width:100%;height:100%;overflow:hidden}svg.clusterMap{display:block}</style></head><body>\
          <div id=\"plot\"></div><script>",
     );
     html.push_str(D3);
@@ -525,6 +525,8 @@ mod tests {
 
         assert!(html.starts_with("<!doctype html>"));
         assert!(html.contains("ClusterMap.ClusterMap()"));
+        assert!(html.contains("#plot{position:relative;width:100%;height:100%;overflow:hidden}"));
+        assert!(!html.contains("min-height:100vh"));
         assert!(html.contains(r#"\u003c/script\u003e"#));
         assert!(!html.contains(r#"{"label":"</script>"}"#));
     }

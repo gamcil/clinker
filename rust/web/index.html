@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261014-project-v27">
+    <link rel="stylesheet" href="style.css?v=20261014-project-v33">
     <link rel="stylesheet" href="clustermap-editor.css?v=20261007-clustermap-f22cab0-v13">
     <script src="d3.min.js"></script>
     <script src="clustermap.min.js?v=20261007-clustermap-f22cab0-v13"></script>
@@ -36,7 +36,7 @@
         <span class="about-help">
           <button class="about-button" type="button" aria-label="About clinker web" aria-describedby="about-tooltip">?</button>
           <span id="about-tooltip" class="about-tooltip" role="tooltip">
-            GenBank parsing and protein comparisons run locally in your browser using WebAssembly. Your files are not uploaded.
+            GenBank and GFF3 parsing and protein comparisons run locally in your browser using WebAssembly. Your files are not uploaded.
           </span>
         </span>
       </header>
@@ -48,17 +48,24 @@
             <div class="run-card-heading">
               <div>
                 <h2 id="run-panel-title">New clinker run</h2>
-                <p>Select GenBank files and configure the protein comparison.</p>
+                <p>Select GenBank or GFF3 files and configure the protein comparison.</p>
               </div>
               <button id="cancel-run" class="quiet-action" type="button" hidden>Cancel</button>
             </div>
             <label id="file-drop-zone" class="file-drop-zone">
               <span class="file-drop-icon" aria-hidden="true">↑</span>
-              <span class="file-drop-title">Drop GenBank files here</span>
-              <span class="file-drop-action">or <span>choose files</span></span>
-              <span id="file-summary" class="file-summary">Supports .gb, .gbk and .genbank</span>
-              <input id="files" class="visually-hidden" type="file" accept=".gb,.gbk,.genbank" multiple>
+              <span class="file-drop-title">Drop GenBank or GFF3/FASTA files here</span>
+              <span class="file-drop-action">or <span>choose or add files</span></span>
+              <span id="file-summary" class="file-summary">Supports GenBank and GFF3 with FASTA</span>
+              <input id="files" class="visually-hidden" type="file" accept=".gb,.gbk,.genbank,.gbf,.gbff,.gff,.gff3,.fa,.fsa,.fna,.fasta,.faa" multiple>
             </label>
+            <div id="file-input-status" class="file-input-status" role="status" aria-live="polite" hidden>
+              <div class="file-input-status-heading">
+                <strong id="file-input-status-summary">Selected inputs</strong>
+                <button id="clear-input-files" class="quiet-action" type="button">Clear</button>
+              </div>
+              <ul id="file-input-status-list"></ul>
+            </div>
             <div class="run-options">
               <span class="run-field-label">Settings</span>
               <div class="settings-card basic-settings">
@@ -79,13 +86,6 @@
             <details class="run-advanced">
               <summary>Advanced options</summary>
               <div class="advanced-options">
-                <label class="run-field">
-                  <span class="run-field-label">Cluster order</span>
-                  <select id="cluster-order" class="run-control">
-                    <option value="synteny">Synteny similarity</option>
-                    <option value="file">Input file order</option>
-                  </select>
-                </label>
                 <section class="advanced-section kmer-settings" aria-labelledby="kmer-settings-label">
                   <div class="advanced-section-heading">
                     <span id="kmer-settings-label" class="run-field-label">k-mer prefilter</span>
@@ -107,7 +107,7 @@
                     <span class="advanced-section-help">Adjust a start or end coordinate to analyse only part of a record.</span>
                   </div>
                   <fieldset id="record-ranges" class="record-range-list" aria-live="polite">
-                    <p class="empty-setting">Choose GenBank files to list their records.</p>
+                    <p class="empty-setting">Choose annotation files to list their records.</p>
                   </fieldset>
                 </section>
                 <section class="advanced-section annotation-files" aria-labelledby="annotation-files-label">
@@ -146,6 +146,10 @@
                   </div>
                   <div class="settings-card">
                     <label class="advanced-check">
+                      <input id="file-order" type="checkbox">
+                      <span>Keep input file order</span>
+                    </label>
+                    <label class="advanced-check">
                       <input id="separate-records" type="checkbox">
                       <span>Plot each GenBank record as a separate cluster</span>
                     </label>
@@ -158,7 +162,7 @@
               </div>
             </details>
             <div class="run-actions">
-              <button id="analyse" class="primary-action" type="button">Analyse files</button>
+              <button id="analyse" class="primary-action" type="button" disabled>Analyse files</button>
               <button id="load-example" type="button">Load example</button>
             </div>
             <div id="run-feedback" class="run-feedback" aria-live="polite" hidden>
@@ -166,7 +170,7 @@
                 <li data-run-step="parse" data-state="waiting">
                   <span class="step-marker" aria-hidden="true">1</span>
                   <div class="step-content">
-                    <strong>Parse GenBank files</strong>
+                    <strong>Parse annotation files</strong>
                     <span class="step-result">Waiting</span>
                     <progress max="100" hidden></progress>
                   </div>
@@ -220,6 +224,6 @@
         <clinker-editor id="plot-editor" resizable hidden></clinker-editor>
       </div>
     </main>
-    <script type="module" src="app.js?v=20261014-project-v27"></script>
+    <script type="module" src="app.js?v=20261014-project-v33"></script>
   </body>
 </html>

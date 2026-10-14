@@ -8,10 +8,14 @@ defineClinkerEditor();
 const filesInput = document.querySelector("#files");
 const fileDropZone = document.querySelector("#file-drop-zone");
 const fileSummary = document.querySelector("#file-summary");
+const fileInputStatus = document.querySelector("#file-input-status");
+const fileInputStatusSummary = document.querySelector("#file-input-status-summary");
+const fileInputStatusList = document.querySelector("#file-input-status-list");
+const clearInputFilesButton = document.querySelector("#clear-input-files");
 const identityInput = document.querySelector("#identity");
 const prefilterInput = document.querySelector("#prefilter");
 const noAlignInput = document.querySelector("#no-align");
-const clusterOrderInput = document.querySelector("#cluster-order");
+const fileOrderInput = document.querySelector("#file-order");
 const kmerSizeInput = document.querySelector("#kmer-size");
 const minSharedKmersInput = document.querySelector("#min-shared-kmers");
 const separateRecordsInput = document.querySelector("#separate-records");
@@ -50,7 +54,7 @@ const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
-const WORKER_VERSION = "20261014-project-v27";
+const WORKER_VERSION = "20261014-project-v28";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
@@ -73,6 +77,9 @@ let latestAnalysisSession = null;
 let analysisInProgress = false;
 let recordInspectionVersion = 0;
 let recordInspectionPromise = Promise.resolve();
+let inputValidationPromise = Promise.resolve({ ready: false, rows: [] });
+let inputsReady = false;
+const selectedInputFiles = new Map();
 const EXAMPLE_FILES = [
   "P. vexata CBS 129021.gbk",
   "A. versicolor CBS 583.65.gbk",
@@ -86,13 +93,14 @@ function setAnalysisInputsDisabled(disabled) {
   identityInput.disabled = disabled;
   prefilterInput.disabled = disabled;
   noAlignInput.disabled = disabled;
-  clusterOrderInput.disabled = disabled;
+  fileOrderInput.disabled = disabled;
   separateRecordsInput.disabled = disabled;
   keepOriginInput.disabled = disabled;
   recordRangesElement.disabled = disabled;
   geneFunctionsInput.disabled = disabled;
   colourMapInput.disabled = disabled || geneFunctionsInput.files.length === 0;
-  analyseButton.disabled = disabled;
+  analyseButton.disabled = disabled || !inputsReady;
+  clearInputFilesButton.disabled = disabled;
   exampleButton.disabled = disabled;
   loadClinkerFileButton.disabled = disabled;
   newRunButton.disabled = disabled;
@@ -102,7 +110,7 @@ function setAnalysisInputsDisabled(disabled) {
 
 function syncPrefilterControls() {
   prefilterInput.disabled = noAlignInput.disabled || noAlignInput.checked;
-  clusterOrderInput.disabled = noAlignInput.disabled || noAlignInput.checked;
+  fileOrderInput.disabled = noAlignInput.disabled || noAlignInput.checked;
   const disabled = prefilterInput.disabled || !prefilterInput.checked;
   kmerSizeInput.disabled = disabled;
   minSharedKmersInput.disabled = disabled;
@@ -173,12 +181,150 @@ async function readGroupDefinitions() {
 function syncFileSummary() {
   const count = filesInput.files.length;
   fileSummary.textContent = count === 0
-    ? "Supports .gb, .gbk and .genbank"
+    ? "Supports GenBank and GFF3 with FASTA"
     : `${count} ${count === 1 ? "file" : "files"} selected`;
 }
 
+function setSelectedInputFiles(files, { replace = false } = {}) {
+  if (replace) selectedInputFiles.clear();
+  for (const file of files) selectedInputFiles.set(file.name.toLocaleLowerCase(), file);
+  const transfer = new DataTransfer();
+  for (const file of selectedInputFiles.values()) transfer.items.add(file);
+  filesInput.files = transfer.files;
+}
+
 function isGenBankFile(file) {
-  return /\.(?:gb|gbk|genbank)$/i.test(file.name);
+  return /\.(?:gb|gbk|genbank|gbf|gbff)$/i.test(file.name);
+}
+
+function isGffFile(file) {
+  return /\.(?:gff|gff3)$/i.test(file.name);
+}
+
+function isFastaFile(file) {
+  return /\.(?:fa|fsa|fna|fasta|faa)$/i.test(file.name);
+}
+
+function isSupportedInputFile(file) {
+  return isGenBankFile(file) || isGffFile(file) || isFastaFile(file);
+}
+
+function fileStem(name) {
+  return name.replace(/\.[^.]+$/, "").toLocaleLowerCase();
+}
+
+function hasEmbeddedFasta(text) {
+  return /^##FASTA[\t ]*$/im.test(text);
+}
+
+async function classifyInputFiles(files) {
+  const fastaByStem = new Map();
+  const gffFiles = files.filter(isGffFile);
+  const gffStems = new Set(gffFiles.map(file => fileStem(file.name)));
+  for (const file of files.filter(isFastaFile)) {
+    const stem = fileStem(file.name);
+    if (!fastaByStem.has(stem)) fastaByStem.set(stem, []);
+    fastaByStem.get(stem).push(file);
+  }
+
+  const rows = files.filter(isGenBankFile).map(file => ({
+    name: file.name,
+    detail: "Ready",
+    ready: true,
+  }));
+  const gffRows = await Promise.all(gffFiles.map(async file => {
+    try {
+      const embeddedFasta = hasEmbeddedFasta(await file.text());
+      const companions = fastaByStem.get(fileStem(file.name)) || [];
+      if (companions.length > 1) {
+        return {
+          name: file.name,
+          detail: "Multiple FASTA files",
+          reason: `Multiple matching FASTA files: ${companions.map(companion => companion.name).join(", ")}`,
+          ready: false,
+        };
+      }
+      if (companions.length === 1) {
+        return {
+          name: file.name,
+          detail: "Ready",
+          ready: true,
+        };
+      }
+      return embeddedFasta
+        ? { name: file.name, detail: "Ready", ready: true }
+        : {
+            name: file.name,
+            detail: "Missing FASTA",
+            reason: "No embedded FASTA or same-name FASTA file was found",
+            ready: false,
+          };
+    } catch (error) {
+      return {
+        name: file.name,
+        detail: "Unreadable",
+        reason: `Could not read file: ${error.message || String(error)}`,
+        ready: false,
+      };
+    }
+  }));
+  rows.push(...gffRows);
+
+  for (const file of files.filter(isFastaFile)) {
+    if (!gffStems.has(fileStem(file.name))) {
+      rows.push({
+        name: file.name,
+        detail: "Missing GFF3",
+        reason: "No same-name GFF3 file was found",
+        ready: false,
+      });
+    }
+  }
+  for (const file of files.filter(file => !isSupportedInputFile(file))) {
+    rows.push({
+      name: file.name,
+      detail: "Unsupported",
+      reason: "Unsupported file type",
+      ready: false,
+    });
+  }
+
+  return {
+    rows,
+    ready: rows.length > 0 && rows.every(row => row.ready),
+  };
+}
+
+function renderInputValidation(validation) {
+  fileInputStatusList.replaceChildren();
+  fileInputStatus.hidden = validation.rows.length === 0;
+  if (validation.rows.length === 0) return;
+  const errorCount = validation.rows.filter(row => !row.ready).length;
+  const readyCount = validation.rows.length - errorCount;
+  fileInputStatusSummary.textContent = errorCount === 0
+    ? `${readyCount} ${readyCount === 1 ? "dataset" : "datasets"} ready`
+    : `${errorCount} ${errorCount === 1 ? "problem" : "problems"} · ${readyCount} ready`;
+  const orderedRows = [
+    ...validation.rows.filter(row => !row.ready),
+    ...validation.rows.filter(row => row.ready),
+  ];
+  for (const row of orderedRows) {
+    const item = document.createElement("li");
+    item.dataset.state = row.ready ? "ready" : "error";
+    const name = document.createElement("span");
+    name.className = "file-input-name";
+    name.textContent = row.name;
+    name.title = row.name;
+    const state = document.createElement("span");
+    state.className = "file-input-state";
+    state.textContent = row.detail;
+    if (row.reason) {
+      state.title = row.reason;
+      state.setAttribute("aria-label", `${row.detail}: ${row.reason}`);
+    }
+    item.append(name, state);
+    fileInputStatusList.append(item);
+  }
 }
 
 function genBankRecords(text) {
@@ -187,10 +333,45 @@ function genBankRecords(text) {
   for (const match of text.matchAll(locusLine)) {
     const length = Number(match[2]);
     if (Number.isSafeInteger(length) && length > 0) {
-      records.push({ name: match[1], length });
+      records.push({ name: match[1], start: 1, end: length, length });
     }
   }
   return records;
+}
+
+function fastaRecords(text) {
+  const records = [];
+  let current = null;
+  for (const line of text.split(/\r?\n/)) {
+    if (line.startsWith(">")) {
+      if (current) records.push(current);
+      current = { name: line.slice(1).trim().split(/\s+/, 1)[0], start: 1, end: 0, length: 0 };
+    } else if (current) {
+      current.length += line.replace(/\s/g, "").length;
+    }
+  }
+  if (current) records.push(current);
+  return records
+    .filter(record => record.name && record.length > 0)
+    .map(record => ({ ...record, end: record.length }));
+}
+
+function gffRecords(text, companionText = "") {
+  const records = [...text.matchAll(/^##sequence-region\s+(\S+)\s+(\d+)\s+(\d+)\s*$/gim)]
+    .map(match => ({
+      name: match[1],
+      start: Number(match[2]),
+      end: Number(match[3]),
+      length: Number(match[3]) - Number(match[2]) + 1,
+    }))
+    .filter(record => Number.isSafeInteger(record.start)
+      && Number.isSafeInteger(record.end)
+      && Number.isSafeInteger(record.length)
+      && record.start > 0
+      && record.end >= record.start);
+  if (records.length > 0) return records;
+  const embedded = text.match(/^##FASTA\s*$([\s\S]*)/im)?.[1] || companionText;
+  return fastaRecords(embedded);
 }
 
 function emptyRecordRanges(message) {
@@ -201,15 +382,15 @@ function emptyRecordRanges(message) {
   recordRangesElement.append(empty);
 }
 
-function recordCoordinate(kind, value, length, label) {
+function recordCoordinate(kind, value, minimum, maximum, label) {
   const wrapper = document.createElement("label");
   wrapper.className = "record-coordinate";
   const caption = document.createElement("span");
   caption.textContent = label;
   const input = document.createElement("input");
   input.type = "number";
-  input.min = "1";
-  input.max = String(length);
+  input.min = String(minimum);
+  input.max = String(maximum);
   input.step = "1";
   input.value = String(value);
   input.dataset.rangeCoordinate = kind;
@@ -229,18 +410,22 @@ function renderRecordRanges(filesWithRecords) {
     if (records.length === 0) {
       const warning = document.createElement("p");
       warning.className = "empty-setting";
-      warning.textContent = "No LOCUS records found; the complete file will be analysed.";
+      warning.textContent = "No sequence records found; the complete file will be analysed.";
       recordRangesElement.append(warning);
       continue;
     }
     for (const record of records) {
       recordCount += 1;
+      const availableStart = record.start ?? 1;
+      const availableEnd = record.end ?? record.length;
       const row = document.createElement("div");
       row.className = "record-range-row";
       row.dataset.recordRange = "";
       row.dataset.file = file.name;
       row.dataset.record = record.name;
       row.dataset.length = String(record.length);
+      row.dataset.availableStart = String(availableStart);
+      row.dataset.availableEnd = String(availableEnd);
 
       const name = document.createElement("span");
       name.className = "record-range-name";
@@ -251,29 +436,42 @@ function renderRecordRanges(filesWithRecords) {
       separator.setAttribute("aria-hidden", "true");
       const length = document.createElement("span");
       length.className = "record-range-length";
-      length.textContent = `of ${record.length.toLocaleString()} bp`;
       row.append(
         name,
-        recordCoordinate("start", 1, record.length, "From"),
+        recordCoordinate("start", availableStart, availableStart, availableEnd, "From"),
         separator,
-        recordCoordinate("end", record.length, record.length, "To"),
+        recordCoordinate("end", availableEnd, availableStart, availableEnd, "To"),
         length,
       );
+      length.textContent = availableStart === 1
+        ? `of ${record.length.toLocaleString()} bp`
+        : `${availableStart.toLocaleString()}–${availableEnd.toLocaleString()}`;
       recordRangesElement.append(row);
     }
   }
   if (recordCount === 0 && filesWithRecords.length === 0) {
-    emptyRecordRanges("Choose GenBank files to list their records.");
+    emptyRecordRanges("Choose annotation files to list their records.");
   }
 }
 
 async function inspectSelectedFiles(files, version) {
   recordRangesElement.setAttribute("aria-busy", "true");
-  emptyRecordRanges(files.length ? "Reading GenBank records…" : "Choose GenBank files to list their records.");
-  const inspected = await Promise.all(files.map(async file => ({
-    file,
-    records: genBankRecords(await file.text()),
-  })));
+  emptyRecordRanges(files.length ? "Reading annotation records…" : "Choose annotation files to list their records.");
+  const fastaTexts = new Map(await Promise.all(files.filter(isFastaFile).map(async file => [
+    fileStem(file.name),
+    await file.text(),
+  ])));
+  const inspected = await Promise.all(files
+    .filter(file => isGenBankFile(file) || isGffFile(file))
+    .map(async file => {
+      const text = await file.text();
+      return {
+        file,
+        records: isGenBankFile(file)
+          ? genBankRecords(text)
+          : gffRecords(text, fastaTexts.get(fileStem(file.name)) || ""),
+      };
+    }));
   if (version !== recordInspectionVersion) return;
   renderRecordRanges(inspected);
   recordRangesElement.removeAttribute("aria-busy");
@@ -282,19 +480,20 @@ async function inspectSelectedFiles(files, version) {
 function collectRecordRanges() {
   const selections = new Map();
   for (const row of recordRangesElement.querySelectorAll("[data-record-range]")) {
-    const length = Number(row.dataset.length);
+    const availableStart = Number(row.dataset.availableStart);
+    const availableEnd = Number(row.dataset.availableEnd);
     const start = Number(row.querySelector('[data-range-coordinate="start"]').value);
     const end = Number(row.querySelector('[data-range-coordinate="end"]').value);
     const description = `${row.dataset.file}: ${row.dataset.record}`;
     if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)
-        || start < 1 || end < start || end > length) {
-      throw new Error(`${description} requires whole-number coordinates between 1 and ${length.toLocaleString()}.`);
+        || start < availableStart || end < start || end > availableEnd) {
+      throw new Error(`${description} requires whole-number coordinates between ${availableStart.toLocaleString()} and ${availableEnd.toLocaleString()}.`);
     }
     const selection = { record: row.dataset.record, start: start - 1, end };
     if (!selections.has(selection.record)) selections.set(selection.record, []);
     selections.get(selection.record).push({
       range: selection,
-      isFullRecord: selection.start === 0 && selection.end === length,
+      isFullRecord: selection.start === availableStart - 1 && selection.end === availableEnd,
     });
   }
   const ranges = [];
@@ -324,7 +523,38 @@ function syncAnnotationFiles() {
 function handleFileSelection() {
   syncFileSummary();
   const version = ++recordInspectionVersion;
-  recordInspectionPromise = inspectSelectedFiles([...filesInput.files], version)
+  const files = [...filesInput.files];
+  inputsReady = false;
+  analyseButton.disabled = true;
+  fileInputStatusList.replaceChildren();
+  fileInputStatus.hidden = files.length === 0;
+  if (files.length > 0) fileInputStatusSummary.textContent = "Checking selected inputs…";
+  inputValidationPromise = classifyInputFiles(files)
+    .then(validation => {
+      if (version !== recordInspectionVersion) return validation;
+      inputsReady = validation.ready;
+      renderInputValidation(validation);
+      analyseButton.disabled = analysisInProgress || !inputsReady;
+      return validation;
+    })
+    .catch(error => {
+      const validation = {
+        ready: false,
+        rows: [{
+          name: "Selected inputs",
+          detail: "Not ready",
+          reason: error.message || String(error),
+          ready: false,
+        }],
+      };
+      if (version === recordInspectionVersion) {
+        inputsReady = false;
+        renderInputValidation(validation);
+        analyseButton.disabled = true;
+      }
+      return validation;
+    });
+  recordInspectionPromise = inspectSelectedFiles(files, version)
     .catch(error => {
       if (version !== recordInspectionVersion) return;
       emptyRecordRanges(`Could not inspect record names: ${error.message || String(error)}`);
@@ -334,7 +564,14 @@ function handleFileSelection() {
 
 prefilterInput.addEventListener("change", syncPrefilterControls);
 noAlignInput.addEventListener("change", syncPrefilterControls);
-filesInput.addEventListener("change", handleFileSelection);
+filesInput.addEventListener("change", () => {
+  setSelectedInputFiles([...filesInput.files]);
+  handleFileSelection();
+});
+clearInputFilesButton.addEventListener("click", () => {
+  setSelectedInputFiles([], { replace: true });
+  handleFileSelection();
+});
 let fileDragDepth = 0;
 fileDropZone.addEventListener("dragenter", event => {
   if (filesInput.disabled || ![...event.dataTransfer.types].includes("Files")) return;
@@ -357,18 +594,16 @@ fileDropZone.addEventListener("drop", event => {
   fileDropZone.classList.remove("is-dragging");
   if (filesInput.disabled) return;
   const files = [...event.dataTransfer.files];
-  const unsupported = files.filter(file => !isGenBankFile(file));
+  const unsupported = files.filter(file => !isSupportedInputFile(file));
   if (files.length === 0) return;
   if (unsupported.length > 0) {
     setRunStatus(
-      `Unsupported file${unsupported.length === 1 ? "" : "s"}: ${unsupported.map(file => file.name).join(", ")}. Choose GenBank files ending in .gb, .gbk or .genbank.`,
+      `Unsupported file${unsupported.length === 1 ? "" : "s"}: ${unsupported.map(file => file.name).join(", ")}. Choose GenBank, GFF3/GFF, or FASTA files.`,
       { tone: "error" },
     );
     return;
   }
-  const transfer = new DataTransfer();
-  files.forEach(file => transfer.items.add(file));
-  filesInput.files = transfer.files;
+  setSelectedInputFiles(files);
   handleFileSelection();
 });
 geneFunctionsInput.addEventListener("change", syncAnnotationFiles);
@@ -1159,7 +1394,7 @@ async function analyseFiles(files) {
         ? "Skipped protein alignment"
         : `Ran ${alignmentCount.toLocaleString()} alignments · retained ${links.length.toLocaleString()} links`,
     );
-    const useFileOrder = noAlignInput.checked || clusterOrderInput.value === "file";
+    const useFileOrder = noAlignInput.checked || fileOrderInput.checked;
     activeStep = "order";
     setRunStep("order", "active", "Scoring cluster pairs…", { progress: 0 });
     const result = await postProcess(
@@ -1287,10 +1522,15 @@ async function analyseFiles(files) {
 
 analyseButton.addEventListener("click", async () => {
   if (filesInput.files.length === 0) {
-    setRunStatus("Choose at least one GenBank file.", { tone: "error" });
+    setRunStatus("Choose at least one GenBank or GFF3 file.", { tone: "error" });
     return;
   }
   try {
+    const validation = await inputValidationPromise;
+    if (!validation.ready) {
+      setRunStatus("Resolve the selected input-file problems before starting the analysis.", { tone: "error" });
+      return;
+    }
     await recordInspectionPromise;
     setRunStatus("Reading selected files…");
     const files = await Promise.all([...filesInput.files].map(async file => ({

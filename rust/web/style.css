@@ -455,6 +455,82 @@ h1 {
   white-space: nowrap;
 }
 
+.file-input-status {
+  display: grid;
+  gap: 0;
+  margin-top: 8px;
+  padding: 0;
+  border: 1px solid #dce3eb;
+  border-radius: 8px;
+  background: #fff;
+  font-size: .78rem;
+}
+
+.file-input-status-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  padding: 3px 8px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.file-input-status-heading strong {
+  font-size: .8rem;
+}
+
+.run-card .file-input-status-heading .quiet-action {
+  min-height: 24px;
+  border-color: transparent;
+  padding: 1px 5px;
+  background: transparent;
+  color: #526178;
+  font-size: .74rem;
+}
+
+.file-input-status ul {
+  display: grid;
+  gap: 5px;
+  max-height: 20rem;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0 8px 5px;
+  list-style: none;
+}
+
+.file-input-status li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 1.7rem;
+  padding-top: 5px;
+  border-top: 1px solid #edf0f4;
+}
+
+.file-input-status li:first-child {
+  border-top: 0;
+}
+
+.file-input-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-input-state {
+  color: #267044;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.file-input-status li[data-state="error"] .file-input-state {
+  color: #aa3d34;
+}
+
 .run-options {
   display: grid;
   gap: 6px;
@@ -516,10 +592,6 @@ h1 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 11px;
   margin-top: 11px;
-}
-
-.advanced-options .run-field:first-child {
-  grid-column: 1 / -1;
 }
 
 .advanced-check {
@@ -991,10 +1063,6 @@ h1 {
 
   .advanced-options {
     grid-template-columns: 1fr;
-  }
-
-  .advanced-options .run-field:first-child {
-    grid-column: auto;
   }
 
   .advanced-section {

@@ -34,7 +34,7 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 | clustermap.js plot-data output | Yes | JSON | In project | Plot-data tests |
 | Portable interactive figure | Yes | HTML | Static application | CLI and browser smoke tests |
 | Save and reopen complete analysis state | Yes | Session | Project | Core round-trip, CLI append workflow, and browser smoke test |
-| Add new files to a saved session | Yes | Yes | Not yet | Core and CLI workflow tests |
+| Add new files to a saved session | Yes | Yes | Future enhancement | Core and CLI workflow tests |
 | SVG export and interactive plot editing | Plot contract | Not applicable | Yes | Browser integration coverage |
 | Offline analysis without Python or a server | Yes | Yes | Yes | Native and WASM builds |
 
@@ -42,9 +42,14 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 
 | Established workflow | Current gap | Suggested priority |
 | --- | --- | --- |
-| Add new files to a saved session in the browser | Core and CLI support appending; web can currently reopen and export | Medium |
 | Control native alignment concurrency | Native core is serial; web uses workers | Medium |
 | Open an interactive plot when `--plot` has no path | CLI currently requires an output path | Low; the static web app covers this workflow |
+
+## Future additions
+
+| Enhancement | Current state | Release scope |
+| --- | --- | --- |
+| Add new data to an edited browser project | Core and CLI can append to saved analysis sessions, and the web app can reopen and export projects. A browser workflow would also need to reconcile new analysis results with existing figure edits. | Post-1.0; not required for Python parity |
 
 ## Release criterion
 
