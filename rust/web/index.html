@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261014-settings-layout-v25">
+    <link rel="stylesheet" href="style.css?v=20261014-project-v27">
     <link rel="stylesheet" href="clustermap-editor.css?v=20261007-clustermap-f22cab0-v13">
     <script src="d3.min.js"></script>
     <script src="clustermap.min.js?v=20261007-clustermap-f22cab0-v13"></script>
@@ -18,17 +18,14 @@
           <details class="menu">
             <summary>Open</summary>
             <div class="menu-popover">
-              <button id="load-data" type="button">Plot data…</button>
-              <input id="data-file" type="file" accept="application/json,.json" hidden>
-              <button id="load-project" type="button">Project…</button>
-              <input id="project-file" type="file" accept="application/json,.json" hidden>
+              <button id="load-clinker-file" type="button">Clinker file…</button>
+              <input id="clinker-file" type="file" accept="application/json,.json" hidden>
             </div>
           </details>
           <details class="menu menu-end">
             <summary>Export</summary>
             <div class="menu-popover">
               <button id="download-svg" type="button" disabled>SVG</button>
-              <button id="download-data" type="button" disabled>Plot data</button>
               <button id="download-project" type="button" disabled>Project</button>
               <button id="download-matrix" type="button" disabled>Similarity CSV</button>
             </div>
@@ -223,6 +220,6 @@
         <clinker-editor id="plot-editor" resizable hidden></clinker-editor>
       </div>
     </main>
-    <script type="module" src="app.js?v=20261014-settings-layout-v25"></script>
+    <script type="module" src="app.js?v=20261014-project-v27"></script>
   </body>
 </html>

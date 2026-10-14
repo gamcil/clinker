@@ -2,10 +2,11 @@ import init, {
   analyse_pairs,
   analyse_tile,
   BrowserFileParser,
+  open_session,
   post_process,
-} from "./pkg/clinker_wasm.js?v=20261014-settings-layout-v25";
+} from "./pkg/clinker_wasm.js?v=20261014-project-v27";
 
-const WASM_VERSION = "20261014-settings-layout-v25";
+const WASM_VERSION = "20261014-project-v27";
 const wasmUrl = new URL("./pkg/clinker_wasm_bg.wasm", import.meta.url);
 wasmUrl.searchParams.set("v", WASM_VERSION);
 let wasmModule = null;
@@ -108,11 +109,16 @@ self.onmessage = async ({ data }) => {
         : () => {};
       const result = post_process(
         data.layout,
+        data.proteins,
         data.links,
         data.groupDefinitions,
+        data.identity,
         data.useFileOrder,
         progress,
       );
+      self.postMessage({ type: "post-process", result });
+    } else if (data.type === "open-session") {
+      const result = open_session(data.session, data.useFileOrder, () => {});
       self.postMessage({ type: "post-process", result });
     }
   } catch (error) {

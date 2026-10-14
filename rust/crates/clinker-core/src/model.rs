@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Cluster {
     pub name: String,
     /// Original uploaded/input file name, retained in plot data for provenance.
@@ -8,7 +10,7 @@ pub struct Cluster {
     pub loci: Vec<Locus>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Locus {
     pub name: String,
     pub start: usize,
@@ -16,7 +18,7 @@ pub struct Locus {
     pub genes: Vec<Gene>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Gene {
     pub label: String,
     pub names: Vec<(String, String)>,

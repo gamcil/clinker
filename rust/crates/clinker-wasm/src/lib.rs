@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 
 use clinker_core::{
-    Analysis, AnalysisError, Cluster, ClusterPairSimilarity, GenBankOptions, Gene,
+    Analysis, AnalysisError, AnalysisSession, Cluster, ClusterPairSimilarity, GenBankOptions, Gene,
     GeneGroupDefinition, GeneRef, InputFile, KmerPrefilter, Link, Locus, PlotData, ProteinPair,
     SequenceRange, analyse_protein_pairs_with_progress, analyse_protein_tile_with_progress,
     can_reach_identity, kmer_candidate_pairs_with_progress, parse_input_files_with_options,
@@ -231,7 +231,7 @@ struct BrowserLink {
     similarity: f32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 struct BrowserGroupDefinition {
     label: String,
     genes: Vec<String>,
@@ -244,6 +244,16 @@ impl From<BrowserGroupDefinition> for GeneGroupDefinition {
             label: group.label,
             genes: group.genes,
             colour: group.colour,
+        }
+    }
+}
+
+impl From<&BrowserGroupDefinition> for GeneGroupDefinition {
+    fn from(group: &BrowserGroupDefinition) -> Self {
+        Self {
+            label: group.label.clone(),
+            genes: group.genes.clone(),
+            colour: group.colour.clone(),
         }
     }
 }
@@ -262,6 +272,7 @@ struct BrowserPostProcess {
     cluster_names: Vec<String>,
     cluster_order: Vec<usize>,
     similarity_matrix: Vec<Vec<ClusterPairSimilarity>>,
+    analysis_session: AnalysisSession,
 }
 
 impl From<BrowserProteinRef> for GeneRef {
@@ -447,24 +458,66 @@ fn report_progress_event_if_due(
 #[wasm_bindgen]
 pub fn post_process(
     layout: JsValue,
+    proteins: JsValue,
     links: JsValue,
     group_definitions: JsValue,
+    identity_cutoff: f32,
     use_file_order: bool,
     progress: &Function,
 ) -> Result<JsValue, JsValue> {
     let layout = serde_wasm_bindgen::from_value::<BrowserLayout>(layout)
         .map_err(|error| JsValue::from_str(&format!("invalid layout data: {error}")))?;
+    let proteins = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(proteins)
+        .map_err(|error| JsValue::from_str(&format!("invalid browser proteins: {error}")))?;
     let links = browser_links(links)?;
-    let group_definitions =
+    let browser_group_definitions =
         serde_wasm_bindgen::from_value::<Vec<BrowserGroupDefinition>>(group_definitions)
-            .map_err(|error| JsValue::from_str(&format!("invalid gene groups: {error}")))?
-            .into_iter()
-            .map(GeneGroupDefinition::from)
-            .collect::<Vec<_>>();
+            .map_err(|error| JsValue::from_str(&format!("invalid gene groups: {error}")))?;
+    let group_definitions = browser_group_definitions
+        .iter()
+        .map(GeneGroupDefinition::from)
+        .collect::<Vec<_>>();
     let analysis = Analysis {
-        clusters: clusters_from_layout(layout),
+        clusters: clusters_from_layout(layout, proteins)?,
         links,
     };
+    post_process_analysis(
+        analysis,
+        group_definitions,
+        identity_cutoff,
+        use_file_order,
+        progress,
+    )
+}
+
+/// Validate and render a previously saved analysis session.
+#[wasm_bindgen]
+pub fn open_session(
+    session: JsValue,
+    use_file_order: bool,
+    progress: &Function,
+) -> Result<JsValue, JsValue> {
+    let session = serde_wasm_bindgen::from_value::<AnalysisSession>(session)
+        .map_err(|error| JsValue::from_str(&format!("invalid analysis session: {error}")))?;
+    session
+        .validate()
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    post_process_analysis(
+        session.analysis,
+        session.group_definitions,
+        session.identity_cutoff,
+        use_file_order,
+        progress,
+    )
+}
+
+fn post_process_analysis(
+    analysis: Analysis,
+    group_definitions: Vec<GeneGroupDefinition>,
+    identity_cutoff: f32,
+    use_file_order: bool,
+    progress: &Function,
+) -> Result<JsValue, JsValue> {
     let cluster_count = analysis.clusters.len();
     let similarity_total = cluster_count.saturating_mul(cluster_count.saturating_sub(1)) / 2;
     let mut last_similarity_report = 0;
@@ -509,6 +562,9 @@ pub fn post_process(
             )
         },
     );
+    let analysis_session =
+        AnalysisSession::new(analysis.clone(), identity_cutoff, group_definitions)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let result = BrowserPostProcess {
         plot_data: arranged,
         cluster_names: analysis
@@ -518,6 +574,7 @@ pub fn post_process(
             .collect(),
         cluster_order: order,
         similarity_matrix,
+        analysis_session,
     };
     serde_wasm_bindgen::to_value(&result)
         .map_err(|error| JsValue::from_str(&format!("could not encode post-processing: {error}")))
@@ -539,8 +596,11 @@ fn browser_links(links: JsValue) -> Result<Vec<Link>, JsValue> {
         })
 }
 
-fn clusters_from_layout(layout: BrowserLayout) -> Vec<Cluster> {
-    layout
+fn clusters_from_layout(
+    layout: BrowserLayout,
+    proteins: Vec<BrowserProtein>,
+) -> Result<Vec<Cluster>, JsValue> {
+    let mut clusters = layout
         .clusters
         .into_iter()
         .map(|cluster| Cluster {
@@ -563,16 +623,41 @@ fn clusters_from_layout(layout: BrowserLayout) -> Vec<Cluster> {
                             start: gene.start,
                             end: gene.end,
                             strand: gene.strand,
-                            // Post-processing needs only the amino-acid count
-                            // for length-weighted cluster similarity, not the
-                            // original sequence used by alignment workers.
-                            translation: "X".repeat(gene.protein_length),
+                            translation: String::new(),
                         })
                         .collect(),
                 })
                 .collect(),
         })
-        .collect()
+        .collect::<Vec<_>>();
+    let expected = clusters
+        .iter()
+        .flat_map(|cluster| &cluster.loci)
+        .map(|locus| locus.genes.len())
+        .sum::<usize>();
+    let mut assigned = std::collections::BTreeSet::new();
+    for protein in proteins {
+        let reference = (protein.cluster, protein.locus, protein.gene);
+        if !assigned.insert(reference) {
+            return Err(JsValue::from_str(&format!(
+                "duplicate browser protein reference {reference:?}"
+            )));
+        }
+        let gene = clusters
+            .get_mut(protein.cluster)
+            .and_then(|cluster| cluster.loci.get_mut(protein.locus))
+            .and_then(|locus| locus.genes.get_mut(protein.gene))
+            .ok_or_else(|| {
+                JsValue::from_str(&format!("invalid browser protein reference {reference:?}"))
+            })?;
+        gene.translation = protein.translation;
+    }
+    if assigned.len() != expected {
+        return Err(JsValue::from_str(
+            "browser analysis is missing one or more protein sequences",
+        ));
+    }
+    Ok(clusters)
 }
 
 fn input_files(files: &[BrowserFile]) -> Vec<InputFile<'_>> {
@@ -749,7 +834,8 @@ fn layout_from_clusters(clusters: &[Cluster]) -> BrowserLayout {
 mod tests {
     use super::{
         BrowserFile, BrowserGenBankOptions, BrowserPrefilter, BrowserSequenceRange, Function,
-        analyse_pairs, analyse_tile, parse_browser_files, post_process,
+        analyse_pairs, analyse_tile, clusters_from_layout, open_session, parse_browser_files,
+        post_process,
     };
     use wasm_bindgen::JsValue;
 
@@ -787,8 +873,18 @@ mod tests {
         let _ = analyse_tile as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
         let _ = analyse_pairs as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
         let _ = post_process
-            as fn(JsValue, JsValue, JsValue, bool, &Function) -> Result<JsValue, JsValue>;
-        assert_eq!(data.proteins[0].translation, "MA");
+            as fn(
+                JsValue,
+                JsValue,
+                JsValue,
+                JsValue,
+                f32,
+                bool,
+                &Function,
+            ) -> Result<JsValue, JsValue>;
+        let _ = open_session as fn(JsValue, bool, &Function) -> Result<JsValue, JsValue>;
+        let clusters = clusters_from_layout(data.layout, data.proteins).unwrap();
+        assert_eq!(clusters[0].loci[0].genes[0].translation, "MA");
     }
 
     #[test]

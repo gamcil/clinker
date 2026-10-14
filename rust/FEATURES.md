@@ -29,8 +29,10 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 | Automatic locus arrangement and orientation | Yes | Via plots | Yes | Layout and plot-data tests |
 | Human-readable or delimited link summary | Yes | Yes | Not applicable | Formatter and CLI tests |
 | Similarity/distance matrix export | Yes | CSV | CSV | Matrix tests and CLI smoke test |
-| clustermap.js plot-data export | Yes | JSON | JSON | Plot-data tests |
+| clustermap.js plot-data output | Yes | JSON | In project | Plot-data tests |
 | Portable interactive figure | Yes | HTML | Static application | CLI and browser smoke tests |
+| Save and reopen complete analysis state | Yes | Session | Project | Core round-trip, CLI append workflow, and browser smoke test |
+| Add new files to a saved session | Yes | Yes | Not yet | Core and CLI workflow tests |
 | SVG export and interactive plot editing | Plot contract | Not applicable | Yes | Browser integration coverage |
 | Offline analysis without Python or a server | Yes | Yes | Yes | Native and WASM builds |
 
@@ -38,8 +40,7 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 
 | Established workflow | Current gap | Suggested priority |
 | --- | --- | --- |
-| Save and resume an analysis session | No stable analysis-session schema | Medium |
-| Add new files to a saved session | Depends on the session model | Medium |
+| Add new files to a saved session in the browser | Core and CLI support appending; web can currently reopen and export | Medium |
 | Control native alignment concurrency | Native core is serial; web uses workers | Medium |
 | Open an interactive plot when `--plot` has no path | CLI currently requires an output path | Low; the static web app covers this workflow |
 

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::layout::auto_locus_layouts_with_progress;
 use crate::{Analysis, GeneRef, build_gene_groups, build_gene_groups_with_progress};
@@ -71,7 +71,7 @@ pub struct PlotGroup {
 
 /// A user-defined functional group. Gene names are matched against both the
 /// displayed gene label and retained qualifier values.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct GeneGroupDefinition {
     pub label: String,
     pub genes: Vec<String>,

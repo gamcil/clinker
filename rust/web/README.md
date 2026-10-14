@@ -34,6 +34,13 @@ Annotation-only runs can skip protein alignment entirely. Optional two-column
 gene-function and function-colour CSV files seed labelled, coloured groups;
 retained homology links extend those groups when alignment is enabled.
 
+The web app has one restorable export: a versioned clinker project. It contains
+the plot data, renderer appearance, editing state, and complete analysis state,
+including translations, links, identity cutoff, and configured function groups.
+This versioned project is the only file accepted by the web app's Open action.
+Adding new files to an existing analysis is currently available through the
+CLI; browser append support remains pending.
+
 ## Build for local preview or static hosting
 
 The development machine needs Node/npm, Rust's `wasm32-unknown-unknown` target,

@@ -67,6 +67,25 @@ cargo run -p clinker-cli -- input-a.gbk input-b.gbk \
 `function,colour` rows. Function groups are extended by retained homology links
 when alignment is enabled.
 
+Save full analysis state, reopen it later, or append more GenBank inputs without
+recomputing links between clusters already in the session:
+
+```bash
+cargo run -p clinker-cli -- input-a.gbk input-b.gbk --session analysis.json
+cargo run -p clinker-cli -- --session analysis.json --plot figure.html
+cargo run -p clinker-cli -- input-c.gbk --session analysis.json
+```
+
+Analysis sessions retain protein translations and are therefore larger than
+plot-data JSON. They use a versioned `clinker-analysis` schema shared by the
+CLI and web application. When the web app exports a versioned
+`clinker-project`, it embeds this analysis state alongside the plot data,
+renderer appearance, and editing state. The web app therefore needs only one
+project file to preserve everything available for a run. The web Open action
+accepts this complete project format only; the standalone session schema is an
+internal CLI/core persistence format and the analysis payload embedded in a
+web project.
+
 Plot data contains `clusters`, `links`, and connected-component `groups`.
 Gene, locus, and cluster IDs are stable within a run; translations are retained
 only during analysis and are not written to browser data. Existing output files

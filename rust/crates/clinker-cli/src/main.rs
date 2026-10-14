@@ -7,8 +7,8 @@ use std::{
 
 use clap::Parser;
 use clinker_core::{
-    Analysis, AnalysisOptions, GenBankOptions, GeneGroupDefinition, InputFile, SequenceRange,
-    analyse_genbank_with_options, parse_input_files_with_options,
+    Analysis, AnalysisOptions, AnalysisSession, GenBankOptions, GeneGroupDefinition, InputFile,
+    SequenceRange, analyse_genbank_with_options, parse_input_files_with_options,
 };
 
 /// Inspect GenBank input with the in-progress Rust implementation of clinker.
@@ -16,12 +16,15 @@ use clinker_core::{
 #[command(version, about)]
 struct Args {
     /// GenBank files to analyse.
-    #[arg(required = true)]
     inputs: Vec<PathBuf>,
 
-    /// Minimum protein identity required to retain a homology link.
-    #[arg(short, long, default_value_t = 0.30, value_parser = parse_identity)]
-    identity: f32,
+    /// Minimum protein identity required to retain a homology link (default: 0.30 for new sessions).
+    #[arg(short, long, value_parser = parse_identity)]
+    identity: Option<f32>,
+
+    /// Save analysis state here, or resume it when the path already exists.
+    #[arg(short, long, value_name = "PATH")]
+    session: Option<PathBuf>,
 
     /// Restrict a record to a 1-based inclusive range: RECORD:START-END.
     #[arg(short, long, value_name = "RECORD:START-END", num_args = 1..)]
@@ -86,6 +89,14 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
+    let session_exists = args.session.as_ref().is_some_and(|path| path.exists());
+    if args.inputs.is_empty() && !session_exists {
+        return Err(io::Error::new(
+            ErrorKind::InvalidInput,
+            "provide at least one GenBank file or an existing --session",
+        )
+        .into());
+    }
     let owned_inputs = args
         .inputs
         .iter()
@@ -107,22 +118,56 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         as_separate_clusters: args.as_separate_clusters,
         set_origin: !args.dont_set_origin,
     };
-    let analysis = if args.no_align {
-        Analysis {
-            clusters: parse_input_files_with_options(&inputs, &genbank_options)?,
-            links: Vec::new(),
-        }
-    } else {
-        analyse_genbank_with_options(
-            &inputs,
-            AnalysisOptions {
-                identity_cutoff: args.identity,
-            },
-            &genbank_options,
-        )?
-    };
-    let group_definitions =
+    let supplied_group_definitions =
         read_group_definitions(args.gene_functions.as_deref(), args.colour_map.as_deref())?;
+    let replace_group_definitions = args.gene_functions.is_some();
+    let mut session_was_modified = false;
+    let session = if session_exists {
+        let path = args
+            .session
+            .as_ref()
+            .expect("checked existing session path");
+        let mut session = AnalysisSession::from_json(&fs::read(path)?)?;
+        if !inputs.is_empty() {
+            let identity_cutoff = args.identity.unwrap_or(session.identity_cutoff);
+            let clusters = parse_input_files_with_options(&inputs, &genbank_options)?;
+            if args.no_align {
+                session.analysis.append_clusters_without_alignment(clusters);
+            } else {
+                session.analysis.append_clusters(clusters, identity_cutoff);
+            }
+            session.identity_cutoff = identity_cutoff;
+            session_was_modified = true;
+        }
+        if replace_group_definitions {
+            session.group_definitions = supplied_group_definitions;
+            session_was_modified = true;
+        }
+        session
+    } else {
+        let identity_cutoff = args.identity.unwrap_or(0.30);
+        let analysis = if args.no_align {
+            Analysis {
+                clusters: parse_input_files_with_options(&inputs, &genbank_options)?,
+                links: Vec::new(),
+            }
+        } else {
+            analyse_genbank_with_options(
+                &inputs,
+                AnalysisOptions { identity_cutoff },
+                &genbank_options,
+            )?
+        };
+        session_was_modified = args.session.is_some();
+        AnalysisSession::new(analysis, identity_cutoff, supplied_group_definitions)?
+    };
+    session.validate()?;
+    if session_was_modified && let Some(path) = args.session.as_ref() {
+        fs::write(path, session.to_json()?)?;
+    }
+    let identity_cutoff = session.identity_cutoff;
+    let analysis = &session.analysis;
+    let group_definitions = &session.group_definitions;
 
     let summary = analysis.format_link_summary_with_options(
         usize::from(args.decimals),
@@ -138,7 +183,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             analysis.clusters.len()
         );
     } else if summary.is_empty() {
-        println!("No retained links at identity cutoff {:.2}", args.identity);
+        println!("No retained links at identity cutoff {identity_cutoff:.2}");
     } else {
         println!("{summary}");
     }
@@ -150,7 +195,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             analysis.cluster_order()
         };
         let data =
-            analysis.to_auto_arranged_plot_data_with_group_definitions(&order, &group_definitions);
+            analysis.to_auto_arranged_plot_data_with_group_definitions(&order, group_definitions);
         let json = serde_json::to_string_pretty(&data)?;
         let output = match path
             .extension()
@@ -174,7 +219,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(path) = args.matrix_out.as_ref() {
         write_output(
             path,
-            format_distance_matrix(&analysis).as_bytes(),
+            format_distance_matrix(analysis).as_bytes(),
             args.force,
         )?;
     }

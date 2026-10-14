@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::align::ProteinAligner;
@@ -124,14 +125,14 @@ pub enum AnalysisError {
 }
 
 /// A stable position within this analysis result.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct GeneRef {
     pub cluster: usize,
     pub locus: usize,
     pub gene: usize,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Link {
     pub query: GeneRef,
     pub target: GeneRef,
@@ -180,10 +181,29 @@ impl Default for KmerPrefilter {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Analysis {
     pub clusters: Vec<Cluster>,
     pub links: Vec<Link>,
+}
+
+impl Analysis {
+    /// Append clusters and compare only pairs involving at least one newly
+    /// appended cluster. Existing links and cluster indices remain stable.
+    pub fn append_clusters(&mut self, clusters: Vec<Cluster>, identity_cutoff: f32) {
+        let first_new_cluster = self.clusters.len();
+        self.clusters.extend(clusters);
+        self.links.extend(cross_cluster_links_from(
+            &self.clusters,
+            first_new_cluster,
+            identity_cutoff,
+        ));
+    }
+
+    /// Append parsed clusters without producing protein links.
+    pub fn append_clusters_without_alignment(&mut self, clusters: Vec<Cluster>) {
+        self.clusters.extend(clusters);
+    }
 }
 
 /// Parse GenBank inputs and retain cross-cluster gene links at the identity
@@ -262,10 +282,19 @@ where
 }
 
 fn cross_cluster_links(clusters: &[Cluster], identity_cutoff: f32) -> Vec<Link> {
+    cross_cluster_links_from(clusters, 0, identity_cutoff)
+}
+
+fn cross_cluster_links_from(
+    clusters: &[Cluster],
+    first_new_cluster: usize,
+    identity_cutoff: f32,
+) -> Vec<Link> {
     let mut links = Vec::new();
 
     for query_cluster_index in 0..clusters.len() {
-        for target_cluster_index in query_cluster_index + 1..clusters.len() {
+        let first_target = (query_cluster_index + 1).max(first_new_cluster);
+        for target_cluster_index in first_target..clusters.len() {
             links.extend(
                 analyse_cluster_pair(
                     &clusters[query_cluster_index],

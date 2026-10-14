@@ -10,6 +10,7 @@ mod layout;
 mod model;
 mod parse_genbank;
 mod plot_data;
+mod session;
 mod synteny;
 
 pub use align::ProteinMatch;
@@ -27,4 +28,7 @@ pub use parse_genbank::{
     GenBankOptions, ParseError, SequenceRange, parse_genbank, parse_genbank_with_options,
 };
 pub use plot_data::{GeneGroupDefinition, PlotCluster, PlotData, PlotGroup, build_plot_groups};
+pub use session::{
+    ANALYSIS_SESSION_FORMAT, ANALYSIS_SESSION_VERSION, AnalysisSession, SessionError,
+};
 pub use synteny::ClusterPairSimilarity;

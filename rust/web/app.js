@@ -25,12 +25,9 @@ const analyseButton = document.querySelector("#analyse");
 const exampleButton = document.querySelector("#load-example");
 const matrixButton = document.querySelector("#download-matrix");
 const svgButton = document.querySelector("#download-svg");
-const dataButton = document.querySelector("#download-data");
-const loadDataButton = document.querySelector("#load-data");
-const dataFileInput = document.querySelector("#data-file");
 const projectButton = document.querySelector("#download-project");
-const loadProjectButton = document.querySelector("#load-project");
-const projectFileInput = document.querySelector("#project-file");
+const loadClinkerFileButton = document.querySelector("#load-clinker-file");
+const clinkerFileInput = document.querySelector("#clinker-file");
 const plotEditor = document.querySelector("#plot-editor");
 const editPlotButton = document.querySelector("#edit-plot");
 const runPanel = document.querySelector("#run-panel");
@@ -53,7 +50,7 @@ const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
-const WORKER_VERSION = "20261014-settings-layout-v25";
+const WORKER_VERSION = "20261014-project-v27";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
@@ -72,6 +69,7 @@ let chart = createChart();
 plotEditor.chart = chart;
 let disposeSelectionToolbar = null;
 let latestSimilarity = null;
+let latestAnalysisSession = null;
 let analysisInProgress = false;
 let recordInspectionVersion = 0;
 let recordInspectionPromise = Promise.resolve();
@@ -96,8 +94,7 @@ function setAnalysisInputsDisabled(disabled) {
   colourMapInput.disabled = disabled || geneFunctionsInput.files.length === 0;
   analyseButton.disabled = disabled;
   exampleButton.disabled = disabled;
-  loadDataButton.disabled = disabled;
-  loadProjectButton.disabled = disabled;
+  loadClinkerFileButton.disabled = disabled;
   newRunButton.disabled = disabled;
   cancelRunButton.disabled = disabled;
   syncPrefilterControls();
@@ -773,21 +770,6 @@ svgButton.addEventListener("click", () => {
   }
 });
 
-dataButton.addEventListener("click", () => {
-  const data = chart.data();
-  if (!data) return;
-  const url = URL.createObjectURL(new Blob([`${JSON.stringify(data, null, 2)}\n`], {
-    type: "application/json;charset=utf-8",
-  }));
-  const download = document.createElement("a");
-  download.href = url;
-  download.download = "clinker-plot-data.json";
-  document.body.append(download);
-  download.click();
-  download.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-});
-
 function validatePlotData(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
     throw new Error("the file must contain a plot-data object");
@@ -845,10 +827,10 @@ function mountImportedPlot(data, { config = null, appearance = null, state = nul
   mountSelectionToolbar();
   plotEditor.chart = chart;
   latestSimilarity = null;
+  latestAnalysisSession = null;
   matrixButton.disabled = true;
   svgButton.disabled = false;
-  dataButton.disabled = false;
-  projectButton.disabled = false;
+  projectButton.disabled = true;
   editPlotButton.disabled = false;
   closePlotEditor();
   closeRunPanel();
@@ -866,7 +848,12 @@ async function readJsonFile(input) {
 }
 
 projectButton.addEventListener("click", () => {
-  const project = chart.project();
+  if (!latestAnalysisSession) return;
+  const project = {
+    ...chart.project(),
+    version: 2,
+    analysis: latestAnalysisSession,
+  };
   const url = URL.createObjectURL(new Blob([`${JSON.stringify(project, null, 2)}\n`], {
     type: "application/json;charset=utf-8",
   }));
@@ -879,39 +866,69 @@ projectButton.addEventListener("click", () => {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 });
 
-loadDataButton.addEventListener("click", () => dataFileInput.click());
-dataFileInput.addEventListener("change", async () => {
-  try {
-    const data = await readJsonFile(dataFileInput);
-    if (!data) return;
-    mountImportedPlot(data);
-    setPlotStatus("Loaded plot data.");
-  } catch (error) {
-    setContextStatus(`Could not load plot data: ${error.message || String(error)}`, { tone: "error" });
-  }
-});
+function openAnalysisSession(session) {
+  const worker = new Worker(WORKER_URL, { type: "module" });
+  return new Promise((resolve, reject) => {
+    const finish = (callback, value) => {
+      worker.terminate();
+      callback(value);
+    };
+    worker.onmessage = ({ data }) => {
+      if (data.type === "error") finish(reject, new Error(data.message));
+      else if (data.type === "post-process") finish(resolve, data.result);
+    };
+    worker.onerror = event => finish(reject, new Error(event.message || "Worker failed"));
+    worker.postMessage({ type: "open-session", session, useFileOrder: false });
+  });
+}
 
-loadProjectButton.addEventListener("click", () => projectFileInput.click());
-projectFileInput.addEventListener("change", async () => {
+function retainAnalysisResult(result) {
+  latestSimilarity = {
+    clusterNames: result.clusterNames,
+    clusterOrder: result.clusterOrder,
+    similarityMatrix: result.similarityMatrix,
+  };
+  latestAnalysisSession = result.analysisSession;
+  matrixButton.disabled = false;
+  projectButton.disabled = false;
+}
+
+loadClinkerFileButton.addEventListener("click", () => clinkerFileInput.click());
+clinkerFileInput.addEventListener("change", async () => {
   try {
-    const project = await readJsonFile(projectFileInput);
-    if (!project) return;
-    if (project.format !== "clinker-project" || project.version !== 1) {
-      throw new Error("unsupported project format");
+    const saved = await readJsonFile(clinkerFileInput);
+    if (!saved) return;
+    if (saved.format !== "clinker-project" || saved.version !== 2) {
+      throw new Error("the file is not a clinker project");
     }
-    const projectConfig = project.config || project.appearance;
-    if (!projectConfig) throw new Error("project is missing appearance settings");
-    mountImportedPlot(project.data, {
-      config: projectConfig,
-      state: project.state,
+    if (!saved.config) throw new Error("project is missing appearance settings");
+    if (!saved.analysis) throw new Error("project is missing analysis data");
+
+    setContextStatus("Opening clinker project…");
+    const analysisResult = await openAnalysisSession(saved.analysis);
+    mountImportedPlot(saved.data, {
+      config: saved.config,
+      state: saved.state,
     });
-    setPlotStatus("Loaded clinker project.");
+    retainAnalysisResult(analysisResult);
+    setPlotStatus("Loaded clinker project with its analysis data.");
   } catch (error) {
-    setContextStatus(`Could not load project: ${error.message || String(error)}`, { tone: "error" });
+    setContextStatus(`Could not open clinker file: ${error.message || String(error)}`, {
+      tone: "error",
+    });
   }
 });
 
-function postProcess(layout, links, groupDefinitions, useFileOrder, wasmModule, onProgress) {
+function postProcess(
+  layout,
+  proteins,
+  links,
+  groupDefinitions,
+  identity,
+  useFileOrder,
+  wasmModule,
+  onProgress,
+) {
   const worker = new Worker(WORKER_URL, { type: "module" });
   return new Promise((resolve, reject) => {
     const finish = (callback, value) => {
@@ -927,8 +944,10 @@ function postProcess(layout, links, groupDefinitions, useFileOrder, wasmModule, 
     worker.postMessage({
       type: "post-process",
       layout,
+      proteins,
       useFileOrder,
       wasmModule,
+      identity,
       reportProgress: true,
       links: links.map(link => ({
         query: link.query,
@@ -1054,7 +1073,6 @@ async function analyseFiles(files) {
   setAnalysisInputsDisabled(true);
   matrixButton.disabled = true;
   svgButton.disabled = true;
-  dataButton.disabled = true;
   projectButton.disabled = true;
   editPlotButton.disabled = true;
   closePlotEditor();
@@ -1146,8 +1164,10 @@ async function analyseFiles(files) {
     setRunStep("order", "active", "Scoring cluster pairs…", { progress: 0 });
     const result = await postProcess(
       parsed.layout,
+      parsed.proteins,
       links,
       groupDefinitions,
+      identity,
       useFileOrder,
       parsed.wasmModule,
       ({ stage, completed, total }) => {
@@ -1214,6 +1234,7 @@ async function analyseFiles(files) {
       clusterOrder: result.clusterOrder,
       similarityMatrix: result.similarityMatrix,
     };
+    latestAnalysisSession = result.analysisSession;
     matrixButton.disabled = false;
     const displayedBestLinks = bestLinkCount(plotData);
     const summary = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links; ${displayedBestLinks} displayed best links.`;
@@ -1238,7 +1259,6 @@ async function analyseFiles(files) {
     mountSelectionToolbar();
     plotEditor.chart = chart;
     svgButton.disabled = false;
-    dataButton.disabled = false;
     projectButton.disabled = false;
     editPlotButton.disabled = false;
     analysisInProgress = false;
@@ -1259,7 +1279,6 @@ async function analyseFiles(files) {
     if (chart.data()) {
       matrixButton.disabled = !latestSimilarity;
       svgButton.disabled = false;
-      dataButton.disabled = false;
       projectButton.disabled = false;
       editPlotButton.disabled = false;
     }
