@@ -55,5 +55,9 @@ jobs:
           cache-dependency-path: rust/web/package-lock.json
       - run: cargo install wasm-pack --locked
       - run: sh web/build.sh
+      - name: Verify embedded CLI plot assets
+        run: |
+          cmp web/d3.min.js crates/clinker-cli/assets/d3.min.js
+          cmp web/clustermap.min.js crates/clinker-cli/assets/clustermap.min.js
       - run: node --check web/app.js
       - run: node --check web/worker.js

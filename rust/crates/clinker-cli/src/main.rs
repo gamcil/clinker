@@ -465,8 +465,8 @@ fn write_output(path: &Path, contents: &[u8], force: bool) -> io::Result<()> {
 }
 
 fn portable_html(plot_json: &str) -> String {
-    const D3: &str = include_str!("../../../web/d3.min.js");
-    const CLUSTERMAP: &str = include_str!("../../../web/clustermap.min.js");
+    const D3: &str = include_str!("../assets/d3.min.js");
+    const CLUSTERMAP: &str = include_str!("../assets/clustermap.min.js");
     let safe_json = plot_json
         .replace('&', "\\u0026")
         .replace('<', "\\u003c")

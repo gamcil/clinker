@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Native command-line interface for clinker"
+include = ["src/**", "assets/**", "Cargo.toml"]
 
 [[bin]]
 name = "clinker-rs"
@@ -12,6 +13,6 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-clinker-core = { path = "../clinker-core" }
+clinker-core = { path = "../clinker-core", version = "0.1.0" }
 csv = "1"
 serde_json = "1"
