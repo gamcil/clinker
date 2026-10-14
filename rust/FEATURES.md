@@ -15,6 +15,8 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 | Capability | Core | CLI | Web | Verification |
 | --- | --- | --- | --- | --- |
 | Parse one or more GenBank files and multi-record files | Yes | Yes | Yes | Parser fixtures and bundled workflow |
+| Parse GFF3 with companion or embedded FASTA | Yes | Yes | Yes | Core fixtures, CLI workflow, and WASM adapter test |
+| Discover supported annotation files recursively | Not applicable | Yes | Not applicable | CLI discovery test |
 | Select `record:start-end` ranges | Yes | Yes | Yes | Parser, CLI, and WASM adapter tests |
 | Treat records in one file as separate clusters | Yes | Yes | Yes | Parser and WASM adapter tests |
 | Retain source-file and GenBank organism provenance | Yes | Via plot data | Yes | Bundled and separate-record parser fixtures |

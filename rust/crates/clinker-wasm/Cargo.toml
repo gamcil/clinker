@@ -2,7 +2,7 @@
 name = "clinker-wasm"
 version.workspace = true
 edition.workspace = true
-license-file = "../../../LICENSE"
+license.workspace = true
 repository.workspace = true
 description = "WebAssembly adapter for clinker-core"
 

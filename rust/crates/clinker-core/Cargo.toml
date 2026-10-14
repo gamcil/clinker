@@ -7,6 +7,7 @@ repository.workspace = true
 description = "Shared analysis core for clinker"
 
 [dependencies]
+bio = "4"
 gb-io = "0.9"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -17,6 +18,7 @@ block-aligner = { version = "0.5", features = ["simd_neon"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 block-aligner = { version = "0.5", features = ["simd_wasm"] }
+getrandom = { version = "0.2", features = ["js"] }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 block-aligner = { version = "0.5", features = ["simd_sse2"] }

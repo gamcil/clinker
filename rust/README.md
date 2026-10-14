@@ -7,9 +7,9 @@ file, build directory, and dependency resolution.
 
 ## Packages
 
-- `clinker-core` holds platform-independent parsing, accelerated global alignment,
-  grouping, ordering, and plot-data code. It takes GenBank bytes rather than
-  paths so both frontends execute the same analysis implementation.
+- `clinker-core` holds platform-independent GenBank, GFF3/FASTA parsing, accelerated global alignment,
+  grouping, ordering, and plot-data code. It takes input bytes rather than paths
+  so both frontends execute the same analysis implementation.
 - `clinker-cli` is the small native command-line frontend. Its release binary
   is named `clinker-rs`.
 - `clinker-wasm` is a thin `wasm-bindgen` adapter used by the static web app.
@@ -31,6 +31,15 @@ Run the early CLI against an existing fixture:
 
 ```bash
 cargo run -p clinker-cli -- ../examples/'A. versicolor CBS 583.65.gbk'
+```
+
+GFF3 inputs may contain an embedded `##FASTA` section or use a companion FASTA
+with the same stem (`.fa`, `.fsa`, `.fna`, `.fasta`, or `.faa`). Directories are
+searched recursively for supported annotation files:
+
+```bash
+cargo run -p clinker-cli -- annotations/cluster.gff3
+cargo run -p clinker-cli -- annotations/
 ```
 
 By default, this writes the retained protein-link tables to standard output.
@@ -112,8 +121,8 @@ gb-io = "0.9"
 
 Cargo downloads the crate and its transitive dependencies from crates.io,
 selects compatible versions, and records the exact resolved versions in
-`Cargo.lock`. `clinker-core` uses `gb-io` for GenBank parsing and
-`block-aligner` for SIMD-accelerated global protein alignment.
+`Cargo.lock`. `clinker-core` uses `gb-io` for GenBank, Rust Bio for GFF3/FASTA,
+and `block-aligner` for SIMD-accelerated global protein alignment.
 
 ## Browser prototype
 

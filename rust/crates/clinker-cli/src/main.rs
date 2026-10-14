@@ -7,15 +7,15 @@ use std::{
 
 use clap::Parser;
 use clinker_core::{
-    Analysis, AnalysisOptions, AnalysisSession, GenBankOptions, GeneGroupDefinition, InputFile,
+    Analysis, AnalysisOptions, AnalysisSession, GeneGroupDefinition, InputFile, ParseOptions,
     SequenceRange, analyse_genbank_with_options, parse_input_files_with_options,
 };
 
-/// Inspect GenBank input with the in-progress Rust implementation of clinker.
+/// Analyse GenBank or GFF3 input with clinker.
 #[derive(Debug, Parser)]
 #[command(version, about)]
 struct Args {
-    /// GenBank files to analyse.
+    /// GenBank or GFF3 files/directories to analyse. Companion FASTA is discovered automatically.
     inputs: Vec<PathBuf>,
 
     /// Minimum protein identity required to retain a homology link (default: 0.30 for new sessions).
@@ -93,12 +93,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.inputs.is_empty() && !session_exists {
         return Err(io::Error::new(
             ErrorKind::InvalidInput,
-            "provide at least one GenBank file or an existing --session",
+            "provide at least one GenBank/GFF3 file, directory, or an existing --session",
         )
         .into());
     }
-    let owned_inputs = args
-        .inputs
+    let input_paths = discover_input_paths(&args.inputs)?;
+    if !args.inputs.is_empty() && input_paths.is_empty() {
+        return Err(io::Error::new(
+            ErrorKind::NotFound,
+            "no supported GenBank or GFF3 files were found",
+        )
+        .into());
+    }
+    let owned_inputs = input_paths
         .iter()
         .map(|path| {
             let name = path
@@ -113,7 +120,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .iter()
         .map(|(name, bytes)| InputFile { name, bytes })
         .collect::<Vec<_>>();
-    let genbank_options = GenBankOptions {
+    let parse_options = ParseOptions {
         ranges: parse_ranges(&args.ranges)?,
         as_separate_clusters: args.as_separate_clusters,
         set_origin: !args.dont_set_origin,
@@ -130,7 +137,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut session = AnalysisSession::from_json(&fs::read(path)?)?;
         if !inputs.is_empty() {
             let identity_cutoff = args.identity.unwrap_or(session.identity_cutoff);
-            let clusters = parse_input_files_with_options(&inputs, &genbank_options)?;
+            let clusters = parse_input_files_with_options(&inputs, &parse_options)?;
             if args.no_align {
                 session.analysis.append_clusters_without_alignment(clusters);
             } else {
@@ -148,14 +155,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let identity_cutoff = args.identity.unwrap_or(0.30);
         let analysis = if args.no_align {
             Analysis {
-                clusters: parse_input_files_with_options(&inputs, &genbank_options)?,
+                clusters: parse_input_files_with_options(&inputs, &parse_options)?,
                 links: Vec::new(),
             }
         } else {
             analyse_genbank_with_options(
                 &inputs,
                 AnalysisOptions { identity_cutoff },
-                &genbank_options,
+                &parse_options,
             )?
         };
         session_was_modified = args.session.is_some();
@@ -225,6 +232,92 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn discover_input_paths(inputs: &[PathBuf]) -> io::Result<Vec<PathBuf>> {
+    let mut primary = Vec::new();
+    for input in inputs {
+        collect_input_path(input, true, &mut primary)?;
+    }
+    let mut discovered = Vec::new();
+    for path in primary {
+        push_unique(&mut discovered, path.clone());
+        if is_gff_path(&path)
+            && let Some(companion) = fasta_companion(&path)?
+        {
+            push_unique(&mut discovered, companion);
+        }
+    }
+    Ok(discovered)
+}
+
+fn collect_input_path(path: &Path, explicit: bool, output: &mut Vec<PathBuf>) -> io::Result<()> {
+    if path.is_dir() {
+        let mut entries = fs::read_dir(path)?
+            .map(|entry| entry.map(|entry| entry.path()))
+            .collect::<Result<Vec<_>, _>>()?;
+        entries.sort();
+        for entry in entries {
+            collect_input_path(&entry, false, output)?;
+        }
+    } else if is_primary_input(path) || (explicit && is_fasta_path(path)) {
+        output.push(path.to_owned());
+    } else if explicit {
+        return Err(io::Error::new(
+            ErrorKind::InvalidInput,
+            format!(
+                "unsupported input {}; expected GenBank, GFF3/GFF, or FASTA",
+                path.display()
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn extension(path: &Path) -> Option<String> {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+}
+
+fn is_primary_input(path: &Path) -> bool {
+    matches!(
+        extension(path).as_deref(),
+        Some("gb" | "gbk" | "genbank" | "gbf" | "gbff" | "gff" | "gff3")
+    )
+}
+
+fn is_gff_path(path: &Path) -> bool {
+    matches!(extension(path).as_deref(), Some("gff" | "gff3"))
+}
+
+fn is_fasta_path(path: &Path) -> bool {
+    matches!(
+        extension(path).as_deref(),
+        Some("fa" | "fsa" | "fna" | "fasta" | "faa")
+    )
+}
+
+fn fasta_companion(gff: &Path) -> io::Result<Option<PathBuf>> {
+    let parent = gff.parent().unwrap_or_else(|| Path::new("."));
+    let stem = gff.file_stem().and_then(|stem| stem.to_str()).unwrap_or("");
+    let mut entries = fs::read_dir(parent)?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<Result<Vec<_>, _>>()?;
+    entries.sort();
+    Ok(entries.into_iter().find(|candidate| {
+        is_fasta_path(candidate)
+            && candidate
+                .file_stem()
+                .and_then(|candidate_stem| candidate_stem.to_str())
+                .is_some_and(|candidate_stem| candidate_stem.eq_ignore_ascii_case(stem))
+    }))
+}
+
+fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
+    if !paths.contains(&path) {
+        paths.push(path);
+    }
 }
 
 fn parse_identity(value: &str) -> Result<f32, String> {
@@ -414,7 +507,9 @@ fn format_distance_matrix(analysis: &clinker_core::Analysis) -> String {
 mod tests {
     use std::collections::BTreeMap;
 
-    use super::{group_definitions, parse_identity, parse_ranges, portable_html};
+    use super::{
+        discover_input_paths, group_definitions, parse_identity, parse_ranges, portable_html,
+    };
 
     #[test]
     fn validates_identity_range() {
@@ -458,5 +553,25 @@ mod tests {
         assert_eq!(definitions[0].label, "Enzyme");
         assert_eq!(definitions[0].genes, ["gene-a", "gene-b"]);
         assert_eq!(definitions[0].colour.as_deref(), Some("#123456"));
+    }
+
+    #[test]
+    fn discovers_gff_companion_fasta() {
+        let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../clinker-core/tests/fixtures/features.gff3");
+        let paths = discover_input_paths(&[fixture]).unwrap();
+
+        assert_eq!(paths.len(), 2);
+        assert_eq!(
+            paths[0].extension().and_then(|value| value.to_str()),
+            Some("gff3")
+        );
+        assert_eq!(
+            paths[1].extension().and_then(|value| value.to_str()),
+            Some("fna")
+        );
+
+        let directory = paths[0].parent().unwrap().to_owned();
+        assert_eq!(discover_input_paths(&[directory]).unwrap(), paths);
     }
 }

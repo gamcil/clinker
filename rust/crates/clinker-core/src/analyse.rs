@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::align::ProteinAligner;
-use crate::{Cluster, GenBankOptions, ProteinMatch, parse_genbank_with_options};
+use crate::{Cluster, ParseOptions, ProteinMatch, parse_genbank_with_options, parse_gff3};
 
 #[derive(Debug, Clone, Copy)]
 pub struct InputFile<'a> {
@@ -122,6 +122,14 @@ pub enum AnalysisError {
         #[source]
         source: crate::ParseError,
     },
+    #[error("failed to parse {file_name}: {source}")]
+    ParseGff {
+        file_name: String,
+        #[source]
+        source: crate::GffError,
+    },
+    #[error("unsupported input file {0}; expected GenBank, GFF3/GFF, or a companion FASTA")]
+    UnsupportedInput(String),
 }
 
 /// A stable position within this analysis result.
@@ -206,22 +214,22 @@ impl Analysis {
     }
 }
 
-/// Parse GenBank inputs and retain cross-cluster gene links at the identity
+/// Parse supported annotation inputs and retain cross-cluster gene links at the identity
 /// cutoff.
 pub fn analyse_genbank(
     files: &[InputFile<'_>],
     options: AnalysisOptions,
 ) -> Result<Analysis, AnalysisError> {
-    analyse_genbank_with_options(files, options, &GenBankOptions::default())
+    analyse_genbank_with_options(files, options, &ParseOptions::default())
 }
 
 /// Analyse GenBank inputs with explicit parsing behavior.
 pub fn analyse_genbank_with_options(
     files: &[InputFile<'_>],
     options: AnalysisOptions,
-    genbank_options: &GenBankOptions,
+    parse_options: &ParseOptions,
 ) -> Result<Analysis, AnalysisError> {
-    let clusters = parse_input_files_with_options(files, genbank_options)?;
+    let clusters = parse_input_files_with_options(files, parse_options)?;
 
     Ok(Analysis {
         links: cross_cluster_links(&clusters, options.identity_cutoff),
@@ -234,17 +242,17 @@ pub fn analyse_genbank_with_options(
 /// Browser callers use this first to obtain cluster metadata, then distribute
 /// independent pairwise comparisons to workers.
 pub fn parse_input_files(files: &[InputFile<'_>]) -> Result<Vec<Cluster>, AnalysisError> {
-    parse_input_files_with_options(files, &GenBankOptions::default())
+    parse_input_files_with_options(files, &ParseOptions::default())
 }
 
 pub fn parse_input_files_with_options(
     files: &[InputFile<'_>],
-    options: &GenBankOptions,
+    options: &ParseOptions,
 ) -> Result<Vec<Cluster>, AnalysisError> {
     parse_input_files_with_options_and_progress(files, options, |_| {})
 }
 
-/// Parse GenBank inputs and report the number of successfully parsed files.
+/// Parse annotation inputs and report the number of successfully processed input files.
 ///
 /// Browser workers use the callback to surface progress without moving file
 /// parsing out of the shared core implementation.
@@ -255,30 +263,97 @@ pub fn parse_input_files_with_progress<F>(
 where
     F: FnMut(usize),
 {
-    parse_input_files_with_options_and_progress(files, &GenBankOptions::default(), progress)
+    parse_input_files_with_options_and_progress(files, &ParseOptions::default(), progress)
 }
 
 pub fn parse_input_files_with_options_and_progress<F>(
     files: &[InputFile<'_>],
-    options: &GenBankOptions,
+    options: &ParseOptions,
     mut progress: F,
 ) -> Result<Vec<Cluster>, AnalysisError>
 where
     F: FnMut(usize),
 {
+    let companion_indexes = files
+        .iter()
+        .filter(|file| is_gff(file.name))
+        .filter_map(|gff| {
+            let stem = file_stem(gff.name);
+            files.iter().position(|candidate| {
+                is_fasta(candidate.name) && file_stem(candidate.name).eq_ignore_ascii_case(stem)
+            })
+        })
+        .collect::<HashSet<_>>();
     let mut clusters = Vec::with_capacity(files.len());
     for (index, file) in files.iter().enumerate() {
-        clusters.extend(
-            parse_genbank_with_options(file.name, file.bytes, options).map_err(|source| {
-                AnalysisError::Parse {
-                    file_name: file.name.to_owned(),
-                    source,
-                }
-            })?,
-        );
+        if is_fasta(file.name) {
+            if !companion_indexes.contains(&index) {
+                return Err(AnalysisError::UnsupportedInput(format!(
+                    "{} (no GFF3/GFF file with the same stem)",
+                    file.name
+                )));
+            }
+            progress(index + 1);
+            continue;
+        }
+        if is_gff(file.name) {
+            let stem = file_stem(file.name);
+            let companion = files
+                .iter()
+                .find(|candidate| {
+                    is_fasta(candidate.name) && file_stem(candidate.name).eq_ignore_ascii_case(stem)
+                })
+                .map(|candidate| candidate.bytes);
+            clusters.push(
+                parse_gff3(file.name, file.bytes, companion, options).map_err(|source| {
+                    AnalysisError::ParseGff {
+                        file_name: file.name.to_owned(),
+                        source,
+                    }
+                })?,
+            );
+        } else if is_genbank(file.name) {
+            clusters.extend(
+                parse_genbank_with_options(file.name, file.bytes, options).map_err(|source| {
+                    AnalysisError::Parse {
+                        file_name: file.name.to_owned(),
+                        source,
+                    }
+                })?,
+            );
+        } else {
+            return Err(AnalysisError::UnsupportedInput(file.name.to_owned()));
+        }
         progress(index + 1);
     }
     Ok(clusters)
+}
+
+fn extension(name: &str) -> Option<String> {
+    name.rsplit_once('.')
+        .map(|(_, extension)| extension.to_ascii_lowercase())
+}
+
+fn file_stem(name: &str) -> &str {
+    name.rsplit_once('.').map_or(name, |(stem, _)| stem)
+}
+
+fn is_genbank(name: &str) -> bool {
+    matches!(
+        extension(name).as_deref(),
+        Some("gb" | "gbk" | "genbank" | "gbf" | "gbff")
+    )
+}
+
+fn is_gff(name: &str) -> bool {
+    matches!(extension(name).as_deref(), Some("gff" | "gff3"))
+}
+
+fn is_fasta(name: &str) -> bool {
+    matches!(
+        extension(name).as_deref(),
+        Some("fa" | "fsa" | "fna" | "fasta" | "faa")
+    )
 }
 
 fn cross_cluster_links(clusters: &[Cluster], identity_cutoff: f32) -> Vec<Link> {

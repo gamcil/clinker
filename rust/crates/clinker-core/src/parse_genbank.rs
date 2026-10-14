@@ -38,9 +38,9 @@ pub struct SequenceRange {
     pub end: usize,
 }
 
-/// GenBank parsing behavior shared by native and browser frontends.
+/// Input parsing behavior shared by native and browser frontends.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GenBankOptions {
+pub struct ParseOptions {
     /// Record name to zero-based, end-exclusive extraction interval.
     pub ranges: BTreeMap<String, SequenceRange>,
     /// Emit each record as its own cluster instead of one cluster per file.
@@ -49,7 +49,7 @@ pub struct GenBankOptions {
     pub set_origin: bool,
 }
 
-impl Default for GenBankOptions {
+impl Default for ParseOptions {
     fn default() -> Self {
         Self {
             ranges: BTreeMap::new(),
@@ -59,8 +59,11 @@ impl Default for GenBankOptions {
     }
 }
 
+/// Backwards-compatible name retained for callers that only parse GenBank.
+pub type GenBankOptions = ParseOptions;
+
 pub fn parse_genbank(file_name: &str, bytes: &[u8]) -> Result<Cluster, ParseError> {
-    let mut clusters = parse_genbank_with_options(file_name, bytes, &GenBankOptions::default())?;
+    let mut clusters = parse_genbank_with_options(file_name, bytes, &ParseOptions::default())?;
     clusters.pop().ok_or(ParseError::MissingRecords)
 }
 
@@ -70,7 +73,7 @@ pub fn parse_genbank(file_name: &str, bytes: &[u8]) -> Result<Cluster, ParseErro
 pub fn parse_genbank_with_options(
     file_name: &str,
     bytes: &[u8],
-    options: &GenBankOptions,
+    options: &ParseOptions,
 ) -> Result<Vec<Cluster>, ParseError> {
     let mut loci = Vec::new();
     for record in SeqReader::new(Cursor::new(bytes)) {

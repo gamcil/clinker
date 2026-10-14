@@ -1,6 +1,7 @@
 # Static web prototype
 
-This is a deliberately small static frontend. The browser sends uploaded files
+This is a deliberately small static frontend. It accepts GenBank files and
+GFF3 annotations with a same-stem companion FASTA or embedded `##FASTA` section. The browser sends uploaded files
 to `worker.js` once for parsing. It then sends small protein-block tiles to a
 pool of `worker.js` instances; the workers perform up to 1,600 gene comparisons
 per tile and return retained links. Those links are combined with the original

@@ -15,5 +15,17 @@ They are:
 To generate the visualisation shown in the manuscript, the following command was used:
 
 ```
-clinker examples/* -p
+clinker examples/*.gbk -p
 ```
+
+Equivalent GFF3 annotations and same-stem FASTA files are in `examples/gff3/`.
+They preserve the records, gene labels, and protein translations from these
+GenBank files. To test the Rust parser against all five converted inputs:
+
+```
+cd rust
+cargo run -p clinker-cli -- ../examples/gff3 --no-align --plot gff3-examples.html
+```
+
+In the web application, select one or more matching `.gff3` and `.fna` pairs
+from that directory.

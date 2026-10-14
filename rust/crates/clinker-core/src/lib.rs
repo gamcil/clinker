@@ -9,6 +9,7 @@ mod hierarchy;
 mod layout;
 mod model;
 mod parse_genbank;
+mod parse_gff;
 mod plot_data;
 mod session;
 mod synteny;
@@ -25,8 +26,10 @@ pub use analyse::{
 pub use groups::{GeneGroup, build_gene_groups, build_gene_groups_with_progress};
 pub use model::{Cluster, Gene, Locus};
 pub use parse_genbank::{
-    GenBankOptions, ParseError, SequenceRange, parse_genbank, parse_genbank_with_options,
+    GenBankOptions, ParseError, ParseOptions, SequenceRange, parse_genbank,
+    parse_genbank_with_options,
 };
+pub use parse_gff::{GffError, parse_gff3};
 pub use plot_data::{GeneGroupDefinition, PlotCluster, PlotData, PlotGroup, build_plot_groups};
 pub use session::{
     ANALYSIS_SESSION_FORMAT, ANALYSIS_SESSION_VERSION, AnalysisSession, SessionError,

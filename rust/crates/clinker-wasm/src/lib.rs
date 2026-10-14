@@ -117,6 +117,7 @@ impl From<&BrowserGenBankOptions> for GenBankOptions {
 #[wasm_bindgen]
 pub struct BrowserFileParser {
     clusters: Vec<Cluster>,
+    pending_files: Vec<BrowserFile>,
     prefilter: BrowserPrefilter,
     genbank_options: GenBankOptions,
 }
@@ -130,6 +131,7 @@ impl BrowserFileParser {
         let genbank_options = GenBankOptions::from(&prefilter.genbank);
         Ok(Self {
             clusters: Vec::new(),
+            pending_files: Vec::new(),
             prefilter,
             genbank_options,
         })
@@ -138,6 +140,10 @@ impl BrowserFileParser {
     pub fn parse_file(&mut self, file: JsValue) -> Result<(), JsValue> {
         let file = serde_wasm_bindgen::from_value::<BrowserFile>(file)
             .map_err(|error| JsValue::from_str(&format!("invalid browser input: {error}")))?;
+        if !is_genbank_name(&file.name) {
+            self.pending_files.push(file);
+            return Ok(());
+        }
         let input = InputFile {
             name: &file.name,
             bytes: &file.bytes,
@@ -149,6 +155,13 @@ impl BrowserFileParser {
     }
 
     pub fn finish(&mut self, progress: &Function) -> Result<JsValue, JsValue> {
+        if !self.pending_files.is_empty() {
+            let pending = std::mem::take(&mut self.pending_files);
+            let mut clusters =
+                parse_input_files_with_options(&input_files(&pending), &self.genbank_options)
+                    .map_err(|error| JsValue::from_str(&error.to_string()))?;
+            self.clusters.append(&mut clusters);
+        }
         let clusters = std::mem::take(&mut self.clusters);
         let mut last_report = 0;
         let parsed = prepare_browser_files_with_filter_progress(
@@ -161,6 +174,15 @@ impl BrowserFileParser {
         serde_wasm_bindgen::to_value(&parsed)
             .map_err(|error| JsValue::from_str(&format!("could not encode parsed files: {error}")))
     }
+}
+
+fn is_genbank_name(name: &str) -> bool {
+    matches!(
+        name.rsplit_once('.')
+            .map(|(_, extension)| extension.to_ascii_lowercase())
+            .as_deref(),
+        Some("gb" | "gbk" | "genbank" | "gbf" | "gbff")
+    )
 }
 
 /// Coordinate and annotation metadata retained between parsing and the final
@@ -918,5 +940,34 @@ mod tests {
         assert_eq!(data.layout.clusters[1].name, "SECOND");
         assert_eq!(data.layout.clusters[1].loci[0].start, 3);
         assert!(data.layout.clusters[1].loci[0].genes.is_empty());
+    }
+
+    #[test]
+    fn browser_pairs_gff3_with_its_fasta_sequence() {
+        let files = vec![
+            BrowserFile {
+                name: "features.gff3".into(),
+                bytes: include_bytes!("../../clinker-core/tests/fixtures/features.gff3").to_vec(),
+            },
+            BrowserFile {
+                name: "features.fna".into(),
+                bytes: include_bytes!("../../clinker-core/tests/fixtures/features.fna").to_vec(),
+            },
+        ];
+        let data = parse_browser_files(
+            &files,
+            BrowserPrefilter {
+                enabled: false,
+                kmer_size: 3,
+                min_shared_kmers: 3,
+                identity_cutoff: 0.30,
+                genbank: BrowserGenBankOptions::default(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(data.layout.clusters.len(), 1);
+        assert_eq!(data.layout.clusters[0].loci.len(), 2);
+        assert_eq!(data.proteins.len(), 3);
     }
 }
