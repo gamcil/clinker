@@ -75,7 +75,7 @@ pub fn parse_gff3(
         .ok_or(GffError::MissingFasta)?;
     let sequences = parse_fasta(fasta_bytes)?;
     let directives = sequence_regions(annotation);
-    let (features, genes, parents) = parse_features(annotation)?;
+    let features = parse_features(annotation)?;
     let mut loci = Vec::new();
     for (record_name, sequence) in &sequences {
         let record_features = features.get(record_name);
@@ -88,14 +88,7 @@ pub fn parse_gff3(
         let mut locus_genes = Vec::new();
         if let Some(groups) = record_features {
             for group in groups {
-                if let Some(gene) = gene_from_group(
-                    record_name,
-                    sequence,
-                    region,
-                    group,
-                    genes.get(record_name),
-                    &parents,
-                )? {
+                if let Some(gene) = gene_from_group(record_name, sequence, region, group)? {
                     locus_genes.push(gene);
                 }
             }
@@ -126,31 +119,15 @@ pub fn parse_gff3(
 }
 
 type FeatureMap = BTreeMap<String, Vec<FeatureGroup>>;
-type GeneMap = BTreeMap<String, BTreeMap<String, gff::Record>>;
-type ParentMap = BTreeMap<String, String>;
 
-fn parse_features(annotation: &[u8]) -> Result<(FeatureMap, GeneMap, ParentMap), GffError> {
+fn parse_features(annotation: &[u8]) -> Result<FeatureMap, GffError> {
     let mut reader = gff::Reader::new(Cursor::new(annotation), GffType::GFF3);
     let mut grouped = BTreeMap::<(String, String), Vec<gff::Record>>::new();
     let mut order = Vec::<(String, String)>::new();
-    let mut genes = GeneMap::new();
-    let mut parents = ParentMap::new();
 
     for (index, result) in reader.records().enumerate() {
         let record = result.map_err(|error| GffError::Gff(error.to_string()))?;
         let identifier = attribute(&record, "ID");
-        if let (Some(id), Some(parent)) = (identifier.clone(), attribute(&record, "Parent")) {
-            parents.insert(id, parent);
-        }
-        if record.feature_type().eq_ignore_ascii_case("gene") {
-            if let Some(id) = identifier {
-                genes
-                    .entry(record.seqname().to_owned())
-                    .or_default()
-                    .insert(id, record);
-            }
-            continue;
-        }
         if !record.feature_type().eq_ignore_ascii_case("CDS") {
             continue;
         }
@@ -178,7 +155,7 @@ fn parse_features(annotation: &[u8]) -> Result<(FeatureMap, GeneMap, ParentMap),
             .or_default()
             .push(FeatureGroup { label, records });
     }
-    Ok((features, genes, parents))
+    Ok(features)
 }
 
 fn gene_from_group(
@@ -186,8 +163,6 @@ fn gene_from_group(
     sequence: &[u8],
     region: Region,
     group: &FeatureGroup,
-    record_genes: Option<&BTreeMap<String, gff::Record>>,
-    parents: &ParentMap,
 ) -> Result<Option<Gene>, GffError> {
     let raw_cds_start = group
         .records
@@ -285,53 +260,18 @@ fn gene_from_group(
         .iter_all()
         .flat_map(|(key, values)| values.iter().map(move |value| (key.clone(), value.clone())))
         .collect::<Vec<_>>();
-    let parent_id = attribute(first, "Parent")
-        .and_then(|parent| resolve_gene_parent(&parent, record_genes, parents));
-    let (start, end) = if let Some(parent) = parent_id.as_ref().and_then(|id| record_genes?.get(id))
-    {
-        let raw_start = *parent.start() as usize;
-        let end = *parent.end() as usize;
-        if raw_start == 0 || raw_start > end {
-            return Err(GffError::InvalidCoordinates {
-                record: record_name.to_owned(),
-                label: group.label.clone(),
-                start: raw_start,
-                end,
-            });
-        }
-        (raw_start - 1, end)
-    } else {
-        (cds_start, cds_end)
-    };
-    if start < region.selected.start || end > region.selected.end {
-        return Ok(None);
-    }
-
+    // Protein arrows represent the CDS span, as in the GenBank parser. Parent
+    // genes can include UTRs that overlap neighbouring coding features.
     Ok(Some(Gene {
         label: group.label.clone(),
         names,
-        start,
-        end,
+        start: cds_start,
+        end: cds_end,
         strand,
         translation: attribute(first, "translation")
             .map(|translation| normalize_translation(&translation))
             .unwrap_or_else(|| translate_standard(&coding_sequence)),
     }))
-}
-
-fn resolve_gene_parent(
-    parent: &str,
-    genes: Option<&BTreeMap<String, gff::Record>>,
-    parents: &ParentMap,
-) -> Option<String> {
-    let mut current = parent.split(',').next()?.to_owned();
-    for _ in 0..16 {
-        if genes.is_some_and(|genes| genes.contains_key(&current)) {
-            return Some(current);
-        }
-        current = parents.get(&current)?.split(',').next()?.to_owned();
-    }
-    None
 }
 
 fn parse_fasta(bytes: &[u8]) -> Result<BTreeMap<String, Vec<u8>>, GffError> {

@@ -35,18 +35,28 @@ macro_rules! assert_example_parity {
         assert_eq!(
             gff_genes
                 .iter()
-                .map(|gene| (&gene.label, &gene.translation))
+                .map(|gene| &gene.translation)
                 .collect::<Vec<_>>(),
             genbank_genes
                 .iter()
-                .map(|gene| (&gene.label, &gene.translation))
+                .map(|gene| &gene.translation)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            gff_genes
+                .iter()
+                .map(|gene| (&gene.label, gene.start, gene.end, gene.strand))
+                .collect::<Vec<_>>(),
+            genbank_genes
+                .iter()
+                .map(|gene| (&gene.label, gene.start, gene.end, gene.strand))
                 .collect::<Vec<_>>()
         );
     }};
 }
 
 #[test]
-fn converted_gff3_examples_preserve_records_genes_and_proteins() {
+fn converted_gff3_examples_preserve_genes_proteins_and_cds_coordinates() {
     assert_example_parity!("A. alliaceus CBS 536.65");
     assert_example_parity!("A. burnettii MST-FP2249");
     assert_example_parity!("A. mulundensis DSM 5745");

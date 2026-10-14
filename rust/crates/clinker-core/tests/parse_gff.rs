@@ -8,7 +8,7 @@ const GFF: &[u8] = include_bytes!("fixtures/features.gff3");
 const FASTA: &[u8] = include_bytes!("fixtures/features.fna");
 
 #[test]
-fn parses_multirecord_compound_cds_and_parent_gene_coordinates() {
+fn parses_multirecord_compound_cds_coordinates() {
     let cluster = parse_gff3(
         "features.gff3",
         GFF,
@@ -36,6 +36,35 @@ fn parses_multirecord_compound_cds_and_parent_gene_coordinates() {
     assert_eq!(orphan.label, "ORPHAN");
     assert_eq!((orphan.start, orphan.end), (18, 24));
     assert_eq!(orphan.translation, "MK");
+}
+
+#[test]
+fn overlapping_parent_genes_do_not_expand_cds_arrows_or_exclude_trimmed_cds() {
+    let input = b"##gff-version 3\n\
+seq\t.\tgene\t1\t15\t.\t+\t.\tID=gene_a\n\
+seq\t.\tmRNA\t1\t15\t.\t+\t.\tID=tx_a;Parent=gene_a\n\
+seq\t.\tCDS\t4\t9\t.\t+\t0\tID=cds_a;Parent=tx_a\n\
+seq\t.\tgene\t7\t24\t.\t-\t.\tID=gene_b\n\
+seq\t.\tmRNA\t7\t24\t.\t-\t.\tID=tx_b;Parent=gene_b\n\
+seq\t.\tCDS\t13\t18\t.\t-\t0\tID=cds_b;Parent=tx_b\n\
+##FASTA\n>seq\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n";
+    let cluster = parse_gff3("utrs.gff3", input, None, &GenBankOptions::default()).unwrap();
+    let genes = &cluster.loci[0].genes;
+    assert_eq!(genes.len(), 2);
+    assert_eq!((genes[0].start, genes[0].end, genes[0].strand), (3, 9, 1));
+    assert_eq!(
+        (genes[1].start, genes[1].end, genes[1].strand),
+        (12, 18, -1)
+    );
+    assert!(genes[0].end <= genes[1].start);
+
+    let options = GenBankOptions {
+        ranges: BTreeMap::from([("seq".into(), SequenceRange { start: 3, end: 9 })]),
+        ..GenBankOptions::default()
+    };
+    let trimmed = parse_gff3("utrs.gff3", input, None, &options).unwrap();
+    assert_eq!(trimmed.loci[0].genes.len(), 1);
+    assert_eq!(trimmed.loci[0].genes[0], genes[0]);
 }
 
 #[test]

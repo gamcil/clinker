@@ -4,9 +4,9 @@ import init, {
   BrowserFileParser,
   open_session,
   post_process,
-} from "./pkg/clinker_wasm.js?v=20261014-project-v27";
+} from "./pkg/clinker_wasm.js?v=20261015-cds-bounds-v1";
 
-const WASM_VERSION = "20261014-project-v27";
+const WASM_VERSION = "20261015-cds-bounds-v1";
 const wasmUrl = new URL("./pkg/clinker_wasm_bg.wasm", import.meta.url);
 wasmUrl.searchParams.set("v", WASM_VERSION);
 let wasmModule = null;
