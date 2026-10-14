@@ -15,6 +15,8 @@ mod session;
 mod synteny;
 
 pub use align::ProteinMatch;
+#[cfg(not(target_arch = "wasm32"))]
+pub use analyse::analyse_genbank_with_options_and_jobs;
 pub use analyse::{
     Analysis, AnalysisError, AnalysisOptions, GeneRef, InputFile, KmerPrefilter, Link, ProteinPair,
     ProteinTileMatch, analyse_cluster_pair, analyse_genbank, analyse_genbank_with_options,

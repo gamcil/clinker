@@ -23,6 +23,7 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 | Rotate features crossing a circular origin, with an opt-out | Yes | Yes | Yes | Circular GenBank fixture |
 | Forward, reverse, translated, derived, and compound CDS features | Yes | Yes | Yes | Parser fixtures |
 | Cross-cluster global protein alignment with an identity cutoff | Yes | Yes | Yes | Alignment and workflow tests |
+| Control native alignment concurrency | Local Rayon pool | `-j/--jobs` | Web Workers | Serial/parallel equality and CLI session tests |
 | Parse and plot without protein alignment | Yes | Yes | Yes | Annotation-only group tests |
 | Single-linkage homology groups | Yes | Via plot data | Yes | Group and plot-data tests |
 | Seed groups from a gene-function CSV | Yes | Yes | Yes | Group and CLI tests; WASM build |
@@ -42,7 +43,6 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 
 | Established workflow | Current gap | Suggested priority |
 | --- | --- | --- |
-| Control native alignment concurrency | Native core is serial; web uses workers | Medium |
 | Open an interactive plot when `--plot` has no path | CLI currently requires an output path | Low; the static web app covers this workflow |
 
 ## Future additions

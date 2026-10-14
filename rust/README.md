@@ -45,6 +45,10 @@ cargo run -p clinker-cli -- annotations/
 By default, this writes the retained protein-link tables to standard output.
 Use `--output links.txt` to save that summary instead.
 
+Native protein comparisons run in parallel. As in the Python CLI, `--jobs 0`
+(the default) uses the available CPU threads; pass `--jobs 1` for serial
+alignment or another positive value to set the size of the local thread pool.
+
 Write data for the JavaScript renderer or a portable offline HTML figure:
 
 ```bash

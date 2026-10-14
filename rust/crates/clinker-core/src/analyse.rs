@@ -3,6 +3,9 @@ use std::collections::{HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+#[cfg(not(target_arch = "wasm32"))]
+use rayon::prelude::*;
+
 use crate::align::ProteinAligner;
 use crate::{Cluster, ParseOptions, ProteinMatch, parse_genbank_with_options, parse_gff3};
 
@@ -130,6 +133,9 @@ pub enum AnalysisError {
     },
     #[error("unsupported input file {0}; expected GenBank, GFF3/GFF, or a companion FASTA")]
     UnsupportedInput(String),
+    #[cfg(not(target_arch = "wasm32"))]
+    #[error("failed to create the alignment thread pool: {0}")]
+    ThreadPool(#[from] rayon::ThreadPoolBuildError),
 }
 
 /// A stable position within this analysis result.
@@ -208,6 +214,27 @@ impl Analysis {
         ));
     }
 
+    /// Append clusters and compare new cluster pairs using a local native
+    /// thread pool. `jobs == 0` uses the number of available CPU threads.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn append_clusters_with_jobs(
+        &mut self,
+        clusters: Vec<Cluster>,
+        identity_cutoff: f32,
+        jobs: usize,
+    ) -> Result<(), AnalysisError> {
+        let pool = alignment_pool(jobs)?;
+        let first_new_cluster = self.clusters.len();
+        self.clusters.extend(clusters);
+        self.links.extend(cross_cluster_links_parallel_from(
+            &self.clusters,
+            first_new_cluster,
+            identity_cutoff,
+            &pool,
+        ));
+        Ok(())
+    }
+
     /// Append parsed clusters without producing protein links.
     pub fn append_clusters_without_alignment(&mut self, clusters: Vec<Cluster>) {
         self.clusters.extend(clusters);
@@ -233,6 +260,26 @@ pub fn analyse_genbank_with_options(
 
     Ok(Analysis {
         links: cross_cluster_links(&clusters, options.identity_cutoff),
+        clusters,
+    })
+}
+
+/// Analyse annotation inputs using a local native alignment thread pool.
+///
+/// `jobs == 0` uses the number of available CPU threads. Results retain the
+/// same deterministic cluster-pair ordering as the serial implementation.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn analyse_genbank_with_options_and_jobs(
+    files: &[InputFile<'_>],
+    options: AnalysisOptions,
+    parse_options: &ParseOptions,
+    jobs: usize,
+) -> Result<Analysis, AnalysisError> {
+    let clusters = parse_input_files_with_options(files, parse_options)?;
+    let pool = alignment_pool(jobs)?;
+
+    Ok(Analysis {
+        links: cross_cluster_links_parallel_from(&clusters, 0, options.identity_cutoff, &pool),
         clusters,
     })
 }
@@ -383,6 +430,129 @@ fn cross_cluster_links_from(
                     link
                 }),
             );
+        }
+    }
+
+    links
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn cross_cluster_links_parallel_from(
+    clusters: &[Cluster],
+    first_new_cluster: usize,
+    identity_cutoff: f32,
+    pool: &rayon::ThreadPool,
+) -> Vec<Link> {
+    let tasks = alignment_tasks(clusters, first_new_cluster);
+    let max_protein_length = clusters
+        .iter()
+        .map(max_protein_length)
+        .max()
+        .unwrap_or_default();
+    let links = pool.install(|| {
+        tasks
+            .into_par_iter()
+            .map_init(
+                || ProteinAligner::with_capacity(max_protein_length, max_protein_length),
+                |aligner, task| analyse_gene_task(clusters, task, identity_cutoff, aligner),
+            )
+            .collect::<Vec<_>>()
+    });
+
+    links.into_iter().flatten().collect()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AlignmentTask {
+    query_cluster: usize,
+    target_cluster: usize,
+    query_locus: usize,
+    query_gene: usize,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn alignment_tasks(clusters: &[Cluster], first_new_cluster: usize) -> Vec<AlignmentTask> {
+    (0..clusters.len())
+        .flat_map(|query_cluster_index| {
+            let first_target = (query_cluster_index + 1).max(first_new_cluster);
+            (first_target..clusters.len()).flat_map(move |target_cluster_index| {
+                clusters[query_cluster_index]
+                    .loci
+                    .iter()
+                    .enumerate()
+                    .flat_map(move |(query_locus_index, query_locus)| {
+                        query_locus
+                            .genes
+                            .iter()
+                            .enumerate()
+                            .map(move |(query_gene_index, _)| AlignmentTask {
+                                query_cluster: query_cluster_index,
+                                target_cluster: target_cluster_index,
+                                query_locus: query_locus_index,
+                                query_gene: query_gene_index,
+                            })
+                    })
+            })
+        })
+        .collect()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn alignment_pool(jobs: usize) -> Result<rayon::ThreadPool, rayon::ThreadPoolBuildError> {
+    let threads = if jobs == 0 {
+        std::thread::available_parallelism()
+            .map(usize::from)
+            .unwrap_or(1)
+    } else {
+        jobs
+    };
+    rayon::ThreadPoolBuilder::new().num_threads(threads).build()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn analyse_gene_task(
+    clusters: &[Cluster],
+    task: AlignmentTask,
+    identity_cutoff: f32,
+    aligner: &mut ProteinAligner,
+) -> Vec<Link> {
+    let query_gene = &clusters[task.query_cluster].loci[task.query_locus].genes[task.query_gene];
+    let mut links = Vec::new();
+
+    for (target_locus_index, target_locus) in clusters[task.target_cluster].loci.iter().enumerate()
+    {
+        for (target_gene_index, target_gene) in target_locus.genes.iter().enumerate() {
+            if !can_reach_identity(
+                query_gene.translation.len(),
+                target_gene.translation.len(),
+                identity_cutoff,
+            ) {
+                continue;
+            }
+            let ProteinMatch {
+                identity,
+                similarity,
+            } = aligner.compare(
+                query_gene.translation.as_bytes(),
+                target_gene.translation.as_bytes(),
+            );
+            if identity >= identity_cutoff {
+                links.push(Link {
+                    query: GeneRef {
+                        cluster: task.query_cluster,
+                        locus: task.query_locus,
+                        gene: task.query_gene,
+                    },
+                    target: GeneRef {
+                        cluster: task.target_cluster,
+                        locus: target_locus_index,
+                        gene: target_gene_index,
+                    },
+                    identity,
+                    similarity,
+                });
+            }
         }
     }
 
@@ -697,12 +867,16 @@ fn max_protein_length(cluster: &Cluster) -> usize {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(not(target_arch = "wasm32"))]
+    use super::{AlignmentTask, alignment_tasks, analyse_genbank_with_options_and_jobs};
     use super::{
         AnalysisOptions, InputFile, KmerPrefilter, ProteinPair, analyse_genbank,
         analyse_protein_pairs, analyse_protein_tile, analyse_protein_tile_with_progress,
         can_reach_identity, kmer_candidate_pairs, kmer_candidate_pairs_with_progress,
         parse_input_files_with_progress,
     };
+    #[cfg(not(target_arch = "wasm32"))]
+    use crate::ParseOptions;
 
     const FORWARD_CDS: &[u8] =
         br#"LOCUS       FIRST                      9 bp    DNA     linear   UNA 01-JAN-2000
@@ -750,6 +924,75 @@ ORIGIN
         assert_eq!(
             analysis.format_link_summary_with_options(2, Some(","), false, false),
             "first,second,1.00,1.00"
+        );
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn native_job_counts_preserve_serial_result_order() {
+        let files = [
+            InputFile {
+                name: "first.gbk",
+                bytes: FORWARD_CDS,
+            },
+            InputFile {
+                name: "second.gbk",
+                bytes: REVERSE_CDS,
+            },
+            InputFile {
+                name: "third.gbk",
+                bytes: FORWARD_CDS,
+            },
+        ];
+        let options = AnalysisOptions::default();
+        let serial = analyse_genbank(&files, options).unwrap();
+
+        let one_job =
+            analyse_genbank_with_options_and_jobs(&files, options, &ParseOptions::default(), 1)
+                .unwrap();
+        let two_jobs =
+            analyse_genbank_with_options_and_jobs(&files, options, &ParseOptions::default(), 2)
+                .unwrap();
+
+        assert_eq!(one_job, serial);
+        assert_eq!(two_jobs, serial);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn appended_alignment_tasks_include_only_pairs_with_new_clusters() {
+        let files = [
+            InputFile {
+                name: "first.gbk",
+                bytes: FORWARD_CDS,
+            },
+            InputFile {
+                name: "second.gbk",
+                bytes: REVERSE_CDS,
+            },
+            InputFile {
+                name: "third.gbk",
+                bytes: FORWARD_CDS,
+            },
+        ];
+        let clusters = super::parse_input_files(&files).unwrap();
+
+        assert_eq!(
+            alignment_tasks(&clusters, 2),
+            vec![
+                AlignmentTask {
+                    query_cluster: 0,
+                    target_cluster: 2,
+                    query_locus: 0,
+                    query_gene: 0,
+                },
+                AlignmentTask {
+                    query_cluster: 1,
+                    target_cluster: 2,
+                    query_locus: 0,
+                    query_gene: 0,
+                },
+            ]
         );
     }
 

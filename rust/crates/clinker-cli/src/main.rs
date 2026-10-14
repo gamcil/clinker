@@ -8,7 +8,7 @@ use std::{
 use clap::Parser;
 use clinker_core::{
     Analysis, AnalysisOptions, AnalysisSession, GeneGroupDefinition, InputFile, ParseOptions,
-    SequenceRange, analyse_genbank_with_options, parse_input_files_with_options,
+    SequenceRange, analyse_genbank_with_options_and_jobs, parse_input_files_with_options,
 };
 
 /// Analyse GenBank or GFF3 input with clinker.
@@ -21,6 +21,10 @@ struct Args {
     /// Minimum protein identity required to retain a homology link (default: 0.30 for new sessions).
     #[arg(short, long, value_parser = parse_identity)]
     identity: Option<f32>,
+
+    /// Number of alignment jobs to run in parallel (0 uses available CPUs).
+    #[arg(short = 'j', long, default_value_t = 0)]
+    jobs: usize,
 
     /// Save analysis state here, or resume it when the path already exists.
     #[arg(short, long, value_name = "PATH")]
@@ -141,7 +145,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if args.no_align {
                 session.analysis.append_clusters_without_alignment(clusters);
             } else {
-                session.analysis.append_clusters(clusters, identity_cutoff);
+                session
+                    .analysis
+                    .append_clusters_with_jobs(clusters, identity_cutoff, args.jobs)?;
             }
             session.identity_cutoff = identity_cutoff;
             session_was_modified = true;
@@ -159,10 +165,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 links: Vec::new(),
             }
         } else {
-            analyse_genbank_with_options(
+            analyse_genbank_with_options_and_jobs(
                 &inputs,
                 AnalysisOptions { identity_cutoff },
                 &parse_options,
+                args.jobs,
             )?
         };
         session_was_modified = args.session.is_some();

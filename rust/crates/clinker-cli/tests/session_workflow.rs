@@ -56,6 +56,8 @@ fn creates_reopens_and_extends_an_analysis_session() {
         second.as_path(),
         Path::new("--session"),
         session_path.as_path(),
+        Path::new("--jobs"),
+        Path::new("2"),
     ]);
     let extended = AnalysisSession::from_json(&fs::read(&session_path).unwrap()).unwrap();
     assert_eq!(extended.analysis.clusters.len(), 2);
