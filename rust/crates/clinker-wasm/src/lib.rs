@@ -3,11 +3,14 @@
 //! This crate owns JavaScript value conversion only. Parsing and analysis stay
 //! in the platform-independent core crate so the CLI and browser agree.
 
+use std::collections::BTreeMap;
+
 use clinker_core::{
-    Analysis, AnalysisError, Cluster, ClusterPairSimilarity, Gene, GeneRef, InputFile,
-    KmerPrefilter, Link, Locus, PlotData, ProteinPair, analyse_protein_pairs_with_progress,
-    analyse_protein_tile_with_progress, can_reach_identity, kmer_candidate_pairs_with_progress,
-    parse_input_files, parse_input_files_with_progress,
+    Analysis, AnalysisError, Cluster, ClusterPairSimilarity, GenBankOptions, Gene,
+    GeneGroupDefinition, GeneRef, InputFile, KmerPrefilter, Link, Locus, PlotData, ProteinPair,
+    SequenceRange, analyse_protein_pairs_with_progress, analyse_protein_tile_with_progress,
+    can_reach_identity, kmer_candidate_pairs_with_progress, parse_input_files_with_options,
+    parse_input_files_with_options_and_progress,
 };
 use js_sys::Function;
 use serde::{Deserialize, Serialize};
@@ -53,6 +56,60 @@ struct BrowserPrefilter {
     kmer_size: usize,
     min_shared_kmers: usize,
     identity_cutoff: f32,
+    #[serde(default)]
+    genbank: BrowserGenBankOptions,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct BrowserGenBankOptions {
+    ranges: Vec<BrowserSequenceRange>,
+    as_separate_clusters: bool,
+    #[serde(default = "default_set_origin")]
+    set_origin: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct BrowserSequenceRange {
+    record: String,
+    start: usize,
+    end: usize,
+}
+
+fn default_set_origin() -> bool {
+    true
+}
+
+impl Default for BrowserGenBankOptions {
+    fn default() -> Self {
+        Self {
+            ranges: Vec::new(),
+            as_separate_clusters: false,
+            set_origin: true,
+        }
+    }
+}
+
+impl From<&BrowserGenBankOptions> for GenBankOptions {
+    fn from(options: &BrowserGenBankOptions) -> Self {
+        Self {
+            ranges: options
+                .ranges
+                .iter()
+                .map(|range| {
+                    (
+                        range.record.clone(),
+                        SequenceRange {
+                            start: range.start,
+                            end: range.end,
+                        },
+                    )
+                })
+                .collect::<BTreeMap<_, _>>(),
+            as_separate_clusters: options.as_separate_clusters,
+            set_origin: options.set_origin,
+        }
+    }
 }
 
 /// Incremental parser used by the browser worker so JavaScript regains control
@@ -61,6 +118,7 @@ struct BrowserPrefilter {
 pub struct BrowserFileParser {
     clusters: Vec<Cluster>,
     prefilter: BrowserPrefilter,
+    genbank_options: GenBankOptions,
 }
 
 #[wasm_bindgen]
@@ -69,9 +127,11 @@ impl BrowserFileParser {
     pub fn new(prefilter: JsValue) -> Result<BrowserFileParser, JsValue> {
         let prefilter = serde_wasm_bindgen::from_value::<BrowserPrefilter>(prefilter)
             .map_err(|error| JsValue::from_str(&format!("invalid prefilter settings: {error}")))?;
+        let genbank_options = GenBankOptions::from(&prefilter.genbank);
         Ok(Self {
             clusters: Vec::new(),
             prefilter,
+            genbank_options,
         })
     }
 
@@ -82,8 +142,8 @@ impl BrowserFileParser {
             name: &file.name,
             bytes: &file.bytes,
         };
-        let mut clusters =
-            parse_input_files(&[input]).map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let mut clusters = parse_input_files_with_options(&[input], &self.genbank_options)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
         self.clusters.append(&mut clusters);
         Ok(())
     }
@@ -113,6 +173,8 @@ struct BrowserLayout {
 #[derive(Debug, Deserialize, Serialize)]
 struct BrowserLayoutCluster {
     name: String,
+    source_file: Option<String>,
+    organism: Option<String>,
     loci: Vec<BrowserLayoutLocus>,
 }
 
@@ -167,6 +229,23 @@ struct BrowserLink {
     target: BrowserProteinRef,
     identity: f32,
     similarity: f32,
+}
+
+#[derive(Debug, Deserialize)]
+struct BrowserGroupDefinition {
+    label: String,
+    genes: Vec<String>,
+    colour: Option<String>,
+}
+
+impl From<BrowserGroupDefinition> for GeneGroupDefinition {
+    fn from(group: BrowserGroupDefinition) -> Self {
+        Self {
+            label: group.label,
+            genes: group.genes,
+            colour: group.colour,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -369,12 +448,19 @@ fn report_progress_event_if_due(
 pub fn post_process(
     layout: JsValue,
     links: JsValue,
+    group_definitions: JsValue,
     use_file_order: bool,
     progress: &Function,
 ) -> Result<JsValue, JsValue> {
     let layout = serde_wasm_bindgen::from_value::<BrowserLayout>(layout)
         .map_err(|error| JsValue::from_str(&format!("invalid layout data: {error}")))?;
     let links = browser_links(links)?;
+    let group_definitions =
+        serde_wasm_bindgen::from_value::<Vec<BrowserGroupDefinition>>(group_definitions)
+            .map_err(|error| JsValue::from_str(&format!("invalid gene groups: {error}")))?
+            .into_iter()
+            .map(GeneGroupDefinition::from)
+            .collect::<Vec<_>>();
     let analysis = Analysis {
         clusters: clusters_from_layout(layout),
         links,
@@ -401,8 +487,9 @@ pub fn post_process(
     let group_total = analysis.links.len() * 2;
     let mut last_group_report = 0;
     let mut last_layout_report = 0;
-    let arranged = analysis.to_auto_arranged_plot_data_with_progress(
+    let arranged = analysis.to_auto_arranged_plot_data_with_group_definitions_and_progress(
         &order,
+        &group_definitions,
         |completed| {
             report_progress_event_if_due(
                 progress,
@@ -458,6 +545,8 @@ fn clusters_from_layout(layout: BrowserLayout) -> Vec<Cluster> {
         .into_iter()
         .map(|cluster| Cluster {
             name: cluster.name,
+            source_file: cluster.source_file,
+            organism: cluster.organism,
             loci: cluster
                 .loci
                 .into_iter()
@@ -512,7 +601,9 @@ fn parse_browser_files_with_progress<F>(
 where
     F: FnMut(usize),
 {
-    let clusters = parse_input_files_with_progress(&input_files(files), progress)?;
+    let options = GenBankOptions::from(&prefilter.genbank);
+    let clusters =
+        parse_input_files_with_options_and_progress(&input_files(files), &options, progress)?;
     Ok(prepare_browser_files(clusters, &prefilter))
 }
 
@@ -626,6 +717,8 @@ fn layout_from_clusters(clusters: &[Cluster]) -> BrowserLayout {
             .iter()
             .map(|cluster| BrowserLayoutCluster {
                 name: cluster.name.clone(),
+                source_file: cluster.source_file.clone(),
+                organism: cluster.organism.clone(),
                 loci: cluster
                     .loci
                     .iter()
@@ -655,8 +748,8 @@ fn layout_from_clusters(clusters: &[Cluster]) -> BrowserLayout {
 #[cfg(test)]
 mod tests {
     use super::{
-        BrowserFile, BrowserPrefilter, Function, analyse_pairs, analyse_tile, parse_browser_files,
-        post_process,
+        BrowserFile, BrowserGenBankOptions, BrowserPrefilter, BrowserSequenceRange, Function,
+        analyse_pairs, analyse_tile, parse_browser_files, post_process,
     };
     use wasm_bindgen::JsValue;
 
@@ -681,6 +774,7 @@ mod tests {
                 kmer_size: 3,
                 min_shared_kmers: 3,
                 identity_cutoff: 0.30,
+                genbank: BrowserGenBankOptions::default(),
             },
         )
         .unwrap();
@@ -692,7 +786,41 @@ mod tests {
         // parsing test above keeps native unit tests independent of JsValue.
         let _ = analyse_tile as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
         let _ = analyse_pairs as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
-        let _ = post_process as fn(JsValue, JsValue, bool, &Function) -> Result<JsValue, JsValue>;
+        let _ = post_process
+            as fn(JsValue, JsValue, JsValue, bool, &Function) -> Result<JsValue, JsValue>;
         assert_eq!(data.proteins[0].translation, "MA");
+    }
+
+    #[test]
+    fn browser_genbank_options_reach_the_shared_parser() {
+        let records = b"LOCUS       FIRST                      9 bp    DNA     linear   UNA 01-JAN-2000\nFEATURES             Location/Qualifiers\n     CDS             1..9\n                     /locus_tag=\"first\"\nORIGIN\n        1 atggcttaa\n//\nLOCUS       SECOND                     9 bp    DNA     linear   UNA 01-JAN-2000\nFEATURES             Location/Qualifiers\n     CDS             1..9\n                     /locus_tag=\"second\"\nORIGIN\n        1 atggcttaa\n//\n";
+        let data = parse_browser_files(
+            &[BrowserFile {
+                name: "records.gbk".into(),
+                bytes: records.to_vec(),
+            }],
+            BrowserPrefilter {
+                enabled: false,
+                kmer_size: 3,
+                min_shared_kmers: 3,
+                identity_cutoff: 0.30,
+                genbank: BrowserGenBankOptions {
+                    ranges: vec![BrowserSequenceRange {
+                        record: "SECOND".into(),
+                        start: 3,
+                        end: 9,
+                    }],
+                    as_separate_clusters: true,
+                    set_origin: true,
+                },
+            },
+        )
+        .unwrap();
+
+        assert_eq!(data.layout.clusters.len(), 2);
+        assert_eq!(data.layout.clusters[0].name, "FIRST");
+        assert_eq!(data.layout.clusters[1].name, "SECOND");
+        assert_eq!(data.layout.clusters[1].loci[0].start, 3);
+        assert!(data.layout.clusters[1].loci[0].genes.is_empty());
     }
 }

@@ -1,6 +1,10 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cluster {
     pub name: String,
+    /// Original uploaded/input file name, retained in plot data for provenance.
+    pub source_file: Option<String>,
+    /// Organism parsed from the GenBank SOURCE/ORGANISM header when unambiguous.
+    pub organism: Option<String>,
     pub loci: Vec<Locus>,
 }
 

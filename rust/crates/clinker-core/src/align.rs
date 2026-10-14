@@ -55,6 +55,7 @@ impl ProteinAligner {
             .set_bytes::<AAMatrix>(&self.query_bytes, MAX_BLOCK_SIZE);
         self.target
             .set_bytes::<AAMatrix>(&self.target_bytes, MAX_BLOCK_SIZE);
+
         self.block.align(
             &self.query,
             &self.target,
@@ -71,7 +72,8 @@ impl ProteinAligner {
             result.reference_idx,
             &mut self.cigar,
         );
-        metrics_from_cigar(&self.cigar, query, target)
+
+        metrics_from_cigar(&self.cigar, &self.query_bytes, &self.target_bytes)
     }
 }
 
@@ -158,5 +160,15 @@ mod tests {
         let terminal_gap = aligner.compare(b"MST", b"MSTT");
         assert_eq!(terminal_gap.identity, 0.75);
         assert_eq!(terminal_gap.similarity, 0.75);
+    }
+
+    #[test]
+    fn normalizes_symbols_missing_from_blosum62_to_unknown() {
+        let mut aligner = ProteinAligner::with_capacity(3, 3);
+
+        let ambiguous = aligner.compare(b"MOU", b"MXX");
+
+        assert_eq!(ambiguous.identity, 1.0);
+        assert_eq!(ambiguous.similarity, 1.0);
     }
 }

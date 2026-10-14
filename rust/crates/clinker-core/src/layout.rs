@@ -447,6 +447,8 @@ mod tests {
     fn cluster(loci: usize, genes: usize) -> Cluster {
         Cluster {
             name: "test".into(),
+            source_file: None,
+            organism: None,
             loci: (0..loci)
                 .map(|locus| {
                     let start = locus * 100;

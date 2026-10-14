@@ -24,10 +24,15 @@ needed protein once plus pair indices, rather than one copied sequence per
 pair. This is deliberately approximate and can miss remote homologues, so it
 is off by default. A separate filtering step reports the number and percentage
 of possible alignments removed before the remaining candidates are aligned.
-Exact mode still skips protein pairs whose length ratio
+Unfiltered mode still skips protein pairs whose length ratio
 makes the chosen global-identity cutoff mathematically impossible.
 The run panel exposes the k-mer size and shared-word threshold as advanced
 settings, along with the choice between synteny ordering and input file order.
+It can also select one-based inclusive record ranges, split multi-record files
+into separate clusters, and opt out of automatic circular-origin rotation.
+Annotation-only runs can skip protein alignment entirely. Optional two-column
+gene-function and function-colour CSV files seed labelled, coloured groups;
+retained homology links extend those groups when alignment is enabled.
 
 ## Build for local preview or static hosting
 
@@ -48,10 +53,6 @@ python3 -m http.server
 
 `build.sh` finds Cargo-installed `wasm-pack` at `~/.cargo/bin/wasm-pack`, so
 adding that directory to your shell `PATH` is optional.
-
-The WASM package explicitly enables `getrandom`'s browser backend because the
-shared `bio` dependency reaches it transitively. No browser-side randomness is
-used by clinker itself.
 
 Release builds currently skip wasm-opt because wasm-pack does not provide a
 usable Apple Silicon binary in this setup. This changes file size, not analysis

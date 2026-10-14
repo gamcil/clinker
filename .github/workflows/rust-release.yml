@@ -1,0 +1,116 @@
+name: Rust release
+
+on:
+  push:
+    tags:
+      - "rust-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  verify-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Match tag to workspace version
+        working-directory: rust
+        shell: bash
+        run: |
+          tag_version="${GITHUB_REF_NAME#rust-v}"
+          workspace_version=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          test "$tag_version" = "$workspace_version"
+
+  cli:
+    needs: verify-version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: clinker-linux-x86_64.tar.gz
+          - os: macos-14
+            target: aarch64-apple-darwin
+            archive: clinker-macos-aarch64.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: clinker-windows-x86_64.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Build CLI
+        working-directory: rust
+        run: cargo build --locked --release -p clinker-cli --target ${{ matrix.target }}
+      - name: Package CLI (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p release/clinker
+          cp rust/target/${{ matrix.target }}/release/clinker-rs release/clinker/
+          cp LICENSE rust/README.md release/clinker/
+          tar -C release -czf release/${{ matrix.archive }} clinker
+      - name: Package CLI (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release/clinker | Out-Null
+          Copy-Item rust/target/${{ matrix.target }}/release/clinker-rs.exe release/clinker/
+          Copy-Item LICENSE,rust/README.md release/clinker/
+          Compress-Archive -Path release/clinker -DestinationPath release/${{ matrix.archive }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: release/${{ matrix.archive }}
+
+  web:
+    needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: rust/web/package-lock.json
+      - run: cargo install wasm-pack --locked
+      - name: Build static web application
+        working-directory: rust
+        run: sh web/build.sh
+      - name: Package static web application
+        run: |
+          mkdir -p release/clinker-web
+          cp rust/web/index.html rust/web/app.js rust/web/worker.js rust/web/style.css release/clinker-web/
+          cp rust/web/d3.min.js rust/web/clustermap.min.js release/clinker-web/
+          cp rust/web/clustermap-editor.css rust/web/clustermap-editor.mjs release/clinker-web/
+          cp -R rust/web/pkg rust/web/examples release/clinker-web/
+          tar -C release -czf release/clinker-web.tar.gz clinker-web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clinker-web.tar.gz
+          path: release/clinker-web.tar.gz
+
+  publish:
+    needs: [cli, web]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS
+          gh release create "${{ github.ref_name }}" * --generate-notes --verify-tag

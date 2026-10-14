@@ -28,9 +28,9 @@ pub fn build_gene_groups_with_progress(
     let mut genes = Vec::new();
     for (link_index, link) in links.iter().enumerate() {
         for gene in [link.query, link.target] {
-            if !gene_indices.contains_key(&gene) {
+            if let std::collections::btree_map::Entry::Vacant(entry) = gene_indices.entry(gene) {
                 let index = genes.len();
-                gene_indices.insert(gene, index);
+                entry.insert(index);
                 genes.push(gene);
             }
         }

@@ -3,13 +3,32 @@ import init, {
   analyse_tile,
   BrowserFileParser,
   post_process,
-} from "./pkg/clinker_wasm.js?v=20261006-wasm-init-v11";
+} from "./pkg/clinker_wasm.js?v=20261014-settings-layout-v25";
 
-const WASM_VERSION = "20261006-wasm-init-v11";
+const WASM_VERSION = "20261014-settings-layout-v25";
 const wasmUrl = new URL("./pkg/clinker_wasm_bg.wasm", import.meta.url);
 wasmUrl.searchParams.set("v", WASM_VERSION);
-const wasm = init({ module_or_path: wasmUrl });
+let wasmModule = null;
+let wasm = null;
 let fileParser = null;
+
+async function compileWasmModule() {
+  const response = await fetch(wasmUrl);
+  if (!response.ok) {
+    throw new Error(`Could not load the analysis module (${response.status} ${response.statusText})`);
+  }
+  return WebAssembly.compile(await response.arrayBuffer());
+}
+
+function initializeWasm(module) {
+  if (!wasm) {
+    wasm = (async () => {
+      wasmModule = module || await compileWasmModule();
+      return init({ module_or_path: wasmModule });
+    })();
+  }
+  return wasm;
+}
 
 function releaseFileParser() {
   if (!fileParser) return;
@@ -19,7 +38,7 @@ function releaseFileParser() {
 
 self.onmessage = async ({ data }) => {
   try {
-    await wasm;
+    await initializeWasm(data.wasmModule);
     if (data.type === "parse-start") {
       releaseFileParser();
       fileParser = new BrowserFileParser(data.prefilter);
@@ -36,7 +55,7 @@ self.onmessage = async ({ data }) => {
       });
       const parsed = fileParser.finish(filterProgress);
       releaseFileParser();
-      self.postMessage({ type: "parsed", parsed });
+      self.postMessage({ type: "parsed", parsed, wasmModule });
     } else if (data.type === "parse") {
       // Compatibility for an already-open page running the previous app.js.
       releaseFileParser();
@@ -87,7 +106,13 @@ self.onmessage = async ({ data }) => {
       const progress = data.reportProgress
         ? update => self.postMessage({ type: "post-process-progress", ...update })
         : () => {};
-      const result = post_process(data.layout, data.links, data.useFileOrder, progress);
+      const result = post_process(
+        data.layout,
+        data.links,
+        data.groupDefinitions,
+        data.useFileOrder,
+        progress,
+      );
       self.postMessage({ type: "post-process", result });
     }
   } catch (error) {

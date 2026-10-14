@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 use crate::align::ProteinAligner;
-use crate::{Cluster, ProteinMatch, parse_genbank};
+use crate::{Cluster, GenBankOptions, ProteinMatch, parse_genbank_with_options};
 
 #[derive(Debug, Clone, Copy)]
 pub struct InputFile<'a> {
@@ -28,6 +28,18 @@ impl Analysis {
     /// Format alignment output as in original clinker.
     /// For structured results use [`Self::links`] or [`Self::to_plot_data`].
     pub fn format_link_summary(&self) -> String {
+        self.format_link_summary_with_options(4, None, true, true)
+    }
+
+    /// Format retained links with the same presentation controls as the
+    /// Python command line interface.
+    pub fn format_link_summary_with_options(
+        &self,
+        decimals: usize,
+        delimiter: Option<&str>,
+        alignment_headers: bool,
+        link_headers: bool,
+    ) -> String {
         let mut sections = Vec::new();
         for query_cluster in 0..self.clusters.len() {
             for target_cluster in query_cluster + 1..self.clusters.len() {
@@ -45,45 +57,51 @@ impl Analysis {
                     "{} vs {}",
                     self.clusters[query_cluster].name, self.clusters[target_cluster].name
                 );
-                let mut rows = vec![(
-                    "Query".to_owned(),
-                    "Target".to_owned(),
-                    "Identity".to_owned(),
-                    "Similarity".to_owned(),
-                )];
+                let mut rows = Vec::new();
+                if link_headers {
+                    rows.push([
+                        "Query".to_owned(),
+                        "Target".to_owned(),
+                        "Identity".to_owned(),
+                        "Similarity".to_owned(),
+                    ]);
+                }
                 rows.extend(links.into_iter().map(|link| {
-                    (
+                    [
                         self.gene_label(link.query).to_owned(),
                         self.gene_label(link.target).to_owned(),
-                        format!("{:.4}", link.identity),
-                        format!("{:.4}", link.similarity),
-                    )
+                        format!("{:.decimals$}", link.identity),
+                        format!("{:.decimals$}", link.similarity),
+                    ]
                 }));
-                let widths = [
-                    rows.iter().map(|row| row.0.len()).max().unwrap_or(0),
-                    rows.iter().map(|row| row.1.len()).max().unwrap_or(0),
-                    rows.iter().map(|row| row.2.len()).max().unwrap_or(0),
-                    rows.iter().map(|row| row.3.len()).max().unwrap_or(0),
-                ];
-                let table = rows
-                    .into_iter()
-                    .map(|row| {
-                        format!(
-                            "{:<w0$}  {:<w1$}  {:<w2$}  {:<w3$}",
-                            row.0,
-                            row.1,
-                            row.2,
-                            row.3,
-                            w0 = widths[0],
-                            w1 = widths[1],
-                            w2 = widths[2],
-                            w3 = widths[3],
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n");
+                let table = if let Some(delimiter) = delimiter {
+                    rows.into_iter()
+                        .map(|row| row.join(delimiter))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                } else {
+                    let widths = std::array::from_fn::<_, 4, _>(|column| {
+                        rows.iter().map(|row| row[column].len()).max().unwrap_or(0)
+                    });
+                    rows.into_iter()
+                        .map(|row| {
+                            row.into_iter()
+                                .enumerate()
+                                .map(|(column, value)| {
+                                    format!("{value:<width$}", width = widths[column])
+                                })
+                                .collect::<Vec<_>>()
+                                .join("  ")
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                };
 
-                sections.push(format!("{header}\n{}\n{table}", "-".repeat(header.len())));
+                sections.push(if alignment_headers {
+                    format!("{header}\n{}\n{table}", "-".repeat(header.len()))
+                } else {
+                    table
+                });
             }
         }
 
@@ -174,7 +192,16 @@ pub fn analyse_genbank(
     files: &[InputFile<'_>],
     options: AnalysisOptions,
 ) -> Result<Analysis, AnalysisError> {
-    let clusters = parse_input_files(files)?;
+    analyse_genbank_with_options(files, options, &GenBankOptions::default())
+}
+
+/// Analyse GenBank inputs with explicit parsing behavior.
+pub fn analyse_genbank_with_options(
+    files: &[InputFile<'_>],
+    options: AnalysisOptions,
+    genbank_options: &GenBankOptions,
+) -> Result<Analysis, AnalysisError> {
+    let clusters = parse_input_files_with_options(files, genbank_options)?;
 
     Ok(Analysis {
         links: cross_cluster_links(&clusters, options.identity_cutoff),
@@ -187,7 +214,14 @@ pub fn analyse_genbank(
 /// Browser callers use this first to obtain cluster metadata, then distribute
 /// independent pairwise comparisons to workers.
 pub fn parse_input_files(files: &[InputFile<'_>]) -> Result<Vec<Cluster>, AnalysisError> {
-    parse_input_files_with_progress(files, |_| {})
+    parse_input_files_with_options(files, &GenBankOptions::default())
+}
+
+pub fn parse_input_files_with_options(
+    files: &[InputFile<'_>],
+    options: &GenBankOptions,
+) -> Result<Vec<Cluster>, AnalysisError> {
+    parse_input_files_with_options_and_progress(files, options, |_| {})
 }
 
 /// Parse GenBank inputs and report the number of successfully parsed files.
@@ -196,6 +230,17 @@ pub fn parse_input_files(files: &[InputFile<'_>]) -> Result<Vec<Cluster>, Analys
 /// parsing out of the shared core implementation.
 pub fn parse_input_files_with_progress<F>(
     files: &[InputFile<'_>],
+    progress: F,
+) -> Result<Vec<Cluster>, AnalysisError>
+where
+    F: FnMut(usize),
+{
+    parse_input_files_with_options_and_progress(files, &GenBankOptions::default(), progress)
+}
+
+pub fn parse_input_files_with_options_and_progress<F>(
+    files: &[InputFile<'_>],
+    options: &GenBankOptions,
     mut progress: F,
 ) -> Result<Vec<Cluster>, AnalysisError>
 where
@@ -203,12 +248,14 @@ where
 {
     let mut clusters = Vec::with_capacity(files.len());
     for (index, file) in files.iter().enumerate() {
-        clusters.push(parse_genbank(file.name, file.bytes).map_err(|source| {
-            AnalysisError::Parse {
-                file_name: file.name.to_owned(),
-                source,
-            }
-        })?);
+        clusters.extend(
+            parse_genbank_with_options(file.name, file.bytes, options).map_err(|source| {
+                AnalysisError::Parse {
+                    file_name: file.name.to_owned(),
+                    source,
+                }
+            })?,
+        );
         progress(index + 1);
     }
     Ok(clusters)
@@ -595,6 +642,10 @@ ORIGIN
         assert_eq!(
             analysis.format_link_summary(),
             "first vs second\n---------------\nQuery  Target  Identity  Similarity\nfirst  second  1.0000    1.0000    "
+        );
+        assert_eq!(
+            analysis.format_link_summary_with_options(2, Some(","), false, false),
+            "first,second,1.00,1.00"
         );
     }
 

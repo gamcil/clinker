@@ -142,7 +142,7 @@ fn optimal_leaf_order(node: &Node, distances: &[f64], count: usize) -> Vec<usize
     let states = optimal_leaf_order_states(node, distances, count);
     states
         .into_values()
-        .min_by(|left, right| compare_orders(left, right))
+        .min_by(compare_orders)
         .expect("a dendrogram contains a leaf")
         .leaves
 }

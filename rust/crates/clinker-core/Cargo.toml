@@ -7,10 +7,12 @@ repository.workspace = true
 description = "Shared analysis core for clinker"
 
 [dependencies]
-bio = "4"
 gb-io = "0.9"
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"
+
+[dev-dependencies]
+serde_json = "1"
 
 [target.'cfg(target_arch = "aarch64")'.dependencies]
 block-aligner = { version = "0.5", features = ["simd_neon"] }

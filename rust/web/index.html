@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20261014-settings-layout-v25">
     <link rel="stylesheet" href="clustermap-editor.css?v=20261007-clustermap-f22cab0-v13">
     <script src="d3.min.js"></script>
     <script src="clustermap.min.js?v=20261007-clustermap-f22cab0-v13"></script>
@@ -55,24 +55,27 @@
               </div>
               <button id="cancel-run" class="quiet-action" type="button" hidden>Cancel</button>
             </div>
-            <div class="run-field">
-              <span class="run-field-label">GenBank files</span>
-              <label class="file-picker">
-                <span class="file-picker-button">Choose files</span>
-                <span id="file-summary" class="file-summary">No files selected</span>
-                <input id="files" class="visually-hidden" type="file" accept=".gb,.gbk,.genbank" multiple>
-              </label>
-            </div>
+            <label id="file-drop-zone" class="file-drop-zone">
+              <span class="file-drop-icon" aria-hidden="true">↑</span>
+              <span class="file-drop-title">Drop GenBank files here</span>
+              <span class="file-drop-action">or <span>choose files</span></span>
+              <span id="file-summary" class="file-summary">Supports .gb, .gbk and .genbank</span>
+              <input id="files" class="visually-hidden" type="file" accept=".gb,.gbk,.genbank" multiple>
+            </label>
             <div class="run-options">
-              <label class="run-field" title="Minimum protein identity retained as a link">
-                <span class="run-field-label">Identity cutoff</span>
-                <input id="identity" class="run-control" type="number" min="0" max="1" step="0.01" value="0.30">
-              </label>
-              <div class="run-field">
-                <span class="run-field-label">Candidate selection</span>
-                <label class="check-control" title="Fast, approximate candidate selection; may miss remote homologues.">
+              <span class="run-field-label">Settings</span>
+              <div class="settings-card basic-settings">
+                <label class="basic-number-row" title="Minimum protein identity retained as a link">
+                  <span>Minimum protein identity</span>
+                  <input id="identity" class="run-control" type="number" min="0" max="1" step="0.01" value="0.30">
+                </label>
+                <label class="advanced-check" title="Fast, approximate candidate selection; may miss remote homologues.">
                   <input id="prefilter" type="checkbox">
-                  <span>k-mer prefilter</span>
+                  <span>Use a k-mer prefilter to reduce protein comparisons</span>
+                </label>
+                <label class="advanced-check" title="Parse and plot annotations without comparing protein sequences.">
+                  <input id="no-align" type="checkbox">
+                  <span>Skip protein alignment and plot annotations only</span>
                 </label>
               </div>
             </div>
@@ -86,14 +89,75 @@
                     <option value="file">Input file order</option>
                   </select>
                 </label>
-                <label class="run-field">
-                  <span class="run-field-label">k-mer size</span>
-                  <input id="kmer-size" class="run-control" type="number" min="1" max="8" step="1" value="3">
-                </label>
-                <label class="run-field">
-                  <span class="run-field-label">Minimum shared k-mers</span>
-                  <input id="min-shared-kmers" class="run-control" type="number" min="1" step="1" value="3">
-                </label>
+                <section class="advanced-section kmer-settings" aria-labelledby="kmer-settings-label">
+                  <div class="advanced-section-heading">
+                    <span id="kmer-settings-label" class="run-field-label">k-mer prefilter</span>
+                  </div>
+                  <div class="settings-card">
+                    <label class="advanced-number-row">
+                      <span>k-mer size</span>
+                      <input id="kmer-size" class="run-control" type="number" min="1" max="8" step="1" value="3">
+                    </label>
+                    <label class="advanced-number-row">
+                      <span>Minimum shared k-mers</span>
+                      <input id="min-shared-kmers" class="run-control" type="number" min="1" step="1" value="3">
+                    </label>
+                  </div>
+                </section>
+                <section class="advanced-section" aria-labelledby="record-ranges-label">
+                  <div class="advanced-section-heading">
+                    <span id="record-ranges-label" class="run-field-label">Record ranges</span>
+                    <span class="advanced-section-help">Adjust a start or end coordinate to analyse only part of a record.</span>
+                  </div>
+                  <fieldset id="record-ranges" class="record-range-list" aria-live="polite">
+                    <p class="empty-setting">Choose GenBank files to list their records.</p>
+                  </fieldset>
+                </section>
+                <section class="advanced-section annotation-files" aria-labelledby="annotation-files-label">
+                  <div class="advanced-section-heading">
+                    <span id="annotation-files-label" class="run-field-label">Gene annotations</span>
+                    <span class="advanced-section-help">Optional two-column CSV files.</span>
+                  </div>
+                  <div class="settings-card">
+                    <div class="compact-file-row">
+                      <span class="compact-file-description">
+                        <strong>Gene functions</strong>
+                        <small><code>gene,function</code></small>
+                      </span>
+                      <label class="compact-file-button">
+                        <span>Choose CSV</span>
+                        <input id="gene-functions" class="visually-hidden" type="file" accept=".csv,text/csv">
+                      </label>
+                      <span id="gene-functions-summary" class="compact-file-summary">None selected</span>
+                    </div>
+                    <div class="compact-file-row">
+                      <span class="compact-file-description">
+                        <strong>Function colours</strong>
+                        <small><code>function,colour</code></small>
+                      </span>
+                      <label class="compact-file-button">
+                        <span>Choose CSV</span>
+                        <input id="colour-map" class="visually-hidden" type="file" accept=".csv,text/csv" disabled>
+                      </label>
+                      <span id="colour-map-summary" class="compact-file-summary">Add functions first</span>
+                    </div>
+                  </div>
+                </section>
+                <section class="advanced-section other-settings" aria-labelledby="other-settings-label">
+                  <div class="advanced-section-heading">
+                    <span id="other-settings-label" class="run-field-label">Other</span>
+                  </div>
+                  <div class="settings-card">
+                    <label class="advanced-check">
+                      <input id="separate-records" type="checkbox">
+                      <span>Plot each GenBank record as a separate cluster</span>
+                    </label>
+                    <label class="advanced-check">
+                      <input id="keep-origin" type="checkbox">
+                      <span>Keep the original origin of circular records</span>
+                    </label>
+                  </div>
+                </section>
               </div>
             </details>
             <div class="run-actions">
@@ -159,6 +223,6 @@
         <clinker-editor id="plot-editor" resizable hidden></clinker-editor>
       </div>
     </main>
-    <script type="module" src="app.js?v=20261007-clustermap-f22cab0-v13"></script>
+    <script type="module" src="app.js?v=20261014-settings-layout-v25"></script>
   </body>
 </html>

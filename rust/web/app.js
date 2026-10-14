@@ -6,12 +6,21 @@ import {
 defineClinkerEditor();
 
 const filesInput = document.querySelector("#files");
+const fileDropZone = document.querySelector("#file-drop-zone");
 const fileSummary = document.querySelector("#file-summary");
 const identityInput = document.querySelector("#identity");
 const prefilterInput = document.querySelector("#prefilter");
+const noAlignInput = document.querySelector("#no-align");
 const clusterOrderInput = document.querySelector("#cluster-order");
 const kmerSizeInput = document.querySelector("#kmer-size");
 const minSharedKmersInput = document.querySelector("#min-shared-kmers");
+const separateRecordsInput = document.querySelector("#separate-records");
+const keepOriginInput = document.querySelector("#keep-origin");
+const recordRangesElement = document.querySelector("#record-ranges");
+const geneFunctionsInput = document.querySelector("#gene-functions");
+const colourMapInput = document.querySelector("#colour-map");
+const geneFunctionsSummary = document.querySelector("#gene-functions-summary");
+const colourMapSummary = document.querySelector("#colour-map-summary");
 const analyseButton = document.querySelector("#analyse");
 const exampleButton = document.querySelector("#load-example");
 const matrixButton = document.querySelector("#download-matrix");
@@ -44,7 +53,7 @@ const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
-const WORKER_VERSION = "20261006-wasm-init-v11";
+const WORKER_VERSION = "20261014-settings-layout-v25";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
@@ -64,6 +73,8 @@ plotEditor.chart = chart;
 let disposeSelectionToolbar = null;
 let latestSimilarity = null;
 let analysisInProgress = false;
+let recordInspectionVersion = 0;
+let recordInspectionPromise = Promise.resolve();
 const EXAMPLE_FILES = [
   "P. vexata CBS 129021.gbk",
   "A. versicolor CBS 583.65.gbk",
@@ -76,7 +87,13 @@ function setAnalysisInputsDisabled(disabled) {
   filesInput.disabled = disabled;
   identityInput.disabled = disabled;
   prefilterInput.disabled = disabled;
+  noAlignInput.disabled = disabled;
   clusterOrderInput.disabled = disabled;
+  separateRecordsInput.disabled = disabled;
+  keepOriginInput.disabled = disabled;
+  recordRangesElement.disabled = disabled;
+  geneFunctionsInput.disabled = disabled;
+  colourMapInput.disabled = disabled || geneFunctionsInput.files.length === 0;
   analyseButton.disabled = disabled;
   exampleButton.disabled = disabled;
   loadDataButton.disabled = disabled;
@@ -87,21 +104,280 @@ function setAnalysisInputsDisabled(disabled) {
 }
 
 function syncPrefilterControls() {
+  prefilterInput.disabled = noAlignInput.disabled || noAlignInput.checked;
+  clusterOrderInput.disabled = noAlignInput.disabled || noAlignInput.checked;
   const disabled = prefilterInput.disabled || !prefilterInput.checked;
   kmerSizeInput.disabled = disabled;
   minSharedKmersInput.disabled = disabled;
 }
 
+function parseTwoColumnCsv(text, description) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+  for (let index = 0; index <= text.length; index += 1) {
+    const character = index === text.length ? "\n" : text[index];
+    if (quoted) {
+      if (character === '"' && text[index + 1] === '"') {
+        field += '"';
+        index += 1;
+      } else if (character === '"') {
+        quoted = false;
+      } else {
+        field += character;
+      }
+    } else if (character === '"' && field.length === 0) {
+      quoted = true;
+    } else if (character === ",") {
+      row.push(field.trim());
+      field = "";
+    } else if (character === "\n") {
+      row.push(field.trim());
+      field = "";
+      if (row.some(value => value.length > 0)) {
+        if (row.length !== 2 || row.some(value => !value)) {
+          throw new Error(`${description} row ${rows.length + 1} must contain two non-empty columns.`);
+        }
+        rows.push(row);
+      }
+      row = [];
+    } else if (character !== "\r") {
+      field += character;
+    }
+  }
+  if (quoted) throw new Error(`${description} contains an unterminated quoted field.`);
+  return rows;
+}
+
+async function readGroupDefinitions() {
+  const functionFile = geneFunctionsInput.files[0];
+  const colourFile = colourMapInput.files[0];
+  if (!functionFile) {
+    if (colourFile) throw new Error("Select a gene functions CSV before adding a colour map.");
+    return [];
+  }
+  const functions = parseTwoColumnCsv(await functionFile.text(), "Gene functions CSV");
+  const colours = new Map(colourFile
+    ? parseTwoColumnCsv(await colourFile.text(), "Function colours CSV")
+    : []);
+  const grouped = new Map();
+  for (const [gene, label] of functions) {
+    if (!grouped.has(label)) grouped.set(label, []);
+    grouped.get(label).push(gene);
+  }
+  return [...grouped].map(([label, genes]) => ({
+    label,
+    genes,
+    colour: colours.get(label) || null,
+  }));
+}
+
 function syncFileSummary() {
   const count = filesInput.files.length;
   fileSummary.textContent = count === 0
-    ? "No files selected"
+    ? "Supports .gb, .gbk and .genbank"
     : `${count} ${count === 1 ? "file" : "files"} selected`;
 }
 
+function isGenBankFile(file) {
+  return /\.(?:gb|gbk|genbank)$/i.test(file.name);
+}
+
+function genBankRecords(text) {
+  const records = [];
+  const locusLine = /^LOCUS\s+(\S+)\s+(\d+)\s+bp(?:\s|$)/gim;
+  for (const match of text.matchAll(locusLine)) {
+    const length = Number(match[2]);
+    if (Number.isSafeInteger(length) && length > 0) {
+      records.push({ name: match[1], length });
+    }
+  }
+  return records;
+}
+
+function emptyRecordRanges(message) {
+  recordRangesElement.replaceChildren();
+  const empty = document.createElement("p");
+  empty.className = "empty-setting";
+  empty.textContent = message;
+  recordRangesElement.append(empty);
+}
+
+function recordCoordinate(kind, value, length, label) {
+  const wrapper = document.createElement("label");
+  wrapper.className = "record-coordinate";
+  const caption = document.createElement("span");
+  caption.textContent = label;
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "1";
+  input.max = String(length);
+  input.step = "1";
+  input.value = String(value);
+  input.dataset.rangeCoordinate = kind;
+  input.setAttribute("aria-label", `${label} coordinate`);
+  wrapper.append(caption, input);
+  return wrapper;
+}
+
+function renderRecordRanges(filesWithRecords) {
+  recordRangesElement.replaceChildren();
+  let recordCount = 0;
+  for (const { file, records } of filesWithRecords) {
+    const fileLabel = document.createElement("div");
+    fileLabel.className = "record-range-file";
+    fileLabel.textContent = file.name;
+    recordRangesElement.append(fileLabel);
+    if (records.length === 0) {
+      const warning = document.createElement("p");
+      warning.className = "empty-setting";
+      warning.textContent = "No LOCUS records found; the complete file will be analysed.";
+      recordRangesElement.append(warning);
+      continue;
+    }
+    for (const record of records) {
+      recordCount += 1;
+      const row = document.createElement("div");
+      row.className = "record-range-row";
+      row.dataset.recordRange = "";
+      row.dataset.file = file.name;
+      row.dataset.record = record.name;
+      row.dataset.length = String(record.length);
+
+      const name = document.createElement("span");
+      name.className = "record-range-name";
+      name.textContent = record.name;
+      name.title = record.name;
+      const separator = document.createElement("span");
+      separator.textContent = "–";
+      separator.setAttribute("aria-hidden", "true");
+      const length = document.createElement("span");
+      length.className = "record-range-length";
+      length.textContent = `of ${record.length.toLocaleString()} bp`;
+      row.append(
+        name,
+        recordCoordinate("start", 1, record.length, "From"),
+        separator,
+        recordCoordinate("end", record.length, record.length, "To"),
+        length,
+      );
+      recordRangesElement.append(row);
+    }
+  }
+  if (recordCount === 0 && filesWithRecords.length === 0) {
+    emptyRecordRanges("Choose GenBank files to list their records.");
+  }
+}
+
+async function inspectSelectedFiles(files, version) {
+  recordRangesElement.setAttribute("aria-busy", "true");
+  emptyRecordRanges(files.length ? "Reading GenBank records…" : "Choose GenBank files to list their records.");
+  const inspected = await Promise.all(files.map(async file => ({
+    file,
+    records: genBankRecords(await file.text()),
+  })));
+  if (version !== recordInspectionVersion) return;
+  renderRecordRanges(inspected);
+  recordRangesElement.removeAttribute("aria-busy");
+}
+
+function collectRecordRanges() {
+  const selections = new Map();
+  for (const row of recordRangesElement.querySelectorAll("[data-record-range]")) {
+    const length = Number(row.dataset.length);
+    const start = Number(row.querySelector('[data-range-coordinate="start"]').value);
+    const end = Number(row.querySelector('[data-range-coordinate="end"]').value);
+    const description = `${row.dataset.file}: ${row.dataset.record}`;
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)
+        || start < 1 || end < start || end > length) {
+      throw new Error(`${description} requires whole-number coordinates between 1 and ${length.toLocaleString()}.`);
+    }
+    const selection = { record: row.dataset.record, start: start - 1, end };
+    if (!selections.has(selection.record)) selections.set(selection.record, []);
+    selections.get(selection.record).push({
+      range: selection,
+      isFullRecord: selection.start === 0 && selection.end === length,
+    });
+  }
+  const ranges = [];
+  for (const [record, instances] of selections) {
+    if (instances.every(instance => instance.isFullRecord)) continue;
+    if (instances.length > 1 && instances.some(instance => instance.isFullRecord)) {
+      throw new Error(`Record ${record} occurs in multiple files; adjust every instance to the same range.`);
+    }
+    const [first, ...rest] = instances;
+    if (rest.some(instance => instance.range.start !== first.range.start
+        || instance.range.end !== first.range.end)) {
+      throw new Error(`Record ${record} occurs in multiple files with different ranges.`);
+    }
+    ranges.push(first.range);
+  }
+  return ranges;
+}
+
+function syncAnnotationFiles() {
+  const functionFile = geneFunctionsInput.files[0];
+  const colourFile = colourMapInput.files[0];
+  geneFunctionsSummary.textContent = functionFile?.name || "None selected";
+  colourMapInput.disabled = geneFunctionsInput.disabled || !functionFile;
+  colourMapSummary.textContent = colourFile?.name || (functionFile ? "None selected" : "Add functions first");
+}
+
+function handleFileSelection() {
+  syncFileSummary();
+  const version = ++recordInspectionVersion;
+  recordInspectionPromise = inspectSelectedFiles([...filesInput.files], version)
+    .catch(error => {
+      if (version !== recordInspectionVersion) return;
+      emptyRecordRanges(`Could not inspect record names: ${error.message || String(error)}`);
+      recordRangesElement.removeAttribute("aria-busy");
+    });
+}
+
 prefilterInput.addEventListener("change", syncPrefilterControls);
-filesInput.addEventListener("change", syncFileSummary);
+noAlignInput.addEventListener("change", syncPrefilterControls);
+filesInput.addEventListener("change", handleFileSelection);
+let fileDragDepth = 0;
+fileDropZone.addEventListener("dragenter", event => {
+  if (filesInput.disabled || ![...event.dataTransfer.types].includes("Files")) return;
+  event.preventDefault();
+  fileDragDepth += 1;
+  fileDropZone.classList.add("is-dragging");
+});
+fileDropZone.addEventListener("dragover", event => {
+  if (filesInput.disabled || ![...event.dataTransfer.types].includes("Files")) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "copy";
+});
+fileDropZone.addEventListener("dragleave", () => {
+  fileDragDepth = Math.max(0, fileDragDepth - 1);
+  if (fileDragDepth === 0) fileDropZone.classList.remove("is-dragging");
+});
+fileDropZone.addEventListener("drop", event => {
+  event.preventDefault();
+  fileDragDepth = 0;
+  fileDropZone.classList.remove("is-dragging");
+  if (filesInput.disabled) return;
+  const files = [...event.dataTransfer.files];
+  const unsupported = files.filter(file => !isGenBankFile(file));
+  if (files.length === 0) return;
+  if (unsupported.length > 0) {
+    setRunStatus(
+      `Unsupported file${unsupported.length === 1 ? "" : "s"}: ${unsupported.map(file => file.name).join(", ")}. Choose GenBank files ending in .gb, .gbk or .genbank.`,
+      { tone: "error" },
+    );
+    return;
+  }
+  const transfer = new DataTransfer();
+  files.forEach(file => transfer.items.add(file));
+  filesInput.files = transfer.files;
+  handleFileSelection();
+});
+geneFunctionsInput.addEventListener("change", syncAnnotationFiles);
+colourMapInput.addEventListener("change", syncAnnotationFiles);
 syncPrefilterControls();
+syncAnnotationFiles();
 
 function resetRunSteps() {
   for (const step of runSteps.values()) {
@@ -288,7 +564,9 @@ function parseInputFiles(
         continueAfterPaint();
       } else if (data.type === "filter-progress") {
         onPrefilterProgress(data.completed, data.total);
-      } else if (data.type === "parsed") finish(resolve, data.parsed);
+      } else if (data.type === "parsed") {
+        finish(resolve, { ...data.parsed, wasmModule: data.wasmModule });
+      }
     };
     worker.onerror = event => finish(reject, new Error(event.message || "Worker failed"));
     worker.postMessage({ type: "parse-start", prefilter });
@@ -633,7 +911,7 @@ projectFileInput.addEventListener("change", async () => {
   }
 });
 
-function postProcess(layout, links, useFileOrder, onProgress) {
+function postProcess(layout, links, groupDefinitions, useFileOrder, wasmModule, onProgress) {
   const worker = new Worker(WORKER_URL, { type: "module" });
   return new Promise((resolve, reject) => {
     const finish = (callback, value) => {
@@ -650,6 +928,7 @@ function postProcess(layout, links, useFileOrder, onProgress) {
       type: "post-process",
       layout,
       useFileOrder,
+      wasmModule,
       reportProgress: true,
       links: links.map(link => ({
         query: link.query,
@@ -657,11 +936,19 @@ function postProcess(layout, links, useFileOrder, onProgress) {
         identity: link.identity,
         similarity: link.similarity,
       })),
+      groupDefinitions,
     });
   });
 }
 
-function analyseTilesInWorkerPool(proteins, clusterCount, identity, candidatePairs, onProgress) {
+function analyseTilesInWorkerPool(
+  proteins,
+  clusterCount,
+  identity,
+  candidatePairs,
+  wasmModule,
+  onProgress,
+) {
   const clusters = proteinsByCluster(proteins, clusterCount);
   const totalTiles = candidatePairs
     ? Math.ceil(candidatePairs.length / PAIRS_PER_TILE)
@@ -701,7 +988,7 @@ function analyseTilesInWorkerPool(proteins, clusterCount, identity, candidatePai
       const taskIndex = nextTask++;
       const tile = tiles.next().value;
       processedPairsByTask[taskIndex] = 0;
-      worker.postMessage({ ...tile, identity, taskIndex });
+      worker.postMessage({ ...tile, identity, taskIndex, wasmModule });
     };
 
     workers.forEach(worker => {
@@ -743,12 +1030,23 @@ async function analyseFiles(files) {
   }
   const kmerSize = Number(kmerSizeInput.value);
   const minSharedKmers = Number(minSharedKmersInput.value);
-  if (prefilterInput.checked && (!Number.isInteger(kmerSize) || kmerSize < 1 || kmerSize > 8)) {
+  if (!noAlignInput.checked && prefilterInput.checked
+      && (!Number.isInteger(kmerSize) || kmerSize < 1 || kmerSize > 8)) {
     setRunStatus("k-mer size must be a whole number between 1 and 8.", { tone: "error" });
     return;
   }
-  if (prefilterInput.checked && (!Number.isInteger(minSharedKmers) || minSharedKmers < 1)) {
+  if (!noAlignInput.checked && prefilterInput.checked
+      && (!Number.isInteger(minSharedKmers) || minSharedKmers < 1)) {
     setRunStatus("Minimum shared k-mers must be a positive whole number.", { tone: "error" });
+    return;
+  }
+  let ranges;
+  let groupDefinitions;
+  try {
+    ranges = collectRecordRanges();
+    groupDefinitions = await readGroupDefinitions();
+  } catch (error) {
+    setRunStatus(error.message, { tone: "error" });
     return;
   }
 
@@ -763,10 +1061,15 @@ async function analyseFiles(files) {
   let activeStep = "parse";
   try {
     const prefilter = {
-      enabled: prefilterInput.checked,
+      enabled: prefilterInput.checked && !noAlignInput.checked,
       kmerSize,
       minSharedKmers,
       identityCutoff: identity,
+      genbank: {
+        ranges,
+        asSeparateClusters: separateRecordsInput.checked,
+        setOrigin: !keepOriginInput.checked,
+      },
     };
     showRunSteps({ includePrefilter: prefilter.enabled });
     setRunStep("parse", "active", `Parsing 0 of ${files.length} files…`, { progress: 0 });
@@ -817,29 +1120,36 @@ async function analyseFiles(files) {
     }
     activeStep = "align";
     setRunStep("align", "active", "Aligning genes… 0%", { progress: 0 });
-    const alignmentResult = await analyseTilesInWorkerPool(
-      parsed.proteins,
-      parsed.layout.clusters.length,
-      identity,
-      parsed.candidatePairs,
-      (completedPairs, total) => {
-        const progress = progressPercent(completedPairs, total);
-        setRunStep("align", "active", `Aligning genes… ${progress}%`, { progress });
-      },
-    );
+    const alignmentResult = noAlignInput.checked
+      ? { links: [], alignmentCount: 0 }
+      : await analyseTilesInWorkerPool(
+        parsed.proteins,
+        parsed.layout.clusters.length,
+        identity,
+        parsed.candidatePairs,
+        parsed.wasmModule,
+        (completedPairs, total) => {
+          const progress = progressPercent(completedPairs, total);
+          setRunStep("align", "active", `Aligning genes… ${progress}%`, { progress });
+        },
+      );
     const { links, alignmentCount } = alignmentResult;
     setRunStep(
       "align",
       "complete",
-      `Ran ${alignmentCount.toLocaleString()} alignments · retained ${links.length.toLocaleString()} links`,
+      noAlignInput.checked
+        ? "Skipped protein alignment"
+        : `Ran ${alignmentCount.toLocaleString()} alignments · retained ${links.length.toLocaleString()} links`,
     );
-    const useFileOrder = clusterOrderInput.value === "file";
+    const useFileOrder = noAlignInput.checked || clusterOrderInput.value === "file";
     activeStep = "order";
     setRunStep("order", "active", "Scoring cluster pairs…", { progress: 0 });
     const result = await postProcess(
       parsed.layout,
       links,
+      groupDefinitions,
       useFileOrder,
+      parsed.wasmModule,
       ({ stage, completed, total }) => {
         if (stage === "similarity") {
           activeStep = "order";
@@ -962,6 +1272,7 @@ analyseButton.addEventListener("click", async () => {
     return;
   }
   try {
+    await recordInspectionPromise;
     setRunStatus("Reading selected files…");
     const files = await Promise.all([...filesInput.files].map(async file => ({
       name: file.name,

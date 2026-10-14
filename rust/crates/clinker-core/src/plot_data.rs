@@ -1,9 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
 use crate::layout::auto_locus_layouts_with_progress;
-use crate::{Analysis, GeneRef, Link, build_gene_groups, build_gene_groups_with_progress};
+use crate::{Analysis, GeneRef, build_gene_groups, build_gene_groups_with_progress};
 
 /// JSON object consumed by clustermap.js.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -17,6 +17,10 @@ pub struct PlotData {
 pub struct PlotCluster {
     pub uid: String,
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_file: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organism: Option<String>,
     pub loci: Vec<PlotLocus>,
 }
 
@@ -65,17 +69,44 @@ pub struct PlotGroup {
     pub colour: Option<String>,
 }
 
+/// A user-defined functional group. Gene names are matched against both the
+/// displayed gene label and retained qualifier values.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GeneGroupDefinition {
+    pub label: String,
+    pub genes: Vec<String>,
+    pub colour: Option<String>,
+}
+
 /// Convert analysis output to clustermap.js data contract
 impl Analysis {
     pub fn to_plot_data(&self) -> PlotData {
         self.to_plot_data_in_order(&(0..self.clusters.len()).collect::<Vec<_>>())
     }
 
+    pub fn to_plot_data_with_group_definitions(
+        &self,
+        definitions: &[GeneGroupDefinition],
+    ) -> PlotData {
+        self.to_plot_data_in_order_with_group_definitions(
+            &(0..self.clusters.len()).collect::<Vec<_>>(),
+            definitions,
+        )
+    }
+
     /// Convert analysis output to plot data with clusters in `order`.
     /// Gene and link IDs retain their original analysis indices, so reordering
     /// clusters never invalidates cross-references in links or groups.
     pub fn to_plot_data_in_order(&self, order: &[usize]) -> PlotData {
-        self.to_plot_data_in_order_with_groups(order, build_plot_groups(&self.links))
+        self.to_plot_data_in_order_with_group_definitions(order, &[])
+    }
+
+    pub fn to_plot_data_in_order_with_group_definitions(
+        &self,
+        order: &[usize],
+        definitions: &[GeneGroupDefinition],
+    ) -> PlotData {
+        self.to_plot_data_in_order_with_groups(order, build_plot_groups(self, definitions))
     }
 
     fn to_plot_data_in_order_with_groups(
@@ -92,6 +123,8 @@ impl Analysis {
                 PlotCluster {
                     uid: cluster_id(cluster_index),
                     name: cluster.name.clone(),
+                    source_file: cluster.source_file.clone(),
+                    organism: cluster.organism.clone(),
                     loci: cluster
                         .loci
                         .iter()
@@ -150,6 +183,19 @@ impl Analysis {
         self.to_auto_arranged_plot_data_with_progress(order, |_| {}, |_| {})
     }
 
+    pub fn to_auto_arranged_plot_data_with_group_definitions(
+        &self,
+        order: &[usize],
+        definitions: &[GeneGroupDefinition],
+    ) -> PlotData {
+        self.to_auto_arranged_plot_data_with_group_definitions_and_progress(
+            order,
+            definitions,
+            |_| {},
+            |_| {},
+        )
+    }
+
     /// As [`Analysis::to_auto_arranged_plot_data`], reporting completed link
     /// operations while grouping and completed clusters while arranging loci.
     pub fn to_auto_arranged_plot_data_with_progress(
@@ -158,7 +204,22 @@ impl Analysis {
         group_progress: impl FnMut(usize),
         layout_progress: impl FnMut(usize),
     ) -> PlotData {
-        let groups = build_plot_groups_with_progress(&self.links, group_progress);
+        self.to_auto_arranged_plot_data_with_group_definitions_and_progress(
+            order,
+            &[],
+            group_progress,
+            layout_progress,
+        )
+    }
+
+    pub fn to_auto_arranged_plot_data_with_group_definitions_and_progress(
+        &self,
+        order: &[usize],
+        definitions: &[GeneGroupDefinition],
+        group_progress: impl FnMut(usize),
+        layout_progress: impl FnMut(usize),
+    ) -> PlotData {
+        let groups = build_plot_groups_with_progress(self, definitions, group_progress);
         let layouts = auto_locus_layouts_with_progress(self, order, layout_progress);
         let mut data = self.to_plot_data_in_order_with_groups(order, groups);
         for (cluster, layout) in data.clusters.iter_mut().zip(layouts) {
@@ -186,27 +247,108 @@ impl Analysis {
     }
 }
 
-/// Convert retained links into clustermap.js homology groups.
-pub fn build_plot_groups(links: &[Link]) -> Vec<PlotGroup> {
-    plot_groups(build_gene_groups(links))
+/// Convert configured functions and retained links into clustermap.js groups.
+pub fn build_plot_groups(
+    analysis: &Analysis,
+    definitions: &[GeneGroupDefinition],
+) -> Vec<PlotGroup> {
+    configured_plot_groups(analysis, definitions, build_gene_groups(&analysis.links))
 }
 
-fn build_plot_groups_with_progress(links: &[Link], progress: impl FnMut(usize)) -> Vec<PlotGroup> {
-    plot_groups(build_gene_groups_with_progress(links, progress))
+fn build_plot_groups_with_progress(
+    analysis: &Analysis,
+    definitions: &[GeneGroupDefinition],
+    progress: impl FnMut(usize),
+) -> Vec<PlotGroup> {
+    configured_plot_groups(
+        analysis,
+        definitions,
+        build_gene_groups_with_progress(&analysis.links, progress),
+    )
 }
 
-fn plot_groups(groups: Vec<crate::GeneGroup>) -> Vec<PlotGroup> {
+fn configured_plot_groups(
+    analysis: &Analysis,
+    definitions: &[GeneGroupDefinition],
+    automatic: Vec<crate::GeneGroup>,
+) -> Vec<PlotGroup> {
+    let mut groups = definitions
+        .iter()
+        .map(|definition| ConfiguredGroup {
+            label: definition.label.clone(),
+            genes: resolve_gene_names(analysis, &definition.genes),
+            colour: definition.colour.clone(),
+        })
+        .collect::<Vec<_>>();
+
+    for automatic_group in automatic {
+        let genes = automatic_group.genes.into_iter().collect::<BTreeSet<_>>();
+        let overlaps = groups
+            .iter()
+            .enumerate()
+            .filter_map(|(index, group)| (!group.genes.is_disjoint(&genes)).then_some(index))
+            .collect::<Vec<_>>();
+        if let Some((&keep, merged)) = overlaps.split_first() {
+            groups[keep].genes.extend(genes);
+            for &index in merged.iter().rev() {
+                let removed = groups.remove(index);
+                groups[keep].genes.extend(removed.genes);
+            }
+        } else {
+            groups.push(ConfiguredGroup {
+                label: String::new(),
+                genes,
+                colour: None,
+            });
+        }
+    }
+
     groups
         .into_iter()
+        .filter(|group| !group.genes.is_empty())
         .enumerate()
         .map(|(index, group)| PlotGroup {
             uid: format!("group-{index}"),
-            label: format!("Group {index}"),
+            label: if group.label.is_empty() {
+                format!("Group {index}")
+            } else {
+                group.label
+            },
             genes: group.genes.into_iter().map(gene_ref_id).collect(),
             hidden: false,
-            colour: None,
+            colour: group.colour,
         })
         .collect()
+}
+
+struct ConfiguredGroup {
+    label: String,
+    genes: BTreeSet<GeneRef>,
+    colour: Option<String>,
+}
+
+fn resolve_gene_names(analysis: &Analysis, names: &[String]) -> BTreeSet<GeneRef> {
+    let names = names.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    let mut resolved = BTreeSet::new();
+    for (cluster_index, cluster) in analysis.clusters.iter().enumerate() {
+        for (locus_index, locus) in cluster.loci.iter().enumerate() {
+            for (gene_index, gene) in locus.genes.iter().enumerate() {
+                if names.contains(gene.label.as_str())
+                    || gene
+                        .names
+                        .iter()
+                        .any(|(_, value)| names.contains(value.as_str()))
+                {
+                    resolved.insert(GeneRef {
+                        cluster: cluster_index,
+                        locus: locus_index,
+                        gene: gene_index,
+                    });
+                }
+            }
+        }
+    }
+    resolved
 }
 
 fn cluster_id(cluster: usize) -> String {
@@ -227,7 +369,7 @@ fn gene_ref_id(reference: GeneRef) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::{AnalysisOptions, InputFile, analyse_genbank};
+    use crate::{AnalysisOptions, GeneGroupDefinition, InputFile, analyse_genbank};
 
     #[test]
     fn plot_data_uses_stable_ids_and_omits_translations() {
@@ -329,5 +471,54 @@ ORIGIN
         // A zero offset is meaningful: it overrides default locus packing and
         // aligns this homologous locus to the first cluster.
         assert_eq!(data.clusters[1].loci[0].offset, Some(0.0));
+    }
+
+    #[test]
+    fn function_groups_seed_link_groups_and_work_without_alignment() {
+        let first =
+            br#"LOCUS       FIRST                      9 bp    DNA     linear   UNA 01-JAN-2000
+FEATURES             Location/Qualifiers
+     CDS             1..9
+                     /locus_tag="first"
+ORIGIN
+        1 atggcttaa
+//
+"#;
+        let second =
+            br#"LOCUS       SECOND                     9 bp    DNA     linear   UNA 01-JAN-2000
+FEATURES             Location/Qualifiers
+     CDS             1..9
+                     /locus_tag="second"
+ORIGIN
+        1 atggcttaa
+//
+"#;
+        let files = [
+            InputFile {
+                name: "first.gbk",
+                bytes: first,
+            },
+            InputFile {
+                name: "second.gbk",
+                bytes: second,
+            },
+        ];
+        let mut analysis = analyse_genbank(&files, AnalysisOptions::default()).unwrap();
+        let definitions = [GeneGroupDefinition {
+            label: "Core enzyme".into(),
+            genes: vec!["first".into()],
+            colour: Some("#336699".into()),
+        }];
+
+        let linked = analysis.to_plot_data_with_group_definitions(&definitions);
+        assert_eq!(linked.groups.len(), 1);
+        assert_eq!(linked.groups[0].label, "Core enzyme");
+        assert_eq!(linked.groups[0].colour.as_deref(), Some("#336699"));
+        assert_eq!(linked.groups[0].genes.len(), 2);
+
+        analysis.links.clear();
+        let annotation_only = analysis.to_plot_data_with_group_definitions(&definitions);
+        assert!(annotation_only.links.is_empty());
+        assert_eq!(annotation_only.groups[0].genes, ["gene-0-0-0"]);
     }
 }

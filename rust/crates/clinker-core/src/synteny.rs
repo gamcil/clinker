@@ -55,15 +55,18 @@ impl Analysis {
         }
         let mut processed = 0;
         for query in 0..count {
-            for target in query + 1..count {
+            let (through_query, after_query) = matrix.split_at_mut(query + 1);
+            let query_row = &mut through_query[query];
+            for (offset, target_row) in after_query.iter_mut().enumerate() {
+                let target = query + 1 + offset;
                 let links = links_by_pair
                     .get(&(query, target))
                     .map(Vec::as_slice)
                     .unwrap_or_default();
                 let pair =
                     containment_similarity(&self.clusters[query], &self.clusters[target], links);
-                matrix[query][target] = pair;
-                matrix[target][query] = ClusterPairSimilarity {
+                query_row[target] = pair;
+                target_row[query] = ClusterPairSimilarity {
                     query_coverage: pair.target_coverage,
                     target_coverage: pair.query_coverage,
                     similarity: pair.similarity,
@@ -122,9 +125,9 @@ impl Analysis {
             .map(|row| row.iter().map(|pair| pair.similarity).collect::<Vec<_>>())
             .collect::<Vec<_>>();
         let mut condensed = Vec::with_capacity(count * (count - 1) / 2);
-        for row in 0..count {
+        for (row, similarities) in similarities.iter().enumerate() {
             condensed.extend(
-                similarities[row][row + 1..]
+                similarities[row + 1..]
                     .iter()
                     .map(|similarity| 1.0 - similarity),
             );
@@ -148,9 +151,9 @@ fn orient_strongest_component_first(order: &mut [usize], similarities: &[Vec<f64
 fn linked_components(similarities: &[Vec<f64>]) -> Vec<usize> {
     let count = similarities.len();
     let mut parent = (0..count).collect::<Vec<_>>();
-    for query in 0..count {
-        for target in query + 1..count {
-            if similarities[query][target] > 0.0 {
+    for (query, row) in similarities.iter().enumerate() {
+        for (target, &similarity) in row.iter().enumerate().skip(query + 1) {
+            if similarity > 0.0 {
                 union_components(&mut parent, query, target);
             }
         }
@@ -253,6 +256,8 @@ mod tests {
     fn cluster_with_lengths(name: &str, lengths: &[usize]) -> Cluster {
         Cluster {
             name: name.into(),
+            source_file: None,
+            organism: None,
             loci: vec![Locus {
                 name: name.into(),
                 start: 0,
