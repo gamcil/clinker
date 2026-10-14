@@ -301,7 +301,9 @@ fn location_strand(location: &Location) -> Option<i8> {
 /// Translate an extracted CDS using the standard genetic code.
 fn translate_standard(coding_sequence: &[u8]) -> String {
     coding_sequence
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .map(|codon| amino_acid(codon).unwrap_or('X'))
         .collect()
 }

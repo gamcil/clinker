@@ -431,7 +431,9 @@ fn cluster_name(file_name: &str) -> String {
 
 fn translate_standard(coding_sequence: &[u8]) -> String {
     let translation = coding_sequence
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .map(|codon| amino_acid(codon).unwrap_or('X'))
         .collect::<String>();
     normalize_translation(&translation)
