@@ -1,3 +1,5 @@
+import { classifyInputFiles, fileStem, isGenBankFile, isGffFile, isFastaFile, isSupportedInputFile } from "./input-files.mjs?v=20261015-start-v35";
+import { Workflow } from "./workflow.mjs?v=20261015-start-v35";
 import {
   defineClinkerEditor,
   mountPlotSelectionToolbar,
@@ -31,6 +33,8 @@ const matrixButton = document.querySelector("#download-matrix");
 const svgButton = document.querySelector("#download-svg");
 const projectButton = document.querySelector("#download-project");
 const loadClinkerFileButton = document.querySelector("#load-clinker-file");
+const openProjectStartButton = document.querySelector("#open-project-start");
+const plotActions = document.querySelector("#plot-actions");
 const clinkerFileInput = document.querySelector("#clinker-file");
 const plotEditor = document.querySelector("#plot-editor");
 const editPlotButton = document.querySelector("#edit-plot");
@@ -75,6 +79,7 @@ let disposeSelectionToolbar = null;
 let latestSimilarity = null;
 let latestAnalysisSession = null;
 let analysisInProgress = false;
+let activeWorkflow = null;
 let recordInspectionVersion = 0;
 let recordInspectionPromise = Promise.resolve();
 let inputValidationPromise = Promise.resolve({ ready: false, rows: [] });
@@ -101,10 +106,16 @@ function setAnalysisInputsDisabled(disabled) {
   colourMapInput.disabled = disabled || geneFunctionsInput.files.length === 0;
   analyseButton.disabled = disabled || !inputsReady;
   clearInputFilesButton.disabled = disabled;
+  fileInputStatusList.querySelectorAll(".remove-input-file").forEach(button => {
+    button.disabled = disabled;
+  });
   exampleButton.disabled = disabled;
   loadClinkerFileButton.disabled = disabled;
+  openProjectStartButton.disabled = disabled;
   newRunButton.disabled = disabled;
-  cancelRunButton.disabled = disabled;
+  cancelRunButton.disabled = false;
+  cancelRunButton.hidden = !disabled && !chart.data();
+  cancelRunButton.textContent = disabled ? "Cancel" : "Back to plot";
   syncPrefilterControls();
 }
 
@@ -114,6 +125,56 @@ function syncPrefilterControls() {
   const disabled = prefilterInput.disabled || !prefilterInput.checked;
   kmerSizeInput.disabled = disabled;
   minSharedKmersInput.disabled = disabled;
+}
+
+async function runWorkflow(task, failureMessage) {
+  if (activeWorkflow) return;
+  const workflow = new Workflow();
+  const trigger = document.activeElement;
+  openRunPanel();
+  activeWorkflow = workflow;
+  analysisInProgress = true;
+  document.querySelector(".run-card").classList.add("is-busy");
+  setAnalysisInputsDisabled(true);
+  matrixButton.disabled = true;
+  svgButton.disabled = true;
+  projectButton.disabled = true;
+  editPlotButton.disabled = true;
+  cancelRunButton.focus();
+  let completed = false;
+  try {
+    completed = await task(workflow) === true;
+    workflow.throwIfCancelled();
+  } catch (error) {
+    const cancelled = workflow.signal.aborted;
+    for (const step of runSteps.values()) {
+      if (step.element.dataset.state !== "active") continue;
+      step.element.dataset.state = cancelled ? "cancelled" : "error";
+      step.progress.hidden = true;
+    }
+    setRunStatus(cancelled ? "Cancelled. You can change your settings and try again." : `${failureMessage}: ${error.message || String(error)}`, {
+      tone: cancelled ? "" : "error",
+      preserveSteps: true,
+    });
+    completed = false;
+  } finally {
+    workflow.dispose();
+    activeWorkflow = null;
+    analysisInProgress = false;
+    document.querySelector(".run-card").classList.remove("is-busy");
+    setAnalysisInputsDisabled(false);
+    const hasPlot = Boolean(chart.data());
+    matrixButton.disabled = !hasPlot || !latestSimilarity;
+    svgButton.disabled = !hasPlot;
+    projectButton.disabled = !hasPlot || !latestAnalysisSession;
+    editPlotButton.disabled = !hasPlot;
+    if (completed) {
+      closeRunPanel();
+      editPlotButton.focus();
+    } else if (trigger instanceof HTMLElement && !trigger.disabled && trigger.getClientRects().length) {
+      trigger.focus();
+    }
+  }
 }
 
 function parseTwoColumnCsv(text, description) {
@@ -155,16 +216,16 @@ function parseTwoColumnCsv(text, description) {
   return rows;
 }
 
-async function readGroupDefinitions() {
+async function readGroupDefinitions(workflow) {
   const functionFile = geneFunctionsInput.files[0];
   const colourFile = colourMapInput.files[0];
   if (!functionFile) {
     if (colourFile) throw new Error("Select a gene functions CSV before adding a colour map.");
     return [];
   }
-  const functions = parseTwoColumnCsv(await functionFile.text(), "Gene functions CSV");
+  const functions = parseTwoColumnCsv(await workflow.readFile(functionFile, true), "Gene functions CSV");
   const colours = new Map(colourFile
-    ? parseTwoColumnCsv(await colourFile.text(), "Function colours CSV")
+    ? parseTwoColumnCsv(await workflow.readFile(colourFile, true), "Function colours CSV")
     : []);
   const grouped = new Map();
   for (const [gene, label] of functions) {
@@ -181,8 +242,9 @@ async function readGroupDefinitions() {
 function syncFileSummary() {
   const count = filesInput.files.length;
   fileSummary.textContent = count === 0
-    ? "Supports GenBank and GFF3 with FASTA"
-    : `${count} ${count === 1 ? "file" : "files"} selected`;
+    ? ""
+    : `${count} input ${count === 1 ? "file" : "files"} selected`;
+  fileSummary.hidden = count === 0;
 }
 
 function setSelectedInputFiles(files, { replace = false } = {}) {
@@ -193,117 +255,16 @@ function setSelectedInputFiles(files, { replace = false } = {}) {
   filesInput.files = transfer.files;
 }
 
-function isGenBankFile(file) {
-  return /\.(?:gb|gbk|genbank|gbf|gbff)$/i.test(file.name);
-}
-
-function isGffFile(file) {
-  return /\.(?:gff|gff3)$/i.test(file.name);
-}
-
-function isFastaFile(file) {
-  return /\.(?:fa|fsa|fna|fasta|faa)$/i.test(file.name);
-}
-
-function isSupportedInputFile(file) {
-  return isGenBankFile(file) || isGffFile(file) || isFastaFile(file);
-}
-
-function fileStem(name) {
-  return name.replace(/\.[^.]+$/, "").toLocaleLowerCase();
-}
-
-function hasEmbeddedFasta(text) {
-  return /^##FASTA[\t ]*$/im.test(text);
-}
-
-async function classifyInputFiles(files) {
-  const fastaByStem = new Map();
-  const gffFiles = files.filter(isGffFile);
-  const gffStems = new Set(gffFiles.map(file => fileStem(file.name)));
-  for (const file of files.filter(isFastaFile)) {
-    const stem = fileStem(file.name);
-    if (!fastaByStem.has(stem)) fastaByStem.set(stem, []);
-    fastaByStem.get(stem).push(file);
-  }
-
-  const rows = files.filter(isGenBankFile).map(file => ({
-    name: file.name,
-    detail: "Ready",
-    ready: true,
-  }));
-  const gffRows = await Promise.all(gffFiles.map(async file => {
-    try {
-      const embeddedFasta = hasEmbeddedFasta(await file.text());
-      const companions = fastaByStem.get(fileStem(file.name)) || [];
-      if (companions.length > 1) {
-        return {
-          name: file.name,
-          detail: "Multiple FASTA files",
-          reason: `Multiple matching FASTA files: ${companions.map(companion => companion.name).join(", ")}`,
-          ready: false,
-        };
-      }
-      if (companions.length === 1) {
-        return {
-          name: file.name,
-          detail: "Ready",
-          ready: true,
-        };
-      }
-      return embeddedFasta
-        ? { name: file.name, detail: "Ready", ready: true }
-        : {
-            name: file.name,
-            detail: "Missing FASTA",
-            reason: "No embedded FASTA or same-name FASTA file was found",
-            ready: false,
-          };
-    } catch (error) {
-      return {
-        name: file.name,
-        detail: "Unreadable",
-        reason: `Could not read file: ${error.message || String(error)}`,
-        ready: false,
-      };
-    }
-  }));
-  rows.push(...gffRows);
-
-  for (const file of files.filter(isFastaFile)) {
-    if (!gffStems.has(fileStem(file.name))) {
-      rows.push({
-        name: file.name,
-        detail: "Missing GFF3",
-        reason: "No same-name GFF3 file was found",
-        ready: false,
-      });
-    }
-  }
-  for (const file of files.filter(file => !isSupportedInputFile(file))) {
-    rows.push({
-      name: file.name,
-      detail: "Unsupported",
-      reason: "Unsupported file type",
-      ready: false,
-    });
-  }
-
-  return {
-    rows,
-    ready: rows.length > 0 && rows.every(row => row.ready),
-  };
-}
-
 function renderInputValidation(validation) {
   fileInputStatusList.replaceChildren();
   fileInputStatus.hidden = validation.rows.length === 0;
   if (validation.rows.length === 0) return;
   const errorCount = validation.rows.filter(row => !row.ready).length;
-  const readyCount = validation.rows.length - errorCount;
+  const fileCount = filesInput.files.length;
+  const countLabel = `${fileCount} input ${fileCount === 1 ? "file" : "files"}`;
   fileInputStatusSummary.textContent = errorCount === 0
-    ? `${readyCount} ${readyCount === 1 ? "dataset" : "datasets"} ready`
-    : `${errorCount} ${errorCount === 1 ? "problem" : "problems"} · ${readyCount} ready`;
+    ? `${countLabel} ready`
+    : `${errorCount} ${errorCount === 1 ? "problem" : "problems"} · ${countLabel}`;
   const orderedRows = [
     ...validation.rows.filter(row => !row.ready),
     ...validation.rows.filter(row => row.ready),
@@ -318,11 +279,30 @@ function renderInputValidation(validation) {
     const state = document.createElement("span");
     state.className = "file-input-state";
     state.textContent = row.detail;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "remove-input-file quiet-action";
+    remove.textContent = "Remove";
+    remove.setAttribute("aria-label", `Remove ${row.name}`);
+    remove.disabled = analysisInProgress;
+    remove.addEventListener("click", () => {
+      for (const name of row.files || [row.name]) selectedInputFiles.delete(name.toLocaleLowerCase());
+      setSelectedInputFiles([], { replace: false });
+      handleFileSelection();
+    });
+    const description = document.createElement("span");
+    description.className = "file-input-description";
+    description.textContent = row.description || "";
+    const label = document.createElement("div");
+    label.className = "file-input-label";
+    label.append(name, description);
+    item.append(label, state, remove);
     if (row.reason) {
-      state.title = row.reason;
-      state.setAttribute("aria-label", `${row.detail}: ${row.reason}`);
+      const reason = document.createElement("span");
+      reason.className = "file-input-reason";
+      reason.textContent = row.reason;
+      item.append(reason);
     }
-    item.append(name, state);
     fileInputStatusList.append(item);
   }
 }
@@ -382,11 +362,9 @@ function emptyRecordRanges(message) {
   recordRangesElement.append(empty);
 }
 
-function recordCoordinate(kind, value, minimum, maximum, label) {
+function recordCoordinate(kind, value, minimum, maximum, description) {
   const wrapper = document.createElement("label");
   wrapper.className = "record-coordinate";
-  const caption = document.createElement("span");
-  caption.textContent = label;
   const input = document.createElement("input");
   input.type = "number";
   input.min = String(minimum);
@@ -394,69 +372,84 @@ function recordCoordinate(kind, value, minimum, maximum, label) {
   input.step = "1";
   input.value = String(value);
   input.dataset.rangeCoordinate = kind;
-  input.setAttribute("aria-label", `${label} coordinate`);
-  wrapper.append(caption, input);
+  input.setAttribute("aria-label", `${description}: ${kind === "start" ? "Start" : "End"} (bp)`);
+  wrapper.append(input);
   return wrapper;
 }
 
 function renderRecordRanges(filesWithRecords) {
+  if (filesWithRecords.length === 0) {
+    emptyRecordRanges("Choose input files to trim their sequences.");
+    return;
+  }
   recordRangesElement.replaceChildren();
-  let recordCount = 0;
+  const headings = document.createElement("table");
+  headings.className = "sequence-regions sequence-region-headings";
+  const head = headings.createTHead().insertRow();
+  for (const text of ["File / sequence", "Start (bp)", "End (bp)"]) {
+    const cell = document.createElement("th");
+    cell.scope = "col";
+    cell.textContent = text;
+    head.append(cell);
+  }
+  recordRangesElement.append(headings);
   for (const { file, records } of filesWithRecords) {
-    const fileLabel = document.createElement("div");
-    fileLabel.className = "record-range-file";
-    fileLabel.textContent = file.name;
-    recordRangesElement.append(fileLabel);
+    const table = document.createElement("table");
+    table.className = "sequence-regions";
+    table.setAttribute("aria-label", file.name);
+    const columns = document.createElement("colgroup");
+    for (let index = 0; index < 3; index += 1) {
+      const column = document.createElement("col");
+      if (index > 0) column.className = "sequence-coordinate-column";
+      columns.append(column);
+    }
+    table.append(columns);
+    recordRangesElement.append(table);
+    const body = table.createTBody();
+    if (records.length > 1) table.classList.add("sequence-file-group");
     if (records.length === 0) {
-      const warning = document.createElement("p");
-      warning.className = "empty-setting";
-      warning.textContent = "No sequence records found; the complete file will be analysed.";
-      recordRangesElement.append(warning);
+      const cell = body.insertRow().insertCell();
+      cell.colSpan = 3;
+      cell.className = "empty-setting";
+      cell.textContent = `${file.name}: No sequences found; the complete file will be analysed.`;
       continue;
     }
     for (const record of records) {
-      recordCount += 1;
       const availableStart = record.start ?? 1;
       const availableEnd = record.end ?? record.length;
-      const row = document.createElement("div");
-      row.className = "record-range-row";
+      const row = body.insertRow();
       row.dataset.recordRange = "";
       row.dataset.file = file.name;
       row.dataset.record = record.name;
       row.dataset.length = String(record.length);
       row.dataset.availableStart = String(availableStart);
       row.dataset.availableEnd = String(availableEnd);
-
+      const description = `${file.name}: ${record.name}`;
+      const identity = document.createElement("th");
+      identity.scope = "row";
+      identity.title = `${description} (${availableStart.toLocaleString()}–${availableEnd.toLocaleString()} bp)`;
+      const fileName = document.createElement("span");
+      fileName.className = "sequence-file-name";
+      fileName.textContent = file.name;
+      if (record !== records[0]) {
+        fileName.classList.add("sequence-file-name-placeholder");
+        fileName.setAttribute("aria-hidden", "true");
+      }
+      identity.append(fileName);
       const name = document.createElement("span");
       name.className = "record-range-name";
       name.textContent = record.name;
-      name.title = record.name;
-      const separator = document.createElement("span");
-      separator.textContent = "–";
-      separator.setAttribute("aria-hidden", "true");
-      const length = document.createElement("span");
-      length.className = "record-range-length";
-      row.append(
-        name,
-        recordCoordinate("start", availableStart, availableStart, availableEnd, "From"),
-        separator,
-        recordCoordinate("end", availableEnd, availableStart, availableEnd, "To"),
-        length,
-      );
-      length.textContent = availableStart === 1
-        ? `of ${record.length.toLocaleString()} bp`
-        : `${availableStart.toLocaleString()}–${availableEnd.toLocaleString()}`;
-      recordRangesElement.append(row);
+      identity.append(name);
+      row.append(identity);
+      row.insertCell().append(recordCoordinate("start", availableStart, availableStart, availableEnd, description));
+      row.insertCell().append(recordCoordinate("end", availableEnd, availableStart, availableEnd, description));
     }
-  }
-  if (recordCount === 0 && filesWithRecords.length === 0) {
-    emptyRecordRanges("Choose annotation files to list their records.");
   }
 }
 
 async function inspectSelectedFiles(files, version) {
   recordRangesElement.setAttribute("aria-busy", "true");
-  emptyRecordRanges(files.length ? "Reading annotation records…" : "Choose annotation files to list their records.");
+  emptyRecordRanges(files.length ? "Reading annotation records…" : "Choose input files to trim their sequences.");
   const fastaTexts = new Map(await Promise.all(files.filter(isFastaFile).map(async file => [
     fileStem(file.name),
     await file.text(),
@@ -693,6 +686,7 @@ document.addEventListener("keydown", event => {
 function closeRunPanel() {
   if (analysisInProgress || !chart.data()) return;
   runPanel.hidden = true;
+  plotActions.hidden = false;
   newRunButton.hidden = false;
   newRunButton.setAttribute("aria-expanded", "false");
   cancelRunButton.hidden = true;
@@ -702,6 +696,7 @@ function openRunPanel() {
   runPanel.hidden = false;
   newRunButton.setAttribute("aria-expanded", "true");
   cancelRunButton.hidden = !chart.data();
+  cancelRunButton.textContent = "Back to plot";
   setRunStatus("");
   closePlotEditor();
 }
@@ -710,7 +705,10 @@ newRunButton.addEventListener("click", () => {
   if (runPanel.hidden) openRunPanel();
   else closeRunPanel();
 });
-cancelRunButton.addEventListener("click", closeRunPanel);
+cancelRunButton.addEventListener("click", () => {
+  if (activeWorkflow) activeWorkflow.cancel();
+  else closeRunPanel();
+});
 
 function closePlotEditor() {
   plotEditor.hidden = true;
@@ -735,22 +733,15 @@ function workerCount(taskCount) {
   return Math.min(taskCount, Math.max(1, Math.min(navigator.hardwareConcurrency || 2, 4)));
 }
 
-function copyFiles(files, fileIndexes) {
-  // A transferred ArrayBuffer can only be sent once. Each cluster appears in
-  // several comparisons, so make a task-local copy before transferring it.
-  return fileIndexes.map(index => ({
-    name: files[index].name,
-    bytes: files[index].bytes.slice(),
-  }));
-}
-
 function parseInputFiles(
   files,
   prefilter,
   { onProgress, onPrefilterStart, onPrefilterProgress },
+  workflow,
 ) {
-  const worker = new Worker(WORKER_URL, { type: "module" });
-  const taskFiles = copyFiles(files, files.map((_, index) => index));
+  const worker = workflow.worker(WORKER_URL);
+  // These buffers belong to this run; transfer them once without another copy.
+  const taskFiles = files;
 
   return new Promise((resolve, reject) => {
     let nextFileIndex = 0;
@@ -762,10 +753,14 @@ function parseInputFiles(
       if (settled) return;
       settled = true;
       clearTimeout(startupTimeout);
-      worker.terminate();
+      workflow.signal.removeEventListener("abort", cancel);
+      workflow.releaseWorker(worker);
       callback(value);
     };
+    const cancel = () => finish(reject, workflow.signal.reason);
+    workflow.signal.addEventListener("abort", cancel, { once: true });
     const sendNextFile = () => {
+      if (settled) return;
       if (nextFileIndex === taskFiles.length) {
         if (prefilter.enabled) onPrefilterStart();
         worker.postMessage({ type: "parse-finish" });
@@ -786,6 +781,7 @@ function parseInputFiles(
       }
     };
     worker.onmessage = ({ data }) => {
+      if (workflow.signal.aborted) return;
       if (data.type === "error") finish(reject, new Error(data.message));
       else if (data.type === "parse-ready") {
         clearTimeout(startupTimeout);
@@ -1071,12 +1067,11 @@ function mountImportedPlot(data, { config = null, appearance = null, state = nul
   closeRunPanel();
 }
 
-async function readJsonFile(input) {
-  const file = input.files[0];
-  input.value = "";
-  if (!file) return null;
+async function readJsonFile(file, workflow) {
+  const text = await workflow.readFile(file, true);
+  workflow.throwIfCancelled();
   try {
-    return JSON.parse(await file.text());
+    return JSON.parse(text);
   } catch {
     throw new Error("the selected file is not valid JSON");
   }
@@ -1101,14 +1096,18 @@ projectButton.addEventListener("click", () => {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 });
 
-function openAnalysisSession(session) {
-  const worker = new Worker(WORKER_URL, { type: "module" });
+function openAnalysisSession(session, workflow) {
+  const worker = workflow.worker(WORKER_URL);
   return new Promise((resolve, reject) => {
     const finish = (callback, value) => {
-      worker.terminate();
+      workflow.signal.removeEventListener("abort", cancel);
+      workflow.releaseWorker(worker);
       callback(value);
     };
+    const cancel = () => finish(reject, workflow.signal.reason);
+    workflow.signal.addEventListener("abort", cancel, { once: true });
     worker.onmessage = ({ data }) => {
+      if (workflow.signal.aborted) return;
       if (data.type === "error") finish(reject, new Error(data.message));
       else if (data.type === "post-process") finish(resolve, data.result);
     };
@@ -1129,29 +1128,27 @@ function retainAnalysisResult(result) {
 }
 
 loadClinkerFileButton.addEventListener("click", () => clinkerFileInput.click());
-clinkerFileInput.addEventListener("change", async () => {
-  try {
-    const saved = await readJsonFile(clinkerFileInput);
-    if (!saved) return;
+openProjectStartButton.addEventListener("click", () => clinkerFileInput.click());
+clinkerFileInput.addEventListener("change", () => {
+  const file = clinkerFileInput.files[0];
+  clinkerFileInput.value = "";
+  if (!file) return;
+  runWorkflow(async workflow => {
+    setRunStatus("Opening project…");
+    const saved = await readJsonFile(file, workflow);
     if (saved.format !== "clinker-project" || saved.version !== 2) {
       throw new Error("the file is not a clinker project");
     }
     if (!saved.config) throw new Error("project is missing appearance settings");
     if (!saved.analysis) throw new Error("project is missing analysis data");
-
-    setContextStatus("Opening clinker project…");
-    const analysisResult = await openAnalysisSession(saved.analysis);
-    mountImportedPlot(saved.data, {
-      config: saved.config,
-      state: saved.state,
-    });
+    validatePlotData(saved.data);
+    const analysisResult = await openAnalysisSession(saved.analysis, workflow);
+    workflow.throwIfCancelled();
+    mountImportedPlot(saved.data, { config: saved.config, state: saved.state });
     retainAnalysisResult(analysisResult);
     setPlotStatus("Loaded clinker project with its analysis data.");
-  } catch (error) {
-    setContextStatus(`Could not open clinker file: ${error.message || String(error)}`, {
-      tone: "error",
-    });
-  }
+    return true;
+  }, "Could not open project");
 });
 
 function postProcess(
@@ -1163,14 +1160,19 @@ function postProcess(
   useFileOrder,
   wasmModule,
   onProgress,
+  workflow,
 ) {
-  const worker = new Worker(WORKER_URL, { type: "module" });
+  const worker = workflow.worker(WORKER_URL);
   return new Promise((resolve, reject) => {
     const finish = (callback, value) => {
-      worker.terminate();
+      workflow.signal.removeEventListener("abort", cancel);
+      workflow.releaseWorker(worker);
       callback(value);
     };
+    const cancel = () => finish(reject, workflow.signal.reason);
+    workflow.signal.addEventListener("abort", cancel, { once: true });
     worker.onmessage = ({ data }) => {
+      if (workflow.signal.aborted) return;
       if (data.type === "error") finish(reject, new Error(data.message));
       else if (data.type === "post-process-progress") onProgress(data);
       else if (data.type === "post-process") finish(resolve, data.result);
@@ -1202,6 +1204,7 @@ function analyseTilesInWorkerPool(
   candidatePairs,
   wasmModule,
   onProgress,
+  workflow,
 ) {
   const clusters = proteinsByCluster(proteins, clusterCount);
   const totalTiles = candidatePairs
@@ -1212,20 +1215,22 @@ function analyseTilesInWorkerPool(
   const totalPairs = candidatePairs ? candidatePairs.length : pairCount(clusters);
   const workers = Array.from(
     { length: workerCount(totalTiles) },
-    () => new Worker(WORKER_URL, { type: "module" }),
+    () => workflow.worker(WORKER_URL),
   );
   const linksByTask = new Array(totalTiles);
   const alignmentCountsByTask = new Array(totalTiles).fill(0);
   const processedPairsByTask = new Array(totalTiles).fill(0);
   let nextTask = 0;
   let completed = 0;
+  let processedPairs = 0;
   let settled = false;
 
   return new Promise((resolve, reject) => {
     const finish = error => {
       if (settled) return;
       settled = true;
-      workers.forEach(worker => worker.terminate());
+      workflow.signal.removeEventListener("abort", cancel);
+      workers.forEach(worker => workflow.releaseWorker(worker));
       if (error) reject(error);
       else {
         const links = linksByTask.flat();
@@ -1237,6 +1242,14 @@ function analyseTilesInWorkerPool(
       }
     };
 
+    const cancel = () => finish(workflow.signal.reason);
+    workflow.signal.addEventListener("abort", cancel, { once: true });
+    const reportTaskProgress = (taskIndex, count) => {
+      const next = Math.max(processedPairsByTask[taskIndex], count);
+      processedPairs += next - processedPairsByTask[taskIndex];
+      processedPairsByTask[taskIndex] = next;
+      onProgress(processedPairs, totalPairs);
+    };
     const dispatch = worker => {
       if (nextTask === totalTiles) return;
       const taskIndex = nextTask++;
@@ -1254,19 +1267,18 @@ function analyseTilesInWorkerPool(
         }
 
         if (data.type === "tile-progress") {
-          processedPairsByTask[data.taskIndex] = data.processedPairs;
-          onProgress(processedPairsByTask.reduce((sum, count) => sum + count, 0), totalPairs);
+          reportTaskProgress(data.taskIndex, data.processedPairs);
           return;
         }
 
+        if (data.type !== "tile-result") return;
         linksByTask[data.taskIndex] = data.links.map(plotLink);
         alignmentCountsByTask[data.taskIndex] = data.alignmentCount || 0;
-        processedPairsByTask[data.taskIndex] = Math.max(
-          processedPairsByTask[data.taskIndex],
+        reportTaskProgress(
+          data.taskIndex,
           data.pairCount || processedPairsByTask[data.taskIndex],
         );
         completed += 1;
-        onProgress(processedPairsByTask.reduce((sum, count) => sum + count, 0), totalPairs);
         if (completed === totalTiles) finish();
         else dispatch(worker);
       };
@@ -1276,10 +1288,10 @@ function analyseTilesInWorkerPool(
   });
 }
 
-async function analyseFiles(files) {
-  const identity = Number(identityInput.value);
-  if (!Number.isFinite(identity) || identity < 0 || identity > 1) {
-    setRunStatus("Identity cutoff must be a number between 0 and 1.", { tone: "error" });
+async function analyseFiles(files, workflow) {
+  const identity = Number(identityInput.value) / 100;
+  if (!identityInput.value.trim() || !Number.isFinite(identity) || identity < 0 || identity > 1) {
+    setRunStatus("Minimum protein identity must be a percentage between 0 and 100.", { tone: "error" });
     return;
   }
   const kmerSize = Number(kmerSizeInput.value);
@@ -1294,270 +1306,217 @@ async function analyseFiles(files) {
     setRunStatus("Minimum shared k-mers must be a positive whole number.", { tone: "error" });
     return;
   }
-  let ranges;
-  let groupDefinitions;
-  try {
-    ranges = collectRecordRanges();
-    groupDefinitions = await readGroupDefinitions();
-  } catch (error) {
-    setRunStatus(error.message, { tone: "error" });
-    return;
-  }
-
-  analysisInProgress = true;
-  setAnalysisInputsDisabled(true);
-  matrixButton.disabled = true;
-  svgButton.disabled = true;
-  projectButton.disabled = true;
-  editPlotButton.disabled = true;
-  closePlotEditor();
-  let activeStep = "parse";
-  try {
-    const prefilter = {
-      enabled: prefilterInput.checked && !noAlignInput.checked,
-      kmerSize,
-      minSharedKmers,
-      identityCutoff: identity,
-      genbank: {
-        ranges,
-        asSeparateClusters: separateRecordsInput.checked,
-        setOrigin: !keepOriginInput.checked,
-      },
-    };
-    showRunSteps({ includePrefilter: prefilter.enabled });
-    setRunStep("parse", "active", `Parsing 0 of ${files.length} files…`, { progress: 0 });
-    const parsed = await parseInputFiles(files, prefilter, {
-      onProgress: (processed, total) => {
-        setRunStep("parse", "active", `Parsed ${processed} of ${total} files…`, {
-          progress: progressPercent(processed, total),
-        });
-      },
-      onPrefilterStart: () => {
-        setRunStep(
-          "parse",
-          "complete",
-          `Parsed ${files.length} ${files.length === 1 ? "file" : "files"}`,
-        );
-        activeStep = "prefilter";
-        setRunStep("prefilter", "active", "Selecting candidate alignments…", {
-          progress: 0,
-        });
-      },
-      onPrefilterProgress: (processed, total) => {
-        const progress = progressPercent(processed, total);
-        setRunStep(
-          "prefilter",
-          "active",
-          `Examined ${processed.toLocaleString()} of ${total.toLocaleString()} possible alignments…`,
-          { progress },
-        );
-      },
-    });
-    setRunStep(
-      "parse",
-      "complete",
-      `Parsed ${files.length} ${files.length === 1 ? "file" : "files"} · ${parsed.proteins.length.toLocaleString()} genes`,
-    );
-    const proteinsByInputCluster = proteinsByCluster(
-      parsed.proteins,
-      parsed.layout.clusters.length,
-    );
-    const possibleAlignments = pairCount(proteinsByInputCluster);
-    const plannedAlignments = parsed.candidatePairs?.length ?? possibleAlignments;
-    if (prefilter.enabled) {
+  const ranges = collectRecordRanges();
+  const groupDefinitions = await readGroupDefinitions(workflow);
+  workflow.throwIfCancelled();
+  const prefilter = {
+    enabled: prefilterInput.checked && !noAlignInput.checked,
+    kmerSize,
+    minSharedKmers,
+    identityCutoff: identity,
+    genbank: {
+      ranges,
+      asSeparateClusters: separateRecordsInput.checked,
+      setOrigin: !keepOriginInput.checked,
+    },
+  };
+  showRunSteps({ includePrefilter: prefilter.enabled });
+  setRunStep("parse", "active", `Parsing 0 of ${files.length} files…`, { progress: 0 });
+  const parsed = await parseInputFiles(files, prefilter, {
+    onProgress: (processed, total) => {
+      setRunStep("parse", "active", `Parsed ${processed} of ${total} files…`, {
+        progress: progressPercent(processed, total),
+      });
+    },
+    onPrefilterStart: () => {
+      setRunStep(
+        "parse",
+        "complete",
+        `Parsed ${files.length} ${files.length === 1 ? "file" : "files"}`,
+      );
+      setRunStep("prefilter", "active", "Selecting candidate alignments…", {
+        progress: 0,
+      });
+    },
+    onPrefilterProgress: (processed, total) => {
+      const progress = progressPercent(processed, total);
       setRunStep(
         "prefilter",
-        "complete",
-        prefilterResult(plannedAlignments, possibleAlignments),
+        "active",
+        `Examined ${processed.toLocaleString()} of ${total.toLocaleString()} possible alignments…`,
+        { progress },
       );
-    }
-    activeStep = "align";
-    setRunStep("align", "active", "Aligning genes… 0%", { progress: 0 });
-    const alignmentResult = noAlignInput.checked
-      ? { links: [], alignmentCount: 0 }
-      : await analyseTilesInWorkerPool(
-        parsed.proteins,
-        parsed.layout.clusters.length,
-        identity,
-        parsed.candidatePairs,
-        parsed.wasmModule,
-        (completedPairs, total) => {
-          const progress = progressPercent(completedPairs, total);
-          setRunStep("align", "active", `Aligning genes… ${progress}%`, { progress });
-        },
-      );
-    const { links, alignmentCount } = alignmentResult;
+    },
+  }, workflow);
+  workflow.throwIfCancelled();
+  setRunStep(
+    "parse",
+    "complete",
+    `Parsed ${files.length} ${files.length === 1 ? "file" : "files"} · ${parsed.proteins.length.toLocaleString()} genes`,
+  );
+  const proteinsByInputCluster = proteinsByCluster(
+    parsed.proteins,
+    parsed.layout.clusters.length,
+  );
+  const possibleAlignments = pairCount(proteinsByInputCluster);
+  const plannedAlignments = parsed.candidatePairs?.length ?? possibleAlignments;
+  if (prefilter.enabled) {
     setRunStep(
-      "align",
+      "prefilter",
       "complete",
-      noAlignInput.checked
-        ? "Skipped protein alignment"
-        : `Ran ${alignmentCount.toLocaleString()} alignments · retained ${links.length.toLocaleString()} links`,
+      prefilterResult(plannedAlignments, possibleAlignments),
     );
-    const useFileOrder = noAlignInput.checked || fileOrderInput.checked;
-    activeStep = "order";
-    setRunStep("order", "active", "Scoring cluster pairs…", { progress: 0 });
-    const result = await postProcess(
-      parsed.layout,
+  }
+  setRunStep("align", "active", "Aligning genes… 0%", { progress: 0 });
+  const alignmentResult = noAlignInput.checked
+    ? { links: [], alignmentCount: 0 }
+    : await analyseTilesInWorkerPool(
       parsed.proteins,
-      links,
-      groupDefinitions,
+      parsed.layout.clusters.length,
       identity,
-      useFileOrder,
+      parsed.candidatePairs,
       parsed.wasmModule,
-      ({ stage, completed, total }) => {
-        if (stage === "similarity") {
-          activeStep = "order";
+      (completedPairs, total) => {
+        const progress = progressPercent(completedPairs, total);
+        setRunStep("align", "active", `Aligning genes… ${progress}%`, { progress });
+      },
+      workflow,
+    );
+  const { links, alignmentCount } = alignmentResult;
+  setRunStep(
+    "align",
+    "complete",
+    noAlignInput.checked
+      ? "Skipped protein alignment"
+      : `Ran ${alignmentCount.toLocaleString()} alignments · retained ${links.length.toLocaleString()} links`,
+  );
+  const useFileOrder = noAlignInput.checked || fileOrderInput.checked;
+  setRunStep("order", "active", "Scoring cluster pairs…", { progress: 0 });
+  const result = await postProcess(
+    parsed.layout,
+    parsed.proteins,
+    links,
+    groupDefinitions,
+    identity,
+    useFileOrder,
+    parsed.wasmModule,
+    ({ stage, completed, total }) => {
+      if (stage === "similarity") {
+        setRunStep(
+          "order",
+          "active",
+          `Scored ${completed.toLocaleString()} of ${total.toLocaleString()} cluster pairs…`,
+          { progress: progressPercent(completed, total) },
+        );
+      } else if (stage === "ordering") {
+        if (completed < total) {
           setRunStep(
             "order",
             "active",
-            `Scored ${completed.toLocaleString()} of ${total.toLocaleString()} cluster pairs…`,
-            { progress: progressPercent(completed, total) },
+            useFileOrder ? "Applying input file order…" : "Ordering clusters by similarity…",
           );
-        } else if (stage === "ordering") {
-          activeStep = "order";
-          if (completed < total) {
-            setRunStep(
-              "order",
-              "active",
-              useFileOrder ? "Applying input file order…" : "Ordering clusters by similarity…",
-            );
-          } else {
-            setRunStep(
-              "order",
-              "complete",
-              useFileOrder
-                ? `Kept ${total.toLocaleString()} clusters in input order`
-                : `Ordered ${total.toLocaleString()} clusters by similarity`,
-            );
-          }
-        } else if (stage === "groups") {
-          activeStep = "groups";
-          const linkTotal = total / 2;
-          if (completed >= total) {
-            setRunStep(
-              "groups",
-              "complete",
-              `Grouped ${linkTotal.toLocaleString()} links`,
-            );
-            return;
-          }
-          const indexing = completed <= linkTotal;
-          const phaseCompleted = indexing ? completed : completed - linkTotal;
+        } else {
           setRunStep(
-            "groups",
-            "active",
-            indexing
-              ? `Indexed ${phaseCompleted.toLocaleString()} of ${linkTotal.toLocaleString()} links…`
-              : `Grouped ${phaseCompleted.toLocaleString()} of ${linkTotal.toLocaleString()} links…`,
-            { progress: progressPercent(completed, total) },
-          );
-        } else if (stage === "layout") {
-          activeStep = "layout";
-          setRunStep(
-            "layout",
-            "active",
-            `Arranged ${completed.toLocaleString()} of ${total.toLocaleString()} clusters…`,
-            { progress: progressPercent(completed, total) },
+            "order",
+            "complete",
+            useFileOrder
+              ? `Kept ${total.toLocaleString()} clusters in input order`
+              : `Ordered ${total.toLocaleString()} clusters by similarity`,
           );
         }
-      },
-    );
-    const plotData = result.plotData;
-    latestSimilarity = {
-      clusterNames: result.clusterNames,
-      clusterOrder: result.clusterOrder,
-      similarityMatrix: result.similarityMatrix,
-    };
-    latestAnalysisSession = result.analysisSession;
-    matrixButton.disabled = false;
-    const displayedBestLinks = bestLinkCount(plotData);
-    const summary = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links; ${displayedBestLinks} displayed best links.`;
-    setRunStep(
-      "groups",
-      "complete",
-      `Built ${plotData.groups.length.toLocaleString()} homology groups from ${links.length.toLocaleString()} links`,
-    );
-    const locusCount = plotData.clusters.reduce(
-      (count, cluster) => count + cluster.loci.length,
-      0,
-    );
-    setRunStep(
-      "layout",
-      "complete",
-      `Arranged ${plotData.clusters.length.toLocaleString()} clusters · ${locusCount.toLocaleString()} loci`,
-    );
-    activeStep = null;
+      } else if (stage === "groups") {
+        const linkTotal = total / 2;
+        if (completed >= total) {
+          setRunStep(
+            "groups",
+            "complete",
+            `Grouped ${linkTotal.toLocaleString()} links`,
+          );
+          return;
+        }
+        const indexing = completed <= linkTotal;
+        const phaseCompleted = indexing ? completed : completed - linkTotal;
+        setRunStep(
+          "groups",
+          "active",
+          indexing
+            ? `Indexed ${phaseCompleted.toLocaleString()} of ${linkTotal.toLocaleString()} links…`
+            : `Grouped ${phaseCompleted.toLocaleString()} of ${linkTotal.toLocaleString()} links…`,
+          { progress: progressPercent(completed, total) },
+        );
+      } else if (stage === "layout") {
+        setRunStep(
+          "layout",
+          "active",
+          `Arranged ${completed.toLocaleString()} of ${total.toLocaleString()} clusters…`,
+          { progress: progressPercent(completed, total) },
+        );
+      }
+    },
+    workflow,
+  );
+  workflow.throwIfCancelled();
+  const plotData = result.plotData;
+  latestSimilarity = {
+    clusterNames: result.clusterNames,
+    clusterOrder: result.clusterOrder,
+    similarityMatrix: result.similarityMatrix,
+  };
+  latestAnalysisSession = result.analysisSession;
+  matrixButton.disabled = false;
+  const displayedBestLinks = bestLinkCount(plotData);
+  const summary = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links; ${displayedBestLinks} displayed best links.`;
+  setRunStep(
+    "groups",
+    "complete",
+    `Built ${plotData.groups.length.toLocaleString()} homology groups from ${links.length.toLocaleString()} links`,
+  );
+  const locusCount = plotData.clusters.reduce(
+    (count, cluster) => count + cluster.loci.length,
+    0,
+  );
+  setRunStep(
+    "layout",
+    "complete",
+    `Arranged ${plotData.clusters.length.toLocaleString()} clusters · ${locusCount.toLocaleString()} loci`,
+  );
 
-    replaceChart();
-    plot.datum(plotData).call(chart);
-    mountSelectionToolbar();
-    plotEditor.chart = chart;
-    svgButton.disabled = false;
-    projectButton.disabled = false;
-    editPlotButton.disabled = false;
-    analysisInProgress = false;
-    closeRunPanel();
-    setPlotStatus(summary);
-  } catch (error) {
-    if (activeStep) {
-      const step = runSteps.get(activeStep);
-      setRunStep(activeStep, "error", step.result.textContent);
-    }
-    setRunStatus(`Analysis failed: ${error.message || String(error)}`, {
-      tone: "error",
-      preserveSteps: true,
-    });
-  } finally {
-    analysisInProgress = false;
-    setAnalysisInputsDisabled(false);
-    if (chart.data()) {
-      matrixButton.disabled = !latestSimilarity;
-      svgButton.disabled = false;
-      projectButton.disabled = false;
-      editPlotButton.disabled = false;
-    }
-  }
+  replaceChart();
+  plot.datum(plotData).call(chart);
+  mountSelectionToolbar();
+  plotEditor.chart = chart;
+  svgButton.disabled = false;
+  projectButton.disabled = false;
+  editPlotButton.disabled = false;
+  setPlotStatus(summary);
+  return true;
 }
 
-analyseButton.addEventListener("click", async () => {
-  if (filesInput.files.length === 0) {
-    setRunStatus("Choose at least one GenBank or GFF3 file.", { tone: "error" });
-    return;
-  }
-  try {
-    const validation = await inputValidationPromise;
-    if (!validation.ready) {
-      setRunStatus("Resolve the selected input-file problems before starting the analysis.", { tone: "error" });
-      return;
+analyseButton.addEventListener("click", () => {
+  if (filesInput.files.length === 0) return;
+  const selected = [...filesInput.files];
+  runWorkflow(async workflow => {
+    setRunStatus("Preparing selected files…");
+    const validation = await workflow.wait(inputValidationPromise);
+    if (!validation.ready) throw new Error("Resolve the selected input-file problems before starting the analysis.");
+    await workflow.wait(recordInspectionPromise);
+    const files = [];
+    for (const file of selected) {
+      files.push({ name: file.name, bytes: new Uint8Array(await workflow.readFile(file)) });
     }
-    await recordInspectionPromise;
-    setRunStatus("Reading selected files…");
-    const files = await Promise.all([...filesInput.files].map(async file => ({
-      name: file.name,
-      bytes: new Uint8Array(await file.arrayBuffer()),
-    })));
-    await analyseFiles(files);
-  } catch (error) {
-    setRunStatus(`Analysis failed: ${error.message || String(error)}`, { tone: "error" });
-  }
+    return analyseFiles(files, workflow);
+  }, "Analysis failed");
 });
 
-exampleButton.addEventListener("click", async () => {
-  analyseButton.disabled = true;
-  exampleButton.disabled = true;
-  try {
-    setRunStatus("Loading bundled example files…");
-    const files = await Promise.all(EXAMPLE_FILES.map(async name => {
-      const response = await fetch(`examples/${encodeURIComponent(name)}`);
+exampleButton.addEventListener("click", () => {
+  runWorkflow(async workflow => {
+    setRunStatus("Loading example files…");
+    const files = await workflow.wait(Promise.all(EXAMPLE_FILES.map(async name => {
+      const response = await fetch(`examples/${encodeURIComponent(name)}`, { signal: workflow.signal });
       if (!response.ok) throw new Error(`Could not load ${name} (${response.status})`);
       return { name, bytes: new Uint8Array(await response.arrayBuffer()) };
-    }));
-    await analyseFiles(files);
-  } catch (error) {
-    setRunStatus(`Example analysis failed: ${error.message || String(error)}`, { tone: "error" });
-  } finally {
-    analyseButton.disabled = false;
-    exampleButton.disabled = false;
-  }
+    })));
+    workflow.throwIfCancelled();
+    return analyseFiles(files, workflow);
+  }, "Example analysis failed");
 });

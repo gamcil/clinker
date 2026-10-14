@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261014-project-v33">
+    <link rel="stylesheet" href="style.css?v=20261015-start-v42">
     <link rel="stylesheet" href="clustermap-editor.css?v=20261014-clustermap-905a0f8-v16">
     <script src="d3.min.js"></script>
     <script src="clustermap.min.js?v=20261014-clustermap-905a0f8-v16"></script>
@@ -14,14 +14,8 @@
       <header class="app-bar">
         <h1>clinker</h1>
         <button id="new-run" type="button" aria-controls="run-panel" aria-expanded="false" hidden>New run</button>
-        <nav class="app-actions" aria-label="Plot actions">
-          <details class="menu">
-            <summary>Open</summary>
-            <div class="menu-popover">
-              <button id="load-clinker-file" type="button">Clinker file…</button>
-              <input id="clinker-file" type="file" accept="application/json,.json" hidden>
-            </div>
-          </details>
+        <nav id="plot-actions" class="app-actions" aria-label="Plot actions" hidden>
+          <button id="load-clinker-file" type="button">Open project</button>
           <details class="menu menu-end">
             <summary>Export</summary>
             <div class="menu-popover">
@@ -47,16 +41,15 @@
           <div class="run-card">
             <div class="run-card-heading">
               <div>
-                <h2 id="run-panel-title">New clinker run</h2>
-                <p>Select GenBank or GFF3 files and configure the protein comparison.</p>
+                <h2 id="run-panel-title">Compare gene clusters</h2>
               </div>
-              <button id="cancel-run" class="quiet-action" type="button" hidden>Cancel</button>
+              <button id="cancel-run" type="button" hidden>Cancel</button>
             </div>
             <label id="file-drop-zone" class="file-drop-zone">
               <span class="file-drop-icon" aria-hidden="true">↑</span>
-              <span class="file-drop-title">Drop GenBank or GFF3/FASTA files here</span>
-              <span class="file-drop-action">or <span>choose or add files</span></span>
-              <span id="file-summary" class="file-summary">Supports GenBank and GFF3 with FASTA</span>
+              <span class="file-drop-title">Drop GenBank or GFF3 + FASTA files</span>
+              <span class="file-drop-action"><span>Choose files</span></span>
+              <span id="file-summary" class="file-summary" hidden></span>
               <input id="files" class="visually-hidden" type="file" accept=".gb,.gbk,.genbank,.gbf,.gbff,.gff,.gff3,.fa,.fsa,.fna,.fasta,.faa" multiple>
             </label>
             <div id="file-input-status" class="file-input-status" role="status" aria-live="polite" hidden>
@@ -67,30 +60,34 @@
               <ul id="file-input-status-list"></ul>
             </div>
             <div class="run-options">
-              <span class="run-field-label">Settings</span>
-              <div class="settings-card basic-settings">
-                <label class="basic-number-row" title="Minimum protein identity retained as a link">
-                  <span>Minimum protein identity</span>
-                  <input id="identity" class="run-control" type="number" min="0" max="1" step="0.01" value="0.30">
+              <label class="basic-number-row">
+                <span>Minimum protein identity</span>
+                <span class="percentage-control">
+                  <input id="identity" class="run-control" type="number" min="0" max="100" step="1" value="30" aria-label="Minimum protein identity (%)">
+                  <span aria-hidden="true">%</span>
+                </span>
+              </label>
+              <div class="prefilter-option">
+                <label class="prefilter-toggle">
+                  <input id="prefilter" type="checkbox" aria-describedby="prefilter-help" checked>
+                  <span>Use k-mer prefilter</span>
                 </label>
-                <label class="advanced-check" title="Fast, approximate candidate selection; may miss remote homologues.">
-                  <input id="prefilter" type="checkbox">
-                  <span>Use a k-mer prefilter to reduce protein comparisons</span>
-                </label>
-                <label class="advanced-check" title="Parse and plot annotations without comparing protein sequences.">
-                  <input id="no-align" type="checkbox">
-                  <span>Skip protein alignment and plot annotations only</span>
-                </label>
+                <p id="prefilter-help" class="prefilter-help">Speeds up comparisons; may miss distant homologues.</p>
               </div>
             </div>
             <details class="run-advanced">
-              <summary>Advanced options</summary>
+              <summary>Advanced settings</summary>
               <div class="advanced-options">
-                <section class="advanced-section kmer-settings" aria-labelledby="kmer-settings-label">
+                <section class="advanced-section alignment-settings" aria-labelledby="alignment-settings-label">
                   <div class="advanced-section-heading">
-                    <span id="kmer-settings-label" class="run-field-label">k-mer prefilter</span>
+                    <span id="alignment-settings-label" class="run-field-label">Protein comparison</span>
                   </div>
                   <div class="settings-card">
+                    <label class="advanced-check">
+                      <input id="no-align" type="checkbox">
+                      <span>Plot annotations without protein alignment</span>
+                    </label>
+                    <p class="settings-subheading">Prefilter settings</p>
                     <label class="advanced-number-row">
                       <span>k-mer size</span>
                       <input id="kmer-size" class="run-control" type="number" min="1" max="8" step="1" value="3">
@@ -103,11 +100,10 @@
                 </section>
                 <section class="advanced-section" aria-labelledby="record-ranges-label">
                   <div class="advanced-section-heading">
-                    <span id="record-ranges-label" class="run-field-label">Record ranges</span>
-                    <span class="advanced-section-help">Adjust a start or end coordinate to analyse only part of a record.</span>
+                    <span id="record-ranges-label" class="run-field-label">Trim sequences</span>
                   </div>
-                  <fieldset id="record-ranges" class="record-range-list" aria-live="polite">
-                    <p class="empty-setting">Choose annotation files to list their records.</p>
+                  <fieldset id="record-ranges" class="record-range-list" aria-labelledby="record-ranges-label" aria-live="polite">
+                    <p class="empty-setting">Choose input files to trim their sequences.</p>
                   </fieldset>
                 </section>
                 <section class="advanced-section annotation-files" aria-labelledby="annotation-files-label">
@@ -162,9 +158,11 @@
               </div>
             </details>
             <div class="run-actions">
-              <button id="analyse" class="primary-action" type="button" disabled>Analyse files</button>
-              <button id="load-example" type="button">Load example</button>
+              <button id="analyse" class="primary-action" type="button" disabled>Analyse</button>
+              <button id="load-example" type="button">Try example</button>
+              <button id="open-project-start" type="button">Open project</button>
             </div>
+            <input id="clinker-file" type="file" accept="application/json,.json" hidden>
             <div id="run-feedback" class="run-feedback" aria-live="polite" hidden>
               <ol id="run-steps" class="run-steps" hidden>
                 <li data-run-step="parse" data-state="waiting">
@@ -218,12 +216,12 @@
               </ol>
               <p id="run-status" role="status" hidden></p>
             </div>
-            <p class="run-privacy">Analysis runs locally through WebAssembly; selected files never leave this browser.</p>
+            <p class="run-privacy">Files stay in your browser.</p>
           </div>
         </section>
         <clinker-editor id="plot-editor" resizable hidden></clinker-editor>
       </div>
     </main>
-    <script type="module" src="app.js?v=20261014-project-v33"></script>
+    <script type="module" src="app.js?v=20261015-start-v42"></script>
   </body>
 </html>

@@ -22,8 +22,12 @@ measured work units through the shared Rust core.
 The optional **k-mer prefilter** indexes distinct protein 3-mers and only
 aligns pairs with at least three shared words. Candidate tiles contain each
 needed protein once plus pair indices, rather than one copied sequence per
-pair. This is deliberately approximate and can miss remote homologues, so it
-is off by default. A separate filtering step reports the number and percentage
+pair. This is deliberately approximate and can miss remote homologues. It is
+enabled by default with permissive settings (k-mer size 3, three shared words);
+disable the checkbox beside the identity setting to compare every eligible
+protein pair.
+Larger words and higher shared-word thresholds are more selective.
+A separate filtering step reports the number and percentage
 of possible alignments removed before the remaining candidates are aligned.
 Unfiltered mode still skips protein pairs whose length ratio
 makes the chosen global-identity cutoff mathematically impossible.
@@ -35,12 +39,32 @@ Annotation-only runs can skip protein alignment entirely. Optional two-column
 gene-function and function-colour CSV files seed labelled, coloured groups;
 retained homology links extend those groups when alignment is enabled.
 
+Repository test examples are available in
+[`gene-functions.csv`](../../examples/gene-functions.csv) and
+[`function-colours.csv`](../../examples/function-colours.csv) files. They seed
+three illustrative groups using protein IDs in the bundled *A. versicolor*
+cluster and work with either its GenBank or GFF3 input, including **Try example**.
+These are demonstration labels, not biological function annotations. CSV files
+have no header row. With alignment enabled, each seeded group extends to linked
+genes in the other example clusters.
+
 The web app has one restorable export: a versioned clinker project. It contains
 the plot data, renderer appearance, editing state, and complete analysis state,
 including translations, links, identity cutoff, and configured function groups.
 This versioned project is the only file accepted by the web app's Open action.
 Adding new files to an existing analysis is currently available through the
 CLI; browser append support remains pending.
+
+GFF3 annotations and companion FASTA files stay together in the input-file
+list and are removed together. Counts include every selected input file.
+The prefilter checkbox sits beside the identity setting; its k-mer size and
+shared-word threshold are in Advanced settings.
+Analysis, example downloads, and project loading can be cancelled. Cancelling
+terminates their workers and keeps any existing plot and selected inputs.
+The progress view retains the analysis stages and their progress bars.
+
+Run the input-pairing and workflow lifecycle tests with `npm test` in this
+directory. These tests need Node only; the WASM build is not required.
 
 ## Build for local preview or static hosting
 

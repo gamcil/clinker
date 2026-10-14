@@ -61,3 +61,4 @@ jobs:
           cmp web/clustermap.min.js crates/clinker-cli/assets/clustermap.min.js
       - run: node --check web/app.js
       - run: node --check web/worker.js
+      - run: node --test web/tests/*.test.mjs

@@ -90,6 +90,7 @@ jobs:
         run: |
           mkdir -p release/clinker-web
           cp rust/web/index.html rust/web/app.js rust/web/worker.js rust/web/style.css release/clinker-web/
+          cp rust/web/input-files.mjs rust/web/workflow.mjs release/clinker-web/
           cp rust/web/d3.min.js rust/web/clustermap.min.js release/clinker-web/
           cp rust/web/clustermap-editor.css rust/web/clustermap-editor.mjs release/clinker-web/
           cp -R rust/web/pkg rust/web/examples release/clinker-web/
