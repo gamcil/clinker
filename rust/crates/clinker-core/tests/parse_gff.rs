@@ -64,7 +64,12 @@ seq\t.\tCDS\t13\t18\t.\t-\t0\tID=cds_b;Parent=tx_b\n\
     };
     let trimmed = parse_gff3("utrs.gff3", input, None, &options).unwrap();
     assert_eq!(trimmed.loci[0].genes.len(), 1);
-    assert_eq!(trimmed.loci[0].genes[0], genes[0]);
+    // GFF attributes are unordered; independent parses may iterate them differently.
+    let mut trimmed_gene = trimmed.loci[0].genes[0].clone();
+    let mut original_gene = genes[0].clone();
+    trimmed_gene.names.sort();
+    original_gene.names.sort();
+    assert_eq!(trimmed_gene, original_gene);
 }
 
 #[test]

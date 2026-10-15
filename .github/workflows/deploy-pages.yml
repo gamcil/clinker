@@ -1,72 +1,113 @@
-name: Deploy Rust web app to GitHub Pages
+name: Rust checks and Pages
 
 on:
   push:
-    # TODO: change to master once Rust port is final
-    branches: [rust-port]
+    branches: ["**"]
     paths:
       - "rust/**"
       - "examples/**"
       - ".github/workflows/deploy-pages.yml"
+      - ".github/workflows/rust-release.yml"
+  pull_request:
+    paths:
+      - "rust/**"
+      - "examples/**"
+      - ".github/workflows/deploy-pages.yml"
+      - ".github/workflows/rust-release.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: github-pages
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: rust
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Check formatting
+        if: runner.os == 'Linux'
+        run: cargo fmt --check
+      - name: Lint Rust
+        if: runner.os == 'Linux'
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+      - name: Test Rust workspace
+        run: cargo test --locked --workspace
+      - name: Build CLI
+        run: cargo build --locked --release -p clinker-cli
 
-      - name: Set up Node
-        uses: actions/setup-node@v6
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: rust/web/package-lock.json
-
-      - name: Install Rust with the WebAssembly target
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: rust -> target
-
+          workspaces: rust
+      - name: Check JavaScript syntax
+        run: |
+          node --check web/app.js
+          node --check web/worker.js
+      - name: Test web workflows
+        run: node --test web/tests/*.test.mjs
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked
-
-      - name: Test Rust workspace
-        run: cargo test --manifest-path rust/Cargo.toml --workspace
-
       - name: Build static web app
-        run: sh rust/web/build.sh
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v6
-
+        run: sh web/build.sh
+      - name: Verify embedded CLI plot assets
+        run: |
+          cmp web/d3.min.js crates/clinker-cli/assets/d3.min.js
+          cmp web/clustermap.min.js crates/clinker-cli/assets/clustermap.min.js
       - name: Upload Pages artifact
+        # TODO: change to master once Rust port is final
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/rust-port'
         uses: actions/upload-pages-artifact@v5
         with:
           path: rust/web
 
   deploy:
-    needs: build
+    # TODO: change to master once Rust port is final
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/rust-port'
+    needs: [native, web]
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5

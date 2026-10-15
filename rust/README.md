@@ -139,5 +139,7 @@ grouping, ordering, and layout locally through `clinker-core` compiled to WASM.
 [FEATURES.md](FEATURES.md) records implemented user workflows and the features
 still needed before the Rust application can replace the Python package. CI
 tests native builds on Linux, macOS, and Windows and assembles the WASM web
-application. Tags of the form `rust-vX.Y.Z` publish native CLI archives and a
-static web archive.
+application. The combined validation and Pages workflow runs on pushes and pull
+requests; successful runs on `rust-port` also deploy the tested web build to
+GitHub Pages. Tags of the form `rust-vX.Y.Z` use a separate release workflow to
+publish native CLI archives and a static web archive.
