@@ -19,6 +19,13 @@ pairs rather than completed tiles. Parsing, candidate filtering, cluster-pair
 scoring, homology grouping, and locus arrangement also expose their own
 measured work units through the shared Rust core.
 
+Supplied protein translations take precedence. Translation fallback honours
+GenBank `codon_start`, GFF CDS phase, and `transl_table` in either format using
+the [NCBI sense-codon tables](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi).
+Initial frame offsets apply after splicing, on the biological strand. Alternative
+initiation, `transl_except`, and context-dependent recoding are not inferred;
+use an annotated protein translation for those cases.
+
 The optional **k-mer prefilter** indexes distinct protein 3-mers and only
 aligns pairs with at least three shared words. Candidate tiles contain each
 needed protein once plus pair indices, rather than one copied sequence per

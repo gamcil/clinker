@@ -60,6 +60,35 @@ ORIGIN
 }
 
 #[test]
+fn translation_fallback_honours_frame_and_genetic_code_after_splicing() {
+    let bytes = include_bytes!("fixtures/translation.gbk");
+    let cluster = parse_genbank("framed.gbk", bytes).unwrap();
+    assert_eq!(cluster.loci[0].genes[0].translation, "MW");
+    assert_eq!(cluster.loci[0].genes[1].translation, "MW");
+    assert_eq!(
+        (cluster.loci[0].genes[1].start, cluster.loci[0].genes[1].end),
+        (10, 20)
+    );
+}
+
+#[test]
+fn invalid_translation_qualifiers_fail_only_when_translation_is_derived() {
+    for (frame, table) in [("0", "1"), ("4", "1"), ("bad", "1"), ("1", "999")] {
+        let bytes = format!(
+            "LOCUS       TEST                       9 bp    DNA     linear   UNA 01-JAN-2000\nFEATURES             Location/Qualifiers\n     CDS             1..9\n                     /locus_tag=\"example\"\n                     /codon_start={frame}\n                     /transl_table={table}\nORIGIN\n        1 atgtgataa\n//\n"
+        );
+        let error = parse_genbank("invalid.gbk", bytes.as_bytes()).unwrap_err();
+        assert!(error.to_string().contains("translate CDS example"));
+        let supplied = bytes.replace(
+            "ORIGIN",
+            "                     /translation=\"M W *\"\nORIGIN",
+        );
+        let cluster = parse_genbank("supplied.gbk", supplied.as_bytes()).unwrap();
+        assert_eq!(cluster.loci[0].genes[0].translation, "MW");
+    }
+}
+
+#[test]
 fn uses_cds_coordinates_instead_of_the_enclosing_gene() {
     let bytes = br#"LOCUS       PARENT                    15 bp    DNA     linear   UNA 01-JAN-2000
 FEATURES             Location/Qualifiers

@@ -1,0 +1,13 @@
+LOCUS       FRAMED                    20 bp    DNA     linear   UNA 01-JAN-2000
+FEATURES             Location/Qualifiers
+     CDS             <1..10
+                     /locus_tag="forward"
+                     /codon_start=2
+                     /transl_table=4
+     CDS             complement(join(11..14,15..20))
+                     /locus_tag="reverse"
+                     /codon_start=2
+                     /transl_table=4
+ORIGIN
+        1 catgtgataattatcacatg
+//

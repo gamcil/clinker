@@ -91,6 +91,64 @@ fn keeps_split_codons_at_compound_cds_boundaries() {
 }
 
 #[test]
+fn initial_phase_can_span_short_cds_segments_on_either_strand() {
+    for (strand, sequence, first, second) in [
+        ("+", "CCATGGCTTAA", (1, 1, 2), (2, 11, 1)),
+        ("-", "TTAAGCCATGG", (11, 11, 2), (1, 10, 1)),
+    ] {
+        let input = format!(
+            "##gff-version 3\nseq\t.\tCDS\t{}\t{}\t.\t{strand}\t{}\tID=split\nseq\t.\tCDS\t{}\t{}\t.\t{strand}\t{}\tID=split\n##FASTA\n>seq\n{sequence}\n",
+            first.0, first.1, first.2, second.0, second.1, second.2
+        );
+        let cluster = parse_gff3(
+            "partial.gff3",
+            input.as_bytes(),
+            None,
+            &GenBankOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            cluster.loci[0].genes[0].translation, "MA",
+            "strand {strand}"
+        );
+    }
+}
+
+#[test]
+fn genetic_code_applies_only_to_derived_translation() {
+    let input = "##gff-version 3\nseq\t.\tCDS\t1\t9\t.\t+\t0\tID=example;transl_table=4\n##FASTA\n>seq\nATGTGATAA\n";
+    let cluster = parse_gff3(
+        "code.gff3",
+        input.as_bytes(),
+        None,
+        &GenBankOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(cluster.loci[0].genes[0].translation, "MW");
+    let invalid = input.replace("transl_table=4", "transl_table=999");
+    assert!(matches!(
+        parse_gff3(
+            "invalid.gff3",
+            invalid.as_bytes(),
+            None,
+            &GenBankOptions::default()
+        ),
+        Err(GffError::Translation { .. })
+    ));
+    let supplied = invalid.replace("transl_table=999", "transl_table=999;translation=MW*");
+    let cluster = parse_gff3(
+        "supplied.gff3",
+        supplied.as_bytes(),
+        None,
+        &GenBankOptions::default(),
+    )
+    .unwrap();
+    let gene = &cluster.loci[0].genes[0];
+    assert_eq!(gene.translation, "MW");
+    assert!(gene.names.iter().all(|(key, _)| key != "translation"));
+}
+
+#[test]
 fn decodes_gff3_attributes_with_rust_bio() {
     let input = b"##gff-version 3\nseq\t.\tCDS\t1\t9\t.\t+\t0\tID=encoded;protein_id=alpha%20beta\n##FASTA\n>seq\nATGGCTTAA\n";
     let cluster = parse_gff3("encoded.gff3", input, None, &GenBankOptions::default()).unwrap();
@@ -146,16 +204,17 @@ fn uses_sequence_region_as_the_default_range_for_a_full_fasta_record() {
 }
 
 #[test]
-fn rejects_zero_based_gff_coordinates_without_panicking() {
-    let input = b"##gff-version 3\nseq\t.\tCDS\t0\t9\t.\t+\t0\tID=invalid\n";
-    let result = parse_gff3(
-        "invalid.gff3",
-        input,
-        Some(b">seq\nATGGCTTAA\n"),
-        &GenBankOptions::default(),
-    );
-
-    assert!(matches!(result, Err(GffError::InvalidCoordinates { .. })));
+fn rejects_invalid_gff_coordinates_without_panicking_or_silently_dropping_the_gene() {
+    for (start, end) in [(0, 9), (1, 12), (8, 7)] {
+        let input = format!("##gff-version 3\nseq\t.\tCDS\t{start}\t{end}\t.\t+\t0\tID=invalid\n");
+        let result = parse_gff3(
+            "invalid.gff3",
+            input.as_bytes(),
+            Some(b">seq\nATGGCTTAA\n"),
+            &GenBankOptions::default(),
+        );
+        assert!(matches!(result, Err(GffError::InvalidCoordinates { .. })));
+    }
 }
 
 #[test]

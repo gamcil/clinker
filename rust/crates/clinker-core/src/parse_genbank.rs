@@ -6,7 +6,7 @@ use gb_io::{
 };
 use thiserror::Error;
 
-use crate::protein::{normalise_translation, translate_standard};
+use crate::protein::{normalise_translation, translate_cds};
 use crate::{Cluster, Gene, Locus};
 
 #[derive(Debug, Error)]
@@ -23,6 +23,8 @@ pub enum ParseError {
         #[source]
         source: LocationError,
     },
+    #[error("could not translate CDS {label}: {message}")]
+    Translation { label: String, message: String },
     #[error("range {start}..{end} for record {record} is outside its sequence length {length}")]
     InvalidRange {
         record: String,
@@ -237,7 +239,29 @@ fn gene_from_feature(record: &Seq, feature: &Feature, index: usize) -> Result<Ge
                 label: label.clone(),
                 source,
             })?;
-        translate_standard(&coding_sequence)
+        let codon_start = feature
+            .qualifier_values("codon_start")
+            .next()
+            .unwrap_or("1");
+        let offset = match codon_start.trim() {
+            "1" => 0,
+            "2" => 1,
+            "3" => 2,
+            _ => {
+                return Err(ParseError::Translation {
+                    label: label.clone(),
+                    message: format!("codon_start must be 1, 2 or 3, got {codon_start:?}"),
+                });
+            }
+        };
+        translate_cds(
+            coding_sequence.get(offset..).unwrap_or_default(),
+            feature.qualifier_values("transl_table").next(),
+        )
+        .map_err(|message| ParseError::Translation {
+            label: label.clone(),
+            message,
+        })?
     };
     let strand = location_strand(&feature.location).unwrap_or(1);
     Ok(Gene {

@@ -12,7 +12,7 @@ use bio::{
 };
 use thiserror::Error;
 
-use crate::protein::{normalise_translation, translate_standard};
+use crate::protein::{normalise_translation, translate_cds};
 use crate::{Cluster, Gene, Locus, ParseOptions, SequenceRange};
 
 #[derive(Debug, Error)]
@@ -44,6 +44,8 @@ pub enum GffError {
         available_start: usize,
         available_end: usize,
     },
+    #[error("could not translate CDS {label}: {message}")]
+    Translation { label: String, message: String },
     #[error("CDS {label} contains segments on different strands")]
     MixedStrands { label: String },
 }
@@ -94,7 +96,7 @@ pub fn parse_gff3(
                 }
             }
         }
-        locus_genes.sort_by_key(|gene| (gene.start, gene.end, gene.label.clone()));
+        locus_genes.sort_by(|a, b| (a.start, a.end, &a.label).cmp(&(b.start, b.end, &b.label)));
         loci.push(Locus {
             name: record_name.clone(),
             start: region.selected.start,
@@ -186,6 +188,14 @@ fn gene_from_group(
         });
     }
     let cds_start = raw_cds_start - 1;
+    if cds_start < region.sequence_origin || cds_end > region.sequence_origin + sequence.len() {
+        return Err(GffError::InvalidCoordinates {
+            record: record_name.to_owned(),
+            label: group.label.clone(),
+            start: cds_start,
+            end: cds_end,
+        });
+    }
     if cds_start < region.selected.start || cds_end > region.selected.end {
         return Ok(None);
     }
@@ -212,8 +222,11 @@ fn gene_from_group(
     if strand == -1 {
         ordered.reverse();
     }
+    let phase: Option<u8> = ordered[0].phase().clone().try_into().unwrap_or(None);
+    let first = &group.records[0];
+    let supplied_translation = attribute(first, "translation");
     let mut coding_sequence = Vec::new();
-    for (segment_index, record) in ordered.into_iter().enumerate() {
+    for record in ordered {
         let raw_start = *record.start() as usize;
         let end = *record.end() as usize;
         if raw_start == 0 || raw_start > end {
@@ -236,31 +249,38 @@ fn gene_from_group(
                 end,
             });
         }
-        let mut part =
-            sequence[start - region.sequence_origin..end - region.sequence_origin].to_vec();
-        if strand == -1 {
-            part = dna::revcomp(part);
-        }
-        // Only the first biological segment's phase trims an incomplete codon
-        // at the edge of the annotated CDS. Later phases describe the frame at
-        // exon boundaries; trimming those bases would delete split codons.
-        let phase: Option<u8> = record.phase().clone().try_into().unwrap_or(None);
-        let skip = if segment_index == 0 {
-            usize::from(phase.unwrap_or(0))
-        } else {
-            0
-        };
-        if skip < part.len() {
-            coding_sequence.extend_from_slice(&part[skip..]);
+        if supplied_translation.is_none() {
+            let part = &sequence[start - region.sequence_origin..end - region.sequence_origin];
+            if strand == -1 {
+                coding_sequence.extend(dna::revcomp(part));
+            } else {
+                coding_sequence.extend_from_slice(part);
+            }
         }
     }
 
-    let first = &group.records[0];
     let names = first
         .attributes()
         .iter_all()
+        .filter(|(key, _)| key.as_str() != "translation")
         .flat_map(|(key, values)| values.iter().map(move |value| (key.clone(), value.clone())))
         .collect::<Vec<_>>();
+    let translation = if let Some(translation) = supplied_translation {
+        normalise_translation(&translation)
+    } else {
+        // Apply the initial phase after joining segments so it can cross a short
+        // first segment. Later phases describe split codons, not extra trimming.
+        translate_cds(
+            coding_sequence
+                .get(usize::from(phase.unwrap_or(0))..)
+                .unwrap_or_default(),
+            attribute(first, "transl_table").as_deref(),
+        )
+        .map_err(|message| GffError::Translation {
+            label: group.label.clone(),
+            message,
+        })?
+    };
     // Protein arrows represent the CDS span, as in the GenBank parser. Parent
     // genes can include UTRs that overlap neighbouring coding features.
     Ok(Some(Gene {
@@ -269,9 +289,7 @@ fn gene_from_group(
         start: cds_start,
         end: cds_end,
         strand,
-        translation: attribute(first, "translation")
-            .map(|translation| normalise_translation(&translation))
-            .unwrap_or_else(|| translate_standard(&coding_sequence)),
+        translation,
     }))
 }
 

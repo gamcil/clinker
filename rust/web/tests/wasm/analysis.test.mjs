@@ -55,3 +55,14 @@ test('record splitting options reach the incremental parser', () => {
   const parsed = parse([{ name: 'records.gbk', bytes }], { ...settings, genbank: { ...settings.genbank, asSeparateClusters: true } });
   assert.deepEqual(parsed.layout.clusters.map(c => c.name), ['FIRST', 'SECOND']);
 });
+
+test('incremental parsing applies frame, split CDS phase and genetic code to derived proteins', () => {
+  const gff = '##gff-version 3\nseq\t.\tCDS\t1\t1\t.\t+\t2\tID=split;transl_table=4\nseq\t.\tCDS\t2\t11\t.\t+\t1\tID=split;transl_table=4\n##FASTA\n>seq\nCCATGTGATAA\n';
+  const parsed = parse([
+    { name: 'translation.gbk', bytes: fixture('translation.gbk') },
+    { name: 'partial.gff3', bytes: new TextEncoder().encode(gff) },
+  ]);
+  assert.deepEqual(parsed.proteins.map(p => p.translation), ['MW', 'MW', 'MW']);
+  const result = post_process(parsed.layout, parsed.proteins, [], [], 0.3, true, () => {});
+  assert.deepEqual(result.analysisSession.analysis.clusters.flatMap(c => c.loci.flatMap(l => l.genes.map(g => g.translation))), ['MW', 'MW', 'MW']);
+});
