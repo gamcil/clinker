@@ -1,4 +1,4 @@
-import { displayedClusterOrder, similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261015-compact-kmers-v1";
+import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261015-project-v1";
 import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261015-workflow-v1";
 import { Workflow } from "./workflow.mjs?v=20261015-workflow-v1";
 import {
@@ -59,7 +59,7 @@ const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
-const WORKER_VERSION = "20261015-compact-kmers-v1";
+const WORKER_VERSION = "20261015-project-v1";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
@@ -877,7 +877,7 @@ function bestLinkCount(plotData) {
 matrixButton.addEventListener("click", () => {
   if (!latestSimilarity) return;
   try {
-    downloadText("clinker-cluster-similarity.csv", similarityCsv(latestSimilarity, displayedClusterOrder({ data: chart.data(), state: chart.state() })), "text/csv;charset=utf-8");
+    downloadText("clinker-cluster-similarity.csv", similarityCsv(latestSimilarity, { data: chart.data(), state: chart.state() }), "text/csv;charset=utf-8");
   } catch (error) {
     setContextStatus(`CSV export failed: ${error.message || String(error)}`, { tone: "error" });
   }
@@ -922,19 +922,20 @@ function mountImportedPlot(data, { config, state = null }) {
 
 projectButton.addEventListener("click", () => {
   if (!latestAnalysisSession) return;
-  const project = { ...chart.project(), version: 2, analysis: latestAnalysisSession };
-  downloadText("clinker-project.json", `${JSON.stringify(project, null, 2)}\n`, "application/json;charset=utf-8");
+  try {
+    const project = { ...chart.project(), version: 2, analysis: latestAnalysisSession };
+    downloadText("clinker-project.json", `${JSON.stringify(project, null, 2)}\n`, "application/json;charset=utf-8");
+  } catch (error) {
+    setContextStatus(`Project export failed: ${error.message || String(error)}`, { tone: "error" });
+  }
 });
 
 function openAnalysisSession(session, workflow) {
-  return workflow.request(WORKER_URL, { type: "open-session", session, useFileOrder: false });
+  return workflow.request(WORKER_URL, { type: "open-session", session });
 }
 
 function retainAnalysisResult(result) {
-  latestSimilarity = {
-    clusterNames: result.clusterNames,
-    similarityMatrix: result.similarityMatrix,
-  };
+  latestSimilarity = result.similarityMatrix;
   latestAnalysisSession = result.analysisSession;
   matrixButton.disabled = false;
   projectButton.disabled = false;
@@ -1251,10 +1252,7 @@ async function analyseFiles(files, workflow) {
   );
   workflow.throwIfCancelled();
   const plotData = result.plotData;
-  latestSimilarity = {
-    clusterNames: result.clusterNames,
-    similarityMatrix: result.similarityMatrix,
-  };
+  latestSimilarity = result.similarityMatrix;
   latestAnalysisSession = result.analysisSession;
   matrixButton.disabled = false;
   const displayedBestLinks = bestLinkCount(plotData);

@@ -4,14 +4,21 @@ export function displayedClusterOrder({ data, state }) {
 
 function csvCell(value) {
   const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-export function similarityCsv({ clusterNames, similarityMatrix }, clusterOrder) {
-  const plotPosition = new Map(clusterOrder.map((cluster, index) => [cluster, index + 1]));
-  if (clusterNames.some((_, index) => !plotPosition.has(`cluster-${index}`))) {
-    throw new Error("Figure and analysis cluster IDs do not match.");
-  }
+export function similarityCsv(similarityMatrix, project) {
+  const clusters = new Map(project.data.clusters.map(cluster => [cluster.uid, cluster]));
+  const order = displayedClusterOrder(project);
+  const displayed = order.map(uid => {
+    const index = /^cluster-(0|[1-9]\d*)$/.test(uid) ? Number(uid.slice(8)) : -1;
+    if (!clusters.has(uid) || index < 0 || index >= similarityMatrix.length) {
+      throw new Error("Figure and analysis cluster IDs do not match.");
+    }
+    return { index, name: clusters.get(uid).name };
+  });
+  const plotPosition = new Map(displayed.map(({ index }, position) => [index, position + 1]));
+  displayed.sort((a, b) => a.index - b.index);
   const rows = [[
     "query_plot_order",
     "query_cluster",
@@ -24,16 +31,18 @@ export function similarityCsv({ clusterNames, similarityMatrix }, clusterOrder) 
     "containment_similarity",
     "distance",
   ]];
-  for (let query = 0; query < clusterNames.length; query += 1) {
-    for (let target = query + 1; target < clusterNames.length; target += 1) {
-      const pair = similarityMatrix[query][target];
+  for (let i = 0; i < displayed.length; i += 1) {
+    const query = displayed[i];
+    for (let j = i + 1; j < displayed.length; j += 1) {
+      const target = displayed[j];
+      const pair = similarityMatrix[query.index][target.index];
       rows.push([
-        plotPosition.get(`cluster-${query}`),
-        clusterNames[query],
-        query,
-        plotPosition.get(`cluster-${target}`),
-        clusterNames[target],
-        target,
+        plotPosition.get(query.index),
+        query.name,
+        query.index,
+        plotPosition.get(target.index),
+        target.name,
+        target.index,
         pair.queryCoverage,
         pair.targetCoverage,
         pair.similarity,
@@ -44,36 +53,79 @@ export function similarityCsv({ clusterNames, similarityMatrix }, clusterOrder) 
   return `${rows.map(row => row.map(csvCell).join(",")).join("\n")}\n`;
 }
 
-function validatePlotData(data) {
+function uniqueId(record, ids, kind) {
+  if (typeof record?.uid !== "string" || !record.uid || ids.has(record.uid)) {
+    throw new Error(`every ${kind} needs a unique uid`);
+  }
+  ids.add(record.uid);
+}
+
+function validateSpan(record) {
+  if (!Number.isFinite(record.start) || !Number.isFinite(record.end) || record.end < record.start) {
+    throw new Error("sequence and gene coordinates must be finite and ordered");
+  }
+}
+
+function validatePlotData(data, analysis) {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
     throw new Error("the file must contain a plot-data object");
   }
   if (!Array.isArray(data.clusters) || !Array.isArray(data.links) || !Array.isArray(data.groups)) {
     throw new Error("plot data must contain clusters, links, and groups arrays");
   }
+  const clusters = new Set();
+  const loci = new Set();
   const genes = new Set();
+  const groups = new Set();
+  const links = new Set();
+  const sourceClusters = analysis?.analysis?.clusters;
+  if (!Array.isArray(sourceClusters)) throw new Error("project is missing analysis clusters");
+  const knownGenes = new Set();
+  sourceClusters.forEach((cluster, c) => {
+    if (!Array.isArray(cluster?.loci)) throw new Error("analysis clusters need loci arrays");
+    cluster.loci.forEach((locus, l) => {
+      if (!Array.isArray(locus?.genes)) throw new Error("analysis loci need genes arrays");
+      locus.genes.forEach((_, g) => knownGenes.add(`gene-${c}-${l}-${g}`));
+    });
+  });
   for (const cluster of data.clusters) {
     if (!cluster || !Array.isArray(cluster.loci)) throw new Error("every cluster needs a loci array");
+    uniqueId(cluster, clusters, "cluster");
+    const index = /^cluster-(0|[1-9]\d*)$/.test(cluster.uid) ? Number(cluster.uid.slice(8)) : -1;
+    const source = sourceClusters[index];
+    if (!source || !Array.isArray(source.loci)) throw new Error("figure and analysis clusters do not match");
+    const sourceLoci = new Map(source.loci.map((locus, i) => [`locus-${index}-${i}`, locus]));
     for (const locus of cluster.loci) {
       if (!locus || !Array.isArray(locus.genes)) throw new Error("every locus needs a genes array");
+      uniqueId(locus, loci, "locus");
+      validateSpan(locus);
+      if (locus.bio) validateSpan(locus.bio);
+      const sourceLocus = sourceLoci.get(locus.uid);
+      if (!Array.isArray(sourceLocus?.genes)) throw new Error("figure and analysis loci do not match");
+      const sourceGenes = new Set(sourceLocus.genes.map((_, i) => `gene-${locus.uid.slice(6)}-${i}`));
       for (const gene of locus.genes) {
-        if (gene?.uid === undefined || genes.has(gene.uid)) {
-          throw new Error("every gene needs a unique uid");
-        }
-        genes.add(gene.uid);
+        uniqueId(gene, genes, "gene");
+        validateSpan(gene);
+        if (gene.bio) validateSpan(gene.bio);
+        if (!sourceGenes.has(gene.uid)) throw new Error("figure and analysis genes do not match");
       }
     }
   }
   for (const group of data.groups) {
-    if (!group || !Array.isArray(group.genes) || group.genes.some(uid => !genes.has(uid))) {
+    uniqueId(group, groups, "group");
+    if (!group || !Array.isArray(group.genes) || group.genes.some(uid => !knownGenes.has(uid))) {
       throw new Error("every group must contain known gene IDs");
     }
   }
   for (const link of data.links) {
-    if (!link?.query || !link?.target || !genes.has(link.query.uid) || !genes.has(link.target.uid)) {
+    uniqueId(link, links, "link");
+    // The chart retains links to deleted genes for editing/undo. They still
+    // need valid analysis IDs, but need not have visible endpoints.
+    if (!link?.query || !link?.target || !knownGenes.has(link.query.uid) || !knownGenes.has(link.target.uid)) {
       throw new Error("every link must refer to known genes");
     }
   }
+  return clusters;
 }
 
 export function parseProject(text) {
@@ -85,7 +137,18 @@ export function parseProject(text) {
     throw new Error("project appearance settings must be an object");
   }
   if (!saved.analysis) throw new Error("project is missing analysis data");
-  validatePlotData(saved.data);
+  const clusterIds = validatePlotData(saved.data, saved.analysis);
+  if (saved.state != null) {
+    if (typeof saved.state !== "object" || Array.isArray(saved.state) || saved.state.version !== 1) {
+      throw new Error("unsupported project layout state");
+    }
+    const order = saved.state.clusterOrder;
+    if (!Array.isArray(order) || (order.length > 0
+        && (order.length !== clusterIds.size || new Set(order).size !== order.length
+          || order.some(uid => !clusterIds.has(uid))))) {
+      throw new Error("project cluster order must contain each displayed cluster once");
+    }
+  }
   return saved;
 }
 

@@ -24,8 +24,9 @@ test('incremental WASM parsing and post-processing preserve mixed-format input o
   assert.deepEqual(parsed.layout.clusters.map(c => c.source_file), ['features.gff3', 'last.gbk']);
   const result = post_process(parsed.layout, parsed.proteins, [], [], 0.3, true, () => {});
   assert.deepEqual(result.plotData.clusters.map(c => c.source_file), ['features.gff3', 'last.gbk']);
-  const reopened = open_session(JSON.parse(JSON.stringify(result.analysisSession)), true, () => {});
-  assert.deepEqual(reopened.plotData, result.plotData);
+  const reopened = open_session(JSON.parse(JSON.stringify(result.analysisSession)));
+  assert.deepEqual(reopened.similarityMatrix, result.similarityMatrix);
+  assert.deepEqual(reopened.analysisSession, result.analysisSession);
 });
 
 test('prefilter and alignment agree on case and unsupported amino acids', () => {

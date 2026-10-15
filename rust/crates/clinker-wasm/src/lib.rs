@@ -308,6 +308,13 @@ struct BrowserPostProcess {
     analysis_session: AnalysisSession,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BrowserSavedAnalysis {
+    similarity_matrix: Vec<Vec<ClusterPairSimilarity>>,
+    analysis_session: AnalysisSession,
+}
+
 impl From<BrowserProteinRef> for GeneRef {
     fn from(reference: BrowserProteinRef) -> Self {
         Self {
@@ -499,25 +506,20 @@ pub fn post_process(
     )
 }
 
-/// Validate and render a previously saved analysis session.
+/// Validate saved analysis and recover export scores without rebuilding its figure.
 #[wasm_bindgen]
-pub fn open_session(
-    session: JsValue,
-    use_file_order: bool,
-    progress: &Function,
-) -> Result<JsValue, JsValue> {
+pub fn open_session(session: JsValue) -> Result<JsValue, JsValue> {
     let session = serde_wasm_bindgen::from_value::<AnalysisSession>(session)
         .map_err(|error| JsValue::from_str(&format!("invalid analysis session: {error}")))?;
     session
         .validate()
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
-    post_process_analysis(
-        session.analysis,
-        session.group_definitions,
-        session.identity_cutoff,
-        use_file_order,
-        progress,
-    )
+    let result = BrowserSavedAnalysis {
+        similarity_matrix: session.analysis.cluster_similarity_matrix(),
+        analysis_session: session,
+    };
+    serde_wasm_bindgen::to_value(&result)
+        .map_err(|error| JsValue::from_str(&format!("could not encode saved analysis: {error}")))
 }
 
 fn post_process_analysis(

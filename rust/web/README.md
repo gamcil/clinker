@@ -66,6 +66,11 @@ The web app has one restorable export: a versioned clinker project. It contains
 the plot data, renderer appearance, editing state, and complete analysis state,
 including translations, links, identity cutoff, and configured function groups.
 This versioned project is the only file accepted by the web app's Open action.
+Reopening restores the saved figure directly and computes similarity scores
+from its retained analysis; it does not rerun ordering, grouping, or layout.
+Similarity CSV exports use current cluster names and plot positions. Scores
+remain those of the original analysis, including after genes are edited or
+deleted from the figure.
 Adding new files to an existing analysis is currently available through the
 CLI; browser append support remains pending.
 
@@ -85,7 +90,8 @@ and exported analysis functions. For the browser round trip, install Chromium
 with `npx playwright install chromium` and run `npm run test:browser`. CI runs
 that browser test against the packaged static application. It also checks
 cancellation at worker-stage boundaries, worker failures, and retrying project
-loading while preserving an edited plot.
+loading while preserving an edited plot. The editor round trip exercises bulk
+gene deletion through a locus header, undo/redo, and saving the resulting figure.
 
 ## Build for local preview or static hosting
 

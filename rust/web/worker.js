@@ -4,9 +4,9 @@ import init, {
   BrowserFileParser,
   open_session,
   post_process,
-} from "./pkg/clinker_wasm.js?v=20261015-compact-kmers-v1";
+} from "./pkg/clinker_wasm.js?v=20261015-project-v1";
 
-const WASM_VERSION = "20261015-compact-kmers-v1";
+const WASM_VERSION = "20261015-project-v1";
 const wasmUrl = new URL("./pkg/clinker_wasm_bg.wasm", import.meta.url);
 wasmUrl.searchParams.set("v", WASM_VERSION);
 let wasmModule = null;
@@ -100,7 +100,7 @@ self.onmessage = async ({ data }) => {
       );
       self.postMessage({ type: "post-process", result });
     } else if (data.type === "open-session") {
-      const result = open_session(data.session, data.useFileOrder, () => {});
+      const result = open_session(data.session);
       self.postMessage({ type: "post-process", result });
     } else {
       throw new Error("Unsupported worker request. Reload the page and try again.");
