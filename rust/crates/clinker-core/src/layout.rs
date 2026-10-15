@@ -1,6 +1,6 @@
 //! Automatic locus ordering and orientation for plot output.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{Analysis, GeneRef, Link};
 
@@ -38,6 +38,8 @@ pub(crate) fn auto_locus_layouts_with_progress(
     let neighbours = link_neighbours(&scores);
     let mut placed = Vec::<Vec<PositionedGene>>::new();
     let mut placed_positions = BTreeMap::<GeneRef, f64>::new();
+    let mut placed_loci = BTreeMap::<(usize, usize), usize>::new();
+    let mut alignment_row = Vec::new();
     let mut layouts = Vec::with_capacity(cluster_order.len());
     for &cluster_index in cluster_order {
         let cluster = &analysis.clusters[cluster_index];
@@ -48,25 +50,30 @@ pub(crate) fn auto_locus_layouts_with_progress(
             .map(|(locus, locus_data)| {
                 let forward = positioned_genes(cluster_index, locus, locus_data, false);
                 let reverse = positioned_genes(cluster_index, locus, locus_data, true);
-                let forward_alignment = best_reference_alignment(&forward, &placed, &scores);
-                let reverse_alignment = best_reference_alignment(&reverse, &placed, &scores);
-                let (reversed, positioned, mut alignment) =
-                    if reverse_alignment.score > forward_alignment.score {
-                        (true, &reverse, reverse_alignment)
-                    } else {
-                        (false, &forward, forward_alignment)
-                    };
-                if let Some((anchor, offset)) =
-                    consensus_placement(positioned, &neighbours, &placed_positions)
-                {
-                    alignment.anchor = Some(anchor);
-                    alignment.offset = Some(offset);
-                }
+                let references = forward
+                    .iter()
+                    .filter_map(|gene| neighbours.get(&gene.reference))
+                    .flatten()
+                    .filter_map(|(gene, _)| placed_loci.get(&(gene.cluster, gene.locus)).copied())
+                    .collect::<BTreeSet<_>>();
+                let mut best_score = |target: &[PositionedGene]| {
+                    references
+                        .iter()
+                        .map(|&index| {
+                            alignment_score(target, &placed[index], &scores, &mut alignment_row)
+                        })
+                        .fold(0.0_f64, f64::max)
+                };
+                let forward_score = best_score(&forward);
+                let reverse_score = best_score(&reverse);
+                let reversed = reverse_score > forward_score;
+                let positioned = if reversed { &reverse } else { &forward };
+                let placement = consensus_placement(positioned, &neighbours, &placed_positions);
                 LocusPlacement {
                     locus,
                     reversed,
-                    offset: alignment.offset,
-                    anchor: alignment.anchor,
+                    offset: placement.map(|(_, offset)| offset),
+                    anchor: placement.map(|(anchor, _)| anchor),
                 }
             })
             .collect::<Vec<_>>();
@@ -95,6 +102,7 @@ pub(crate) fn auto_locus_layouts_with_progress(
                     .iter()
                     .map(|gene| (gene.reference, gene.position)),
             );
+            placed_loci.insert((cluster_index, placement.locus), placed.len());
             placed.push(positioned);
         }
         layouts.push(layout);
@@ -238,12 +246,14 @@ fn positioned_genes(
             centre(gene)
         }
     };
-    let indexes: Box<dyn Iterator<Item = usize>> = if reversed {
-        Box::new((0..locus_data.genes.len()).rev())
-    } else {
-        Box::new(0..locus_data.genes.len())
-    };
-    indexes
+    (0..locus_data.genes.len())
+        .map(|index| {
+            if reversed {
+                locus_data.genes.len() - 1 - index
+            } else {
+                index
+            }
+        })
         .map(|gene| PositionedGene {
             reference: GeneRef {
                 cluster,
@@ -282,34 +292,8 @@ fn ordered_pair(one: GeneRef, two: GeneRef) -> (GeneRef, GeneRef) {
     if one <= two { (one, two) } else { (two, one) }
 }
 
-struct Alignment {
-    score: f64,
-    anchor: Option<f64>,
-    offset: Option<f64>,
-}
-
 const MISMATCH_PENALTY: f64 = -1.0;
 const GAP_PENALTY: f64 = -0.25;
-
-fn best_reference_alignment(
-    target: &[PositionedGene],
-    references: &[Vec<PositionedGene>],
-    scores: &BTreeMap<(GeneRef, GeneRef), f64>,
-) -> Alignment {
-    let mut best = None::<Alignment>;
-    for reference in references {
-        let candidate = align_locus(target, reference, scores);
-        match &best {
-            Some(current) if current.score >= candidate.score => {}
-            _ => best = Some(candidate),
-        }
-    }
-    best.unwrap_or(Alignment {
-        score: 0.0,
-        anchor: None,
-        offset: None,
-    })
-}
 
 fn consensus_placement(
     target: &[PositionedGene],
@@ -346,97 +330,38 @@ fn weighted_median(mut values: Vec<(f64, f64)>) -> Option<f64> {
     values.last().map(|(value, _)| *value)
 }
 
-fn align_locus(
+// Orientation needs only the best collinear-link score. Placement uses the
+// consensus anchors, so no traceback or full score matrix is needed here.
+fn alignment_score(
     target: &[PositionedGene],
     reference: &[PositionedGene],
     scores: &BTreeMap<(GeneRef, GeneRef), f64>,
-) -> Alignment {
-    if target.is_empty() || reference.is_empty() {
-        return Alignment {
-            score: 0.0,
-            anchor: None,
-            offset: None,
-        };
-    }
-    let width = reference.len() + 1;
-    let mut values = vec![0.0_f64; (target.len() + 1) * width];
-    let mut trace = vec![0_u8; values.len()];
-    for i in 1..=target.len() {
-        for j in 1..=reference.len() {
+    row: &mut Vec<f64>,
+) -> f64 {
+    row.resize(reference.len() + 1, 0.0);
+    row.fill(0.0);
+    let mut best = 0.0_f64;
+    for target_gene in target {
+        let mut diagonal = 0.0;
+        for (j, reference_gene) in reference.iter().enumerate() {
+            let above = row[j + 1];
             let match_score = scores
                 .get(&ordered_pair(
-                    target[i - 1].reference,
-                    reference[j - 1].reference,
+                    target_gene.reference,
+                    reference_gene.reference,
                 ))
-                .copied();
-            let diagonal =
-                values[(i - 1) * width + j - 1] + match_score.unwrap_or(MISMATCH_PENALTY);
-            let up = values[(i - 1) * width + j] + GAP_PENALTY;
-            let left = values[i * width + j - 1] + GAP_PENALTY;
-            let (value, direction) = if diagonal > 0.0 && diagonal >= up && diagonal >= left {
-                (diagonal, 1)
-            } else if up > 0.0 && up >= left {
-                (up, 2)
-            } else if left > 0.0 {
-                (left, 3)
-            } else {
-                (0.0, 0)
-            };
-            values[i * width + j] = value;
-            trace[i * width + j] = direction;
+                .copied()
+                .unwrap_or(MISMATCH_PENALTY);
+            let value = (diagonal + match_score)
+                .max(above + GAP_PENALTY)
+                .max(row[j] + GAP_PENALTY)
+                .max(0.0);
+            row[j + 1] = value;
+            diagonal = above;
+            best = best.max(value);
         }
     }
-    let (mut index, score) = values
-        .iter()
-        .enumerate()
-        .max_by(|(_, a), (_, b)| a.total_cmp(b))
-        .map(|(i, s)| (i, *s))
-        .unwrap();
-    let mut anchors = Vec::new();
-    while trace[index] != 0 {
-        let i = index / width;
-        let j = index % width;
-        match trace[index] {
-            1 => {
-                if let Some(weight) = scores.get(&ordered_pair(
-                    target[i - 1].reference,
-                    reference[j - 1].reference,
-                )) {
-                    anchors.push((
-                        reference[j - 1].position,
-                        reference[j - 1].position - target[i - 1].position,
-                        *weight,
-                    ));
-                }
-                index = (i - 1) * width + j - 1;
-            }
-            2 => index = (i - 1) * width + j,
-            _ => index = i * width + j - 1,
-        }
-    }
-    let (anchor, offset) = (!anchors.is_empty())
-        .then(|| {
-            let total_weight = anchors.iter().map(|(_, _, weight)| weight).sum::<f64>();
-            let anchor = anchors
-                .iter()
-                .map(|(position, _, weight)| position * weight)
-                .sum::<f64>()
-                / total_weight;
-            let offset = anchors
-                .iter()
-                .map(|(_, difference, weight)| difference * weight)
-                .sum::<f64>()
-                / total_weight;
-            (anchor, offset)
-        })
-        .map_or((None, None), |(anchor, offset)| {
-            (Some(anchor), Some(offset))
-        });
-    Alignment {
-        score,
-        anchor,
-        offset,
-    }
+    best
 }
 
 #[cfg(test)]
@@ -637,5 +562,25 @@ mod tests {
             weighted_median(vec![(10.0, 0.9), (11.0, 0.8), (250.0, 0.3)]),
             Some(11.0),
         );
+    }
+
+    #[test]
+    fn tied_paralogue_anchors_keep_forward_orientation_independent_of_link_order() {
+        let gene = |cluster, gene| GeneRef {
+            cluster,
+            locus: 0,
+            gene,
+        };
+        let mut analysis = Analysis {
+            clusters: vec![cluster(1, 1), cluster(1, 2)],
+            links: vec![link(gene(0, 0), gene(1, 0)), link(gene(0, 0), gene(1, 1))],
+        };
+        let layout = auto_locus_layouts(&analysis, &[0, 1]);
+        assert!(!layout[1][0].reversed);
+        assert_eq!(layout[1][0].offset, Some(-1.0));
+        analysis.links.reverse();
+        let reordered = auto_locus_layouts(&analysis, &[0, 1]);
+        assert_eq!(reordered[1][0].reversed, layout[1][0].reversed);
+        assert_eq!(reordered[1][0].offset, layout[1][0].offset);
     }
 }

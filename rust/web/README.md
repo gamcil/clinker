@@ -49,6 +49,10 @@ It can also select one-based inclusive record ranges, split multi-record files
 into separate clusters, and opt out of automatic circular-origin rotation.
 Explicit trim intervals always refer to the original record coordinates and
 suppress automatic origin rotation for that record.
+Locus orientation scores collinear homology links against linked, already placed
+loci. Scoring reuses one DP row; placement uses weighted-median anchors without
+traceback. Unanchored loci retain deterministic fallback positions.
+
 Default row ordering builds a Ward hierarchy, then approximately minimizes
 neighbouring distances while preserving every hierarchical group. Leaf ordering
 retains at most 32 endpoint alternatives per subtree, storing reconstruction

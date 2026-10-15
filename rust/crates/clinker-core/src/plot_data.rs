@@ -223,11 +223,16 @@ impl Analysis {
         let layouts = auto_locus_layouts_with_progress(self, order, layout_progress);
         let mut data = self.to_plot_data_in_order_with_groups(order, groups);
         for (cluster, layout) in data.clusters.iter_mut().zip(layouts) {
-            let original = std::mem::take(&mut cluster.loci);
+            let mut original = std::mem::take(&mut cluster.loci)
+                .into_iter()
+                .map(Some)
+                .collect::<Vec<_>>();
             cluster.loci = layout
                 .into_iter()
                 .map(|placement| {
-                    let mut locus = original[placement.locus].clone();
+                    let mut locus = original[placement.locus]
+                        .take()
+                        .expect("layout contains each locus exactly once");
                     locus.offset = placement.offset;
                     if placement.reversed {
                         let sum = locus.start + locus.end;
@@ -276,10 +281,38 @@ fn configured_plot_groups(
         .iter()
         .map(|definition| ConfiguredGroup {
             label: definition.label.clone(),
-            genes: resolve_gene_names(analysis, &definition.genes),
+            genes: BTreeSet::new(),
             colour: definition.colour.clone(),
         })
         .collect::<Vec<_>>();
+
+    let mut requested = BTreeMap::<&str, Vec<usize>>::new();
+    for (index, definition) in definitions.iter().enumerate() {
+        for name in &definition.genes {
+            requested.entry(name).or_default().push(index);
+        }
+    }
+    if !requested.is_empty() {
+        for (cluster, cluster_data) in analysis.clusters.iter().enumerate() {
+            for (locus, locus_data) in cluster_data.loci.iter().enumerate() {
+                for (gene, gene_data) in locus_data.genes.iter().enumerate() {
+                    for name in std::iter::once(gene_data.label.as_str())
+                        .chain(gene_data.names.iter().map(|(_, value)| value.as_str()))
+                    {
+                        if let Some(indices) = requested.get(name) {
+                            for &index in indices {
+                                groups[index].genes.insert(GeneRef {
+                                    cluster,
+                                    locus,
+                                    gene,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     for automatic_group in automatic {
         let genes = automatic_group.genes.into_iter().collect::<BTreeSet<_>>();
@@ -325,30 +358,6 @@ struct ConfiguredGroup {
     label: String,
     genes: BTreeSet<GeneRef>,
     colour: Option<String>,
-}
-
-fn resolve_gene_names(analysis: &Analysis, names: &[String]) -> BTreeSet<GeneRef> {
-    let names = names.iter().map(String::as_str).collect::<BTreeSet<_>>();
-    let mut resolved = BTreeSet::new();
-    for (cluster_index, cluster) in analysis.clusters.iter().enumerate() {
-        for (locus_index, locus) in cluster.loci.iter().enumerate() {
-            for (gene_index, gene) in locus.genes.iter().enumerate() {
-                if names.contains(gene.label.as_str())
-                    || gene
-                        .names
-                        .iter()
-                        .any(|(_, value)| names.contains(value.as_str()))
-                {
-                    resolved.insert(GeneRef {
-                        cluster: cluster_index,
-                        locus: locus_index,
-                        gene: gene_index,
-                    });
-                }
-            }
-        }
-    }
-    resolved
 }
 
 fn cluster_id(cluster: usize) -> String {
@@ -504,11 +513,18 @@ ORIGIN
             },
         ];
         let mut analysis = analyse_genbank(&files, AnalysisOptions::default()).unwrap();
-        let definitions = [GeneGroupDefinition {
-            label: "Core enzyme".into(),
-            genes: vec!["first".into()],
-            colour: Some("#336699".into()),
-        }];
+        let definitions = [
+            GeneGroupDefinition {
+                label: "Core enzyme".into(),
+                genes: vec!["first".into()],
+                colour: Some("#336699".into()),
+            },
+            GeneGroupDefinition {
+                label: "Other annotation".into(),
+                genes: vec!["second".into()],
+                colour: Some("#993366".into()),
+            },
+        ];
 
         let linked = analysis.to_plot_data_with_group_definitions(&definitions);
         assert_eq!(linked.groups.len(), 1);
@@ -519,6 +535,8 @@ ORIGIN
         analysis.links.clear();
         let annotation_only = analysis.to_plot_data_with_group_definitions(&definitions);
         assert!(annotation_only.links.is_empty());
+        assert_eq!(annotation_only.groups.len(), 2);
         assert_eq!(annotation_only.groups[0].genes, ["gene-0-0-0"]);
+        assert_eq!(annotation_only.groups[1].genes, ["gene-1-0-0"]);
     }
 }

@@ -119,10 +119,15 @@ mod tests {
             link(gene(0, 0), gene(1, 0)),
             link(gene(1, 0), gene(2, 0)),
             link(gene(0, 1), gene(1, 1)),
+            link(gene(0, 2), gene(1, 0)),
+            link(gene(2, 0), gene(0, 0)),
         ]);
 
         assert_eq!(groups.len(), 2);
-        assert_eq!(groups[0].genes, vec![gene(0, 0), gene(1, 0), gene(2, 0)]);
+        assert_eq!(
+            groups[0].genes,
+            vec![gene(0, 0), gene(1, 0), gene(2, 0), gene(0, 2)]
+        );
         assert_eq!(groups[1].genes, vec![gene(0, 1), gene(1, 1)]);
     }
 

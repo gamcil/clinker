@@ -1,4 +1,4 @@
-import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261015-translation-v1";
+import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261015-layout-v1";
 import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261015-workflow-v1";
 import { Workflow } from "./workflow.mjs?v=20261015-workflow-v1";
 import {
@@ -59,7 +59,7 @@ const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
-const WORKER_VERSION = "20261015-translation-v1";
+const WORKER_VERSION = "20261015-layout-v1";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
