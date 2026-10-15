@@ -21,7 +21,7 @@ fi
 # Prefer rustup's cargo, which has the wasm32 target, over Homebrew's cargo.
 wasm_pack_bin=$(dirname "$wasm_pack")
 PATH="$wasm_pack_bin:$rustup_bin:$PATH"
-"$wasm_pack" build ../crates/clinker-wasm --target web --out-dir ../../web/pkg --out-name clinker_wasm
+"$wasm_pack" build ../crates/clinker-wasm --target web --out-dir ../../web/pkg --out-name clinker_wasm -- --locked
 cp node_modules/d3/dist/d3.min.js .
 cp node_modules/clustermap.js/dist/clustermap.min.js .
 cp node_modules/clustermap.js/dist/editor.mjs clustermap-editor.mjs

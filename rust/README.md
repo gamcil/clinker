@@ -27,7 +27,7 @@ Run all tests from this directory:
 cargo test --workspace
 ```
 
-Run the early CLI against an existing fixture:
+Run the CLI against an existing fixture:
 
 ```bash
 cargo run -p clinker-cli -- ../examples/'A. versicolor CBS 583.65.gbk'
@@ -128,7 +128,7 @@ selects compatible versions, and records the exact resolved versions in
 `Cargo.lock`. `clinker-core` uses `gb-io` for GenBank, Rust Bio for GFF3/FASTA,
 and `block-aligner` for SIMD-accelerated global protein alignment.
 
-## Browser prototype
+## Browser application
 
 `web/` contains the static upload UI and its Web Workers. Build instructions
 are in [web/README.md](web/README.md). The application runs parsing, alignment,
@@ -141,5 +141,8 @@ still needed before the Rust application can replace the Python package. CI
 tests native builds on Linux, macOS, and Windows and assembles the WASM web
 application. The combined validation and Pages workflow runs on pushes and pull
 requests; successful runs on `rust-port` also deploy the tested web build to
-GitHub Pages. Tags of the form `rust-vX.Y.Z` use a separate release workflow to
-publish native CLI archives and a static web archive.
+GitHub Pages. Tags of the form `rust-vX.Y.Z` run the same checks and publish
+native CLI archives and the tested static web archive only after every check
+passes. The tag version must match the Cargo workspace version.
+
+Release instructions and remaining manual checks are in [RELEASING.md](RELEASING.md).

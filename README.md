@@ -4,6 +4,11 @@
 
 Gene cluster comparison figure generator
 
+This branch also contains the Rust implementation and browser application.
+See the [Rust documentation](rust/README.md) and
+[release preparation notes](rust/RELEASING.md). The installation and usage
+instructions below describe the original Python package.
+
 ## What is it?
 clinker is a pipeline for easily generating publication-quality gene cluster
 comparison figures.

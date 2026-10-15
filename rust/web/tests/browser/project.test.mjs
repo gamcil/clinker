@@ -4,9 +4,12 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium, firefox, webkit } from 'playwright';
 
 const root = resolve(process.env.CLINKER_WEB_ROOT || fileURLToPath(new URL('../../', import.meta.url)));
+const browserName = process.env.CLINKER_TEST_BROWSER || 'chromium';
+const browserType = { chromium, firefox, webkit }[browserName];
+if (!browserType) throw new Error(`Unknown test browser: ${browserName}`);
 
 test('analysis, cancellation, failure recovery and project exports preserve the displayed figure', { timeout: 120000 }, async t => {
   const server = createServer(async (request, response) => {
@@ -20,7 +23,7 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
-  const browser = await chromium.launch({ headless: true });
+  const browser = await browserType.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
   await page.addInitScript(() => {

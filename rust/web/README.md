@@ -98,8 +98,10 @@ sequence metadata is cached; changing the selection aborts obsolete reads.
 Run `npm test` for input pairing, workflow lifecycle, and project/export tests.
 After building WASM, run `npm run test:wasm` to exercise the incremental parser
 and exported analysis functions. For the browser round trip, install Chromium
-with `npx playwright install chromium` and run `npm run test:browser`. CI runs
-that browser test against the packaged static application. It also checks
+with `npx playwright install chromium` and run `npm run test:browser`. Set
+`CLINKER_TEST_BROWSER=firefox` or `webkit` to use another installed Playwright
+browser. CI installs all three engines and runs the test against the packaged
+static application in each. It also checks
 cancellation at worker-stage boundaries, worker failures, and retrying project
 loading while preserving an edited plot. The editor round trip exercises bulk
 gene deletion through a locus header, undo/redo, and saving the resulting figure.
