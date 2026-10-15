@@ -172,18 +172,7 @@ ORIGIN
 
 #[test]
 fn rotates_a_fixture_backed_circular_origin_crossing_feature() {
-    let bytes = br#"LOCUS       CIRCULAR                  30 bp    DNA     circular UNA 01-JAN-2000
-FEATURES             Location/Qualifiers
-     CDS             join(25..30,1..9)
-                     /locus_tag="wraps"
-                     /translation="MMMMM"
-     CDS             10..18
-                     /locus_tag="middle"
-                     /translation="MMM"
-ORIGIN
-        1 atgatgatgatgatgatgatgatgatgatg
-//
-"#;
+    let bytes = include_bytes!("fixtures/circular.gbk");
 
     let shifted =
         parse_genbank_with_options("circular.gbk", bytes, &GenBankOptions::default()).unwrap();
@@ -208,4 +197,23 @@ ORIGIN
             .iter()
             .all(|gene| gene.start <= gene.end)
     );
+}
+
+#[test]
+fn explicit_circular_trim_uses_original_record_coordinates() {
+    let options = GenBankOptions {
+        ranges: [("CIRCULAR".to_owned(), SequenceRange { start: 9, end: 18 })].into(),
+        ..GenBankOptions::default()
+    };
+    let clusters = parse_genbank_with_options(
+        "circular.gbk",
+        include_bytes!("fixtures/circular.gbk"),
+        &options,
+    )
+    .unwrap();
+    let locus = &clusters[0].loci[0];
+    assert_eq!((locus.start, locus.end), (9, 18));
+    assert_eq!(locus.genes.len(), 1);
+    assert_eq!(locus.genes[0].label, "middle");
+    assert_eq!((locus.genes[0].start, locus.genes[0].end), (9, 18));
 }

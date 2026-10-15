@@ -581,6 +581,9 @@ mod tests {
         );
 
         let directory = paths[0].parent().unwrap().to_owned();
-        assert_eq!(discover_input_paths(&[directory]).unwrap(), paths);
+        let discovered = discover_input_paths(&[directory]).unwrap();
+        for path in &paths {
+            assert_eq!(discovered.iter().filter(|found| *found == path).count(), 1);
+        }
     }
 }

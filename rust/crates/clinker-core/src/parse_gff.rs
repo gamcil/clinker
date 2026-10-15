@@ -12,6 +12,7 @@ use bio::{
 };
 use thiserror::Error;
 
+use crate::protein::{normalise_translation, translate_standard};
 use crate::{Cluster, Gene, Locus, ParseOptions, SequenceRange};
 
 #[derive(Debug, Error)]
@@ -269,7 +270,7 @@ fn gene_from_group(
         end: cds_end,
         strand,
         translation: attribute(first, "translation")
-            .map(|translation| normalize_translation(&translation))
+            .map(|translation| normalise_translation(&translation))
             .unwrap_or_else(|| translate_standard(&coding_sequence)),
     }))
 }
@@ -367,34 +368,4 @@ fn cluster_name(file_name: &str) -> String {
     file_name
         .rsplit_once('.')
         .map_or_else(|| file_name.to_owned(), |(stem, _)| stem.to_owned())
-}
-
-fn translate_standard(coding_sequence: &[u8]) -> String {
-    let translation = coding_sequence
-        .as_chunks::<3>()
-        .0
-        .iter()
-        .map(|codon| amino_acid(codon).unwrap_or('X'))
-        .collect::<String>();
-    normalize_translation(&translation)
-}
-
-fn normalize_translation(translation: &str) -> String {
-    translation
-        .split_whitespace()
-        .collect::<String>()
-        .trim_end_matches('*')
-        .to_owned()
-}
-
-fn amino_acid(codon: &[u8]) -> Option<char> {
-    const TABLE: &[u8; 64] = b"FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG";
-    let index = |base: u8| match base.to_ascii_uppercase() {
-        b'T' | b'U' => Some(0),
-        b'C' => Some(1),
-        b'A' => Some(2),
-        b'G' => Some(3),
-        _ => None,
-    };
-    Some(TABLE[index(codon[0])? * 16 + index(codon[1])? * 4 + index(codon[2])?] as char)
 }

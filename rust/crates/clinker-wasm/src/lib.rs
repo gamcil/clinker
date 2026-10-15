@@ -6,11 +6,10 @@
 use std::collections::BTreeMap;
 
 use clinker_core::{
-    Analysis, AnalysisError, AnalysisSession, Cluster, ClusterPairSimilarity, GenBankOptions, Gene,
+    Analysis, AnalysisSession, Cluster, ClusterPairSimilarity, GenBankOptions, Gene,
     GeneGroupDefinition, GeneRef, InputFile, KmerPrefilter, Link, Locus, PlotData, ProteinPair,
     SequenceRange, analyse_protein_pairs_with_progress, analyse_protein_tile_with_progress,
-    can_reach_identity, kmer_candidate_pairs_with_progress, parse_input_files_with_options,
-    parse_input_files_with_options_and_progress,
+    can_reach_identity, cluster_kmer_candidate_pairs_with_progress, parse_input_files_with_options,
 };
 use js_sys::Function;
 use serde::{Deserialize, Serialize};
@@ -117,6 +116,7 @@ impl From<&BrowserGenBankOptions> for GenBankOptions {
 #[wasm_bindgen]
 pub struct BrowserFileParser {
     clusters: Vec<Cluster>,
+    file_positions: BTreeMap<String, usize>,
     pending_files: Vec<BrowserFile>,
     prefilter: BrowserPrefilter,
     genbank_options: GenBankOptions,
@@ -131,6 +131,7 @@ impl BrowserFileParser {
         let genbank_options = GenBankOptions::from(&prefilter.genbank);
         Ok(Self {
             clusters: Vec::new(),
+            file_positions: BTreeMap::new(),
             pending_files: Vec::new(),
             prefilter,
             genbank_options,
@@ -140,6 +141,10 @@ impl BrowserFileParser {
     pub fn parse_file(&mut self, file: JsValue) -> Result<(), JsValue> {
         let file = serde_wasm_bindgen::from_value::<BrowserFile>(file)
             .map_err(|error| JsValue::from_str(&format!("invalid browser input: {error}")))?;
+        let position = self.file_positions.len();
+        self.file_positions
+            .entry(file.name.clone())
+            .or_insert(position);
         if !is_genbank_name(&file.name) {
             self.pending_files.push(file);
             return Ok(());
@@ -162,6 +167,13 @@ impl BrowserFileParser {
                     .map_err(|error| JsValue::from_str(&error.to_string()))?;
             self.clusters.append(&mut clusters);
         }
+        self.clusters.sort_by_key(|cluster| {
+            cluster
+                .source_file
+                .as_ref()
+                .and_then(|name| self.file_positions.get(name))
+                .copied()
+        });
         let clusters = std::mem::take(&mut self.clusters);
         let mut last_report = 0;
         let parsed = prepare_browser_files_with_filter_progress(
@@ -215,7 +227,6 @@ struct BrowserLayoutGene {
     start: usize,
     end: usize,
     strand: i8,
-    protein_length: usize,
 }
 
 /// A retained link returned by an alignment-only worker tile.
@@ -315,30 +326,6 @@ impl From<&BrowserProtein> for BrowserProteinRef {
             gene: protein.gene,
         }
     }
-}
-
-/// Parse browser-uploaded GenBank files once and return plot metadata plus
-/// compact protein records for alignment workers.
-///
-/// `files` is an array of `{ name, bytes }` objects. In JavaScript, `bytes`
-/// should be a `Uint8Array`; it is copied into Rust-owned memory before
-/// analysis so the caller may release the original file buffers afterwards.
-#[wasm_bindgen]
-pub fn parse_files(
-    files: JsValue,
-    prefilter: JsValue,
-    progress: &Function,
-) -> Result<JsValue, JsValue> {
-    let files = serde_wasm_bindgen::from_value::<Vec<BrowserFile>>(files)
-        .map_err(|error| JsValue::from_str(&format!("invalid browser input: {error}")))?;
-    let prefilter = serde_wasm_bindgen::from_value::<BrowserPrefilter>(prefilter)
-        .map_err(|error| JsValue::from_str(&format!("invalid prefilter settings: {error}")))?;
-    let parsed = parse_browser_files_with_progress(&files, prefilter, |processed| {
-        report_progress(progress, processed)
-    })
-    .map_err(|error| JsValue::from_str(&error.to_string()))?;
-    serde_wasm_bindgen::to_value(&parsed)
-        .map_err(|error| JsValue::from_str(&format!("could not encode parsed files: {error}")))
 }
 
 /// Align the Cartesian product of two compact protein blocks.
@@ -584,16 +571,16 @@ fn post_process_analysis(
             )
         },
     );
-    let analysis_session =
-        AnalysisSession::new(analysis.clone(), identity_cutoff, group_definitions)
-            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let cluster_names = analysis
+        .clusters
+        .iter()
+        .map(|cluster| cluster.name.clone())
+        .collect();
+    let analysis_session = AnalysisSession::new(analysis, identity_cutoff, group_definitions)
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let result = BrowserPostProcess {
         plot_data: arranged,
-        cluster_names: analysis
-            .clusters
-            .iter()
-            .map(|cluster| cluster.name.clone())
-            .collect(),
+        cluster_names,
         cluster_order: order,
         similarity_matrix,
         analysis_session,
@@ -692,35 +679,6 @@ fn input_files(files: &[BrowserFile]) -> Vec<InputFile<'_>> {
         .collect()
 }
 
-#[cfg(test)]
-fn parse_browser_files(
-    files: &[BrowserFile],
-    prefilter: BrowserPrefilter,
-) -> Result<ParsedBrowserFiles, AnalysisError> {
-    parse_browser_files_with_progress(files, prefilter, |_| {})
-}
-
-fn parse_browser_files_with_progress<F>(
-    files: &[BrowserFile],
-    prefilter: BrowserPrefilter,
-    progress: F,
-) -> Result<ParsedBrowserFiles, AnalysisError>
-where
-    F: FnMut(usize),
-{
-    let options = GenBankOptions::from(&prefilter.genbank);
-    let clusters =
-        parse_input_files_with_options_and_progress(&input_files(files), &options, progress)?;
-    Ok(prepare_browser_files(clusters, &prefilter))
-}
-
-fn prepare_browser_files(
-    clusters: Vec<Cluster>,
-    prefilter: &BrowserPrefilter,
-) -> ParsedBrowserFiles {
-    prepare_browser_files_with_filter_progress(clusters, prefilter, |_, _| {})
-}
-
 fn prepare_browser_files_with_filter_progress<F>(
     clusters: Vec<Cluster>,
     prefilter: &BrowserPrefilter,
@@ -753,69 +711,36 @@ where
         })
         .collect();
     let candidate_pairs = prefilter.enabled.then(|| {
-        let by_cluster = proteins_by_cluster(&proteins, clusters.len());
-        let total_pairs = by_cluster
+        let sequences = proteins
             .iter()
-            .enumerate()
-            .map(|(query_cluster, query)| {
-                by_cluster[query_cluster + 1..]
-                    .iter()
-                    .map(|target| query.len() * target.len())
-                    .sum::<usize>()
-            })
-            .sum::<usize>();
-        let settings = KmerPrefilter {
-            kmer_size: prefilter.kmer_size,
-            min_shared_kmers: prefilter.min_shared_kmers,
-        };
-        let mut pairs = Vec::new();
-        let mut completed_pairs = 0;
-        progress(0, total_pairs);
-        for query_cluster in 0..by_cluster.len() {
-            for target_cluster in query_cluster + 1..by_cluster.len() {
-                let query = &by_cluster[query_cluster];
-                let target = &by_cluster[target_cluster];
-                let query_sequences = query
-                    .iter()
-                    .map(|&index| proteins[index].translation.as_bytes())
-                    .collect::<Vec<_>>();
-                let target_sequences = target
-                    .iter()
-                    .map(|&index| proteins[index].translation.as_bytes())
-                    .collect::<Vec<_>>();
-                let pair_base = completed_pairs;
-                pairs.extend(
-                    kmer_candidate_pairs_with_progress(
-                        &query_sequences,
-                        &target_sequences,
-                        prefilter.identity_cutoff,
-                        settings,
-                        |processed| progress(pair_base + processed, total_pairs),
-                    )
-                    .into_iter()
-                    .map(|pair| BrowserProteinPair {
-                        query_index: query[pair.query_index],
-                        target_index: target[pair.target_index],
-                    }),
-                );
-                completed_pairs += query.len() * target.len();
-            }
-        }
-        pairs
+            .map(|protein| protein.translation.as_bytes())
+            .collect::<Vec<_>>();
+        let clusters = proteins
+            .iter()
+            .map(|protein| protein.cluster)
+            .collect::<Vec<_>>();
+        cluster_kmer_candidate_pairs_with_progress(
+            &sequences,
+            &clusters,
+            prefilter.identity_cutoff,
+            KmerPrefilter {
+                kmer_size: prefilter.kmer_size,
+                min_shared_kmers: prefilter.min_shared_kmers,
+            },
+            &mut progress,
+        )
+        .into_iter()
+        .map(|pair| BrowserProteinPair {
+            query_index: pair.query_index,
+            target_index: pair.target_index,
+        })
+        .collect()
     });
     ParsedBrowserFiles {
         layout,
         proteins,
         candidate_pairs,
     }
-}
-
-fn proteins_by_cluster(proteins: &[BrowserProtein], cluster_count: usize) -> Vec<Vec<usize>> {
-    let mut clusters = vec![Vec::new(); cluster_count];
-    for (index, protein) in proteins.iter().enumerate() {
-        clusters[protein.cluster].push(index);
-    }
-    clusters
 }
 
 fn layout_from_clusters(clusters: &[Cluster]) -> BrowserLayout {
@@ -842,132 +767,11 @@ fn layout_from_clusters(clusters: &[Cluster]) -> BrowserLayout {
                                 start: gene.start,
                                 end: gene.end,
                                 strand: gene.strand,
-                                protein_length: gene.translation.len(),
                             })
                             .collect(),
                     })
                     .collect(),
             })
             .collect(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        BrowserFile, BrowserGenBankOptions, BrowserPrefilter, BrowserSequenceRange, Function,
-        analyse_pairs, analyse_tile, clusters_from_layout, open_session, parse_browser_files,
-        post_process,
-    };
-    use wasm_bindgen::JsValue;
-
-    #[test]
-    fn adapter_separates_parsing_from_tile_alignment() {
-        let record = b"LOCUS       TEST                       9 bp    DNA     linear   UNA 01-JAN-2000\nFEATURES             Location/Qualifiers\n     CDS             1..9\n                     /locus_tag=\"test\"\nORIGIN\n        1 atggcttaa\n//\n";
-        let files = vec![
-            BrowserFile {
-                name: "first.gbk".into(),
-                bytes: record.to_vec(),
-            },
-            BrowserFile {
-                name: "second.gbk".into(),
-                bytes: record.to_vec(),
-            },
-        ];
-
-        let data = parse_browser_files(
-            &files,
-            BrowserPrefilter {
-                enabled: false,
-                kmer_size: 3,
-                min_shared_kmers: 3,
-                identity_cutoff: 0.30,
-                genbank: BrowserGenBankOptions::default(),
-            },
-        )
-        .unwrap();
-        assert_eq!(data.layout.clusters.len(), 2);
-        assert_eq!(data.proteins.len(), 2);
-        assert_eq!(data.layout.clusters[0].loci[0].genes[0].protein_length, 2);
-
-        // The exported function is exercised by browser/WASM integration; the
-        // parsing test above keeps native unit tests independent of JsValue.
-        let _ = analyse_tile as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
-        let _ = analyse_pairs as fn(JsValue, JsValue, f32, &Function) -> Result<JsValue, JsValue>;
-        let _ = post_process
-            as fn(
-                JsValue,
-                JsValue,
-                JsValue,
-                JsValue,
-                f32,
-                bool,
-                &Function,
-            ) -> Result<JsValue, JsValue>;
-        let _ = open_session as fn(JsValue, bool, &Function) -> Result<JsValue, JsValue>;
-        let clusters = clusters_from_layout(data.layout, data.proteins).unwrap();
-        assert_eq!(clusters[0].loci[0].genes[0].translation, "MA");
-    }
-
-    #[test]
-    fn browser_genbank_options_reach_the_shared_parser() {
-        let records = b"LOCUS       FIRST                      9 bp    DNA     linear   UNA 01-JAN-2000\nFEATURES             Location/Qualifiers\n     CDS             1..9\n                     /locus_tag=\"first\"\nORIGIN\n        1 atggcttaa\n//\nLOCUS       SECOND                     9 bp    DNA     linear   UNA 01-JAN-2000\nFEATURES             Location/Qualifiers\n     CDS             1..9\n                     /locus_tag=\"second\"\nORIGIN\n        1 atggcttaa\n//\n";
-        let data = parse_browser_files(
-            &[BrowserFile {
-                name: "records.gbk".into(),
-                bytes: records.to_vec(),
-            }],
-            BrowserPrefilter {
-                enabled: false,
-                kmer_size: 3,
-                min_shared_kmers: 3,
-                identity_cutoff: 0.30,
-                genbank: BrowserGenBankOptions {
-                    ranges: vec![BrowserSequenceRange {
-                        record: "SECOND".into(),
-                        start: 3,
-                        end: 9,
-                    }],
-                    as_separate_clusters: true,
-                    set_origin: true,
-                },
-            },
-        )
-        .unwrap();
-
-        assert_eq!(data.layout.clusters.len(), 2);
-        assert_eq!(data.layout.clusters[0].name, "FIRST");
-        assert_eq!(data.layout.clusters[1].name, "SECOND");
-        assert_eq!(data.layout.clusters[1].loci[0].start, 3);
-        assert!(data.layout.clusters[1].loci[0].genes.is_empty());
-    }
-
-    #[test]
-    fn browser_pairs_gff3_with_its_fasta_sequence() {
-        let files = vec![
-            BrowserFile {
-                name: "features.gff3".into(),
-                bytes: include_bytes!("../../clinker-core/tests/fixtures/features.gff3").to_vec(),
-            },
-            BrowserFile {
-                name: "features.fna".into(),
-                bytes: include_bytes!("../../clinker-core/tests/fixtures/features.fna").to_vec(),
-            },
-        ];
-        let data = parse_browser_files(
-            &files,
-            BrowserPrefilter {
-                enabled: false,
-                kmer_size: 3,
-                min_shared_kmers: 3,
-                identity_cutoff: 0.30,
-                genbank: BrowserGenBankOptions::default(),
-            },
-        )
-        .unwrap();
-
-        assert_eq!(data.layout.clusters.len(), 1);
-        assert_eq!(data.layout.clusters[0].loci.len(), 2);
-        assert_eq!(data.proteins.len(), 3);
     }
 }

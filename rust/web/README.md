@@ -26,7 +26,12 @@ pair. This is deliberately approximate and can miss remote homologues. It is
 enabled by default with permissive settings (k-mer size 3, three shared words);
 disable the checkbox beside the identity setting to compare every eligible
 protein pair.
-Larger words and higher shared-word thresholds are more selective.
+Larger words and higher shared-word thresholds are more selective. Protein
+normalisation is shared with alignment. Words are cached once per protein and
+only one target-cluster index is held at a time. Words use lossless five-bit
+residue encoding: 32-bit keys for k ≤ 6 and 64-bit keys for k = 7–8. Cached word
+lists discard unused capacity after deduplication. Temporary caches are released
+with the parsing worker before alignment begins.
 A separate filtering step reports the number and percentage
 of possible alignments removed before the remaining candidates are aligned.
 Unfiltered mode still skips protein pairs whose length ratio
@@ -35,6 +40,15 @@ The run panel exposes the k-mer size and shared-word threshold as advanced
 settings, along with the choice between synteny ordering and input file order.
 It can also select one-based inclusive record ranges, split multi-record files
 into separate clusters, and opt out of automatic circular-origin rotation.
+Explicit trim intervals always refer to the original record coordinates and
+suppress automatic origin rotation for that record.
+Default row ordering builds a Ward hierarchy, then approximately minimizes
+neighbouring distances while preserving every hierarchical group. Leaf ordering
+retains at most 32 endpoint alternatives per subtree, storing reconstruction
+pointers rather than full candidate sequences. With this fixed search width,
+leaf ordering takes linear time and memory; the Ward hierarchy and pairwise
+matrices use O(n²) time and memory. The ordering is deterministic but does not
+guarantee the optimum among all tree-compatible orders.
 Annotation-only runs can skip protein alignment entirely. Optional two-column
 gene-function and function-colour CSV files seed labelled, coloured groups;
 retained homology links extend those groups when alignment is enabled.
@@ -63,8 +77,11 @@ Analysis, example downloads, and project loading can be cancelled. Cancelling
 terminates their workers and keeps any existing plot and selected inputs.
 The progress view retains the analysis stages and their progress bars.
 
-Run the input-pairing and workflow lifecycle tests with `npm test` in this
-directory. These tests need Node only; the WASM build is not required.
+Run `npm test` for input pairing, workflow lifecycle, and project/export tests.
+After building WASM, run `npm run test:wasm` to exercise the incremental parser
+and exported analysis functions. For the browser round trip, install Chromium
+with `npx playwright install chromium` and run `npm run test:browser`. CI runs
+that browser test against the packaged static application.
 
 ## Build for local preview or static hosting
 
@@ -93,3 +110,5 @@ correctness.
 Open the reported local URL; do not open `index.html` directly because module
 workers and WASM modules require HTTP serving. Deploy the contents of this
 directory, including `pkg/`, to GitHub Pages or another static host.
+`sh package.sh /path/to/site` copies only runtime assets and examples, excluding
+test dependencies and sources. Pages and release archives use this same package.

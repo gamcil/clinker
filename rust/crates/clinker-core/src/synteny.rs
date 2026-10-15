@@ -81,7 +81,7 @@ impl Analysis {
         matrix
     }
 
-    /// Create a distance matrix suitable for hierarchical ordering.
+    /// Create a pairwise distance matrix for row ordering.
     pub fn synteny_distance_matrix(&self) -> Vec<Vec<f64>> {
         let mut matrix = self.synteny_matrix();
         for (row_index, row) in matrix.iter_mut().enumerate() {
@@ -96,7 +96,7 @@ impl Analysis {
         matrix
     }
 
-    /// Order clusters by Ward linkage over best-hit containment distance.
+    /// Order clusters by Ward linkage with bounded leaf ordering.
     ///
     /// A complete reversal has the same neighbour-distance score, so orient
     /// the final sequence with its strongest linked component first. Component

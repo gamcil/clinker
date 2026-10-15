@@ -4,9 +4,9 @@ import init, {
   BrowserFileParser,
   open_session,
   post_process,
-} from "./pkg/clinker_wasm.js?v=20261015-cds-bounds-v1";
+} from "./pkg/clinker_wasm.js?v=20261015-compact-kmers-v1";
 
-const WASM_VERSION = "20261015-cds-bounds-v1";
+const WASM_VERSION = "20261015-compact-kmers-v1";
 const wasmUrl = new URL("./pkg/clinker_wasm_bg.wasm", import.meta.url);
 wasmUrl.searchParams.set("v", WASM_VERSION);
 let wasmModule = null;
@@ -57,24 +57,6 @@ self.onmessage = async ({ data }) => {
       const parsed = fileParser.finish(filterProgress);
       releaseFileParser();
       self.postMessage({ type: "parsed", parsed, wasmModule });
-    } else if (data.type === "parse") {
-      // Compatibility for an already-open page running the previous app.js.
-      releaseFileParser();
-      fileParser = new BrowserFileParser(data.prefilter);
-      for (let index = 0; index < data.files.length; index += 1) {
-        fileParser.parse_file(data.files[index]);
-        self.postMessage({
-          type: "parse-progress",
-          processedFiles: index + 1,
-          totalFiles: data.files.length,
-        });
-        await new Promise(resolve => setTimeout(resolve, 0));
-      }
-      // The compatibility caller does not understand the new filtering
-      // progress message and would mistake it for the final parse result.
-      const parsed = fileParser.finish(() => {});
-      releaseFileParser();
-      self.postMessage({ type: "parsed", parsed });
     } else if (data.type === "analyse-tile") {
       const progress = processedPairs => self.postMessage({
         type: "tile-progress",
@@ -120,6 +102,8 @@ self.onmessage = async ({ data }) => {
     } else if (data.type === "open-session") {
       const result = open_session(data.session, data.useFileOrder, () => {});
       self.postMessage({ type: "post-process", result });
+    } else {
+      throw new Error("Unsupported worker request. Reload the page and try again.");
     }
   } catch (error) {
     releaseFileParser();

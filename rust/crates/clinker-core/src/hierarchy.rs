@@ -1,19 +1,16 @@
 //! Agglomerative hierarchy construction and leaf ordering for cluster ordering.
 
-use std::collections::BTreeMap;
-
-/// Return the leaves of a Ward-linkage dendrogram for a condensed distance
-/// matrix.
-///
-/// The nearest-neighbour-chain construction uses O(n²) time and memory. Once
-/// the tree is built, optimal leaf ordering chooses the orientation of each
-/// branch that minimizes the sum of distances between displayed neighbours.
-/// This retains Ward's groups while avoiding arbitrary branch boundaries that
-/// can otherwise put two clusters with no links next to one another.
+/// Build a Ward hierarchy, then approximately minimize neighbouring distances
+/// while preserving its groups. Retaining 32 endpoint alternatives per subtree
+/// bounds the leaf-ordering work; the hierarchy uses O(n²) time and memory.
 pub(crate) fn ward_leaf_order(distances: &[f64], count: usize) -> Vec<usize> {
     if count < 2 {
         return (0..count).collect();
     }
+    bounded_leaf_order(&ward_tree(distances, count), distances, count, 32)
+}
+
+fn ward_tree(distances: &[f64], count: usize) -> Node {
     assert_eq!(distances.len(), count * (count - 1) / 2);
 
     // Reuse one of the original cluster slots at each merge. This keeps the
@@ -61,7 +58,7 @@ pub(crate) fn ward_leaf_order(distances: &[f64], count: usize) -> Vec<usize> {
     }
 
     let root = first_active(&active);
-    optimal_leaf_order(&nodes[root], distances, count)
+    nodes.swap_remove(root)
 }
 
 fn first_active(active: &[bool]) -> usize {
@@ -129,98 +126,159 @@ enum Node {
     Merge(Box<Node>, Box<Node>),
 }
 
-#[derive(Debug, Clone)]
-struct OrderedLeaves {
+#[derive(Clone, Copy)]
+struct State {
     cost: f64,
-    leaves: Vec<usize>,
+    first: usize,
+    last: usize,
+    trace: usize,
 }
 
-/// Find the lowest-cost sequence for every possible pair of endpoints in a
-/// subtree. The recurrence only joins a left and right child, so every result
-/// remains a valid ordering of the Ward dendrogram.
-fn optimal_leaf_order(node: &Node, distances: &[f64], count: usize) -> Vec<usize> {
-    let states = optimal_leaf_order_states(node, distances, count);
-    states
-        .into_values()
-        .min_by(compare_orders)
-        .expect("a dendrogram contains a leaf")
-        .leaves
+#[derive(Clone, Copy)]
+struct Join {
+    left: (usize, bool),
+    right: (usize, bool),
 }
 
-fn optimal_leaf_order_states(
-    node: &Node,
-    distances: &[f64],
-    count: usize,
-) -> BTreeMap<(usize, usize), OrderedLeaves> {
-    match node {
-        Node::Leaf(index) => BTreeMap::from([(
-            (*index, *index),
-            OrderedLeaves {
-                cost: 0.0,
-                leaves: vec![*index],
-            },
-        )]),
-        Node::Merge(left, right) => {
-            let left_states = optimal_leaf_order_states(left, distances, count);
-            let right_states = optimal_leaf_order_states(right, distances, count);
-            let mut states = BTreeMap::new();
+struct Candidate {
+    cost: f64,
+    first: usize,
+    last: usize,
+    join: Join,
+}
 
-            for (&(left_start, left_end), left_order) in &left_states {
-                for (&(right_start, right_end), right_order) in &right_states {
-                    let cost = left_order.cost
-                        + condensed_distance(distances, count, left_end, right_start)
-                        + right_order.cost;
-                    let mut leaves = left_order.leaves.clone();
-                    leaves.extend_from_slice(&right_order.leaves);
-                    keep_best(
-                        &mut states,
-                        (left_start, right_end),
-                        OrderedLeaves { cost, leaves },
-                    );
-
-                    let cost = right_order.cost
-                        + condensed_distance(distances, count, right_end, left_start)
-                        + left_order.cost;
-                    let mut leaves = right_order.leaves.clone();
-                    leaves.extend_from_slice(&left_order.leaves);
-                    keep_best(
-                        &mut states,
-                        (right_start, left_end),
-                        OrderedLeaves { cost, leaves },
-                    );
+fn bounded_leaf_order(node: &Node, distances: &[f64], count: usize, limit: usize) -> Vec<usize> {
+    fn fill(
+        node: &Node,
+        distances: &[f64],
+        count: usize,
+        limit: usize,
+        traces: &mut Vec<Join>,
+    ) -> Vec<State> {
+        let (left, right) = match node {
+            Node::Leaf(i) => {
+                return vec![State {
+                    cost: 0.,
+                    first: *i,
+                    last: *i,
+                    trace: *i,
+                }];
+            }
+            Node::Merge(left_node, right_node) => (
+                fill(left_node, distances, count, limit, traces),
+                fill(right_node, distances, count, limit, traces),
+            ),
+        };
+        let mut candidates = Vec::with_capacity(4 * left.len() * right.len());
+        for left_order in left {
+            for right_order in &right {
+                for reverse_left in [false, true] {
+                    for reverse_right in [false, true] {
+                        let (left_start, left_end) = if reverse_left {
+                            (left_order.last, left_order.first)
+                        } else {
+                            (left_order.first, left_order.last)
+                        };
+                        let (right_start, right_end) = if reverse_right {
+                            (right_order.last, right_order.first)
+                        } else {
+                            (right_order.first, right_order.last)
+                        };
+                        let cost = left_order.cost
+                            + right_order.cost
+                            + condensed_distance(distances, count, left_end, right_start);
+                        // A path and its reversal have equal cost. Store one orientation.
+                        let (first, last, join) = if left_start < right_end {
+                            (
+                                left_start,
+                                right_end,
+                                Join {
+                                    left: (left_order.trace, reverse_left),
+                                    right: (right_order.trace, reverse_right),
+                                },
+                            )
+                        } else {
+                            (
+                                right_end,
+                                left_start,
+                                Join {
+                                    left: (right_order.trace, !reverse_right),
+                                    right: (left_order.trace, !reverse_left),
+                                },
+                            )
+                        };
+                        candidates.push(Candidate {
+                            cost,
+                            first,
+                            last,
+                            join,
+                        });
+                    }
                 }
             }
-            states
+        }
+        // Only the cheapest path for each endpoint pair can help its parent.
+        candidates.sort_by(|left_candidate, right_candidate| {
+            (left_candidate.first, left_candidate.last)
+                .cmp(&(right_candidate.first, right_candidate.last))
+                .then_with(|| left_candidate.cost.total_cmp(&right_candidate.cost))
+        });
+        candidates.dedup_by(|left_candidate, right_candidate| {
+            left_candidate.first == right_candidate.first
+                && left_candidate.last == right_candidate.last
+        });
+        candidates.sort_by(|left_candidate, right_candidate| {
+            left_candidate
+                .cost
+                .total_cmp(&right_candidate.cost)
+                .then_with(|| {
+                    (left_candidate.first, left_candidate.last)
+                        .cmp(&(right_candidate.first, right_candidate.last))
+                })
+        });
+        candidates.truncate(limit);
+        candidates
+            .into_iter()
+            .map(|candidate| {
+                let trace = count + traces.len();
+                traces.push(candidate.join);
+                State {
+                    cost: candidate.cost,
+                    first: candidate.first,
+                    last: candidate.last,
+                    trace,
+                }
+            })
+            .collect()
+    }
+    fn trace(index: usize, reverse: bool, count: usize, traces: &[Join], out: &mut Vec<usize>) {
+        if index < count {
+            out.push(index);
+        } else {
+            // Leaf indices occupy 0..count; later indices refer to stored joins.
+            let Join {
+                left: (left, reverse_left),
+                right: (right, reverse_right),
+            } = traces[index - count];
+            if reverse {
+                trace(right, !reverse_right, count, traces, out);
+                trace(left, !reverse_left, count, traces, out);
+            } else {
+                trace(left, reverse_left, count, traces, out);
+                trace(right, reverse_right, count, traces, out);
+            }
         }
     }
+    let mut traces = Vec::new();
+    let states = fill(node, distances, count, limit, &mut traces);
+    let mut result = Vec::with_capacity(count);
+    trace(states[0].trace, false, count, &traces, &mut result);
+    result
 }
 
 fn condensed_distance(distances: &[f64], count: usize, one: usize, two: usize) -> f64 {
-    if one == two {
-        return 0.0;
-    }
     let (row, column) = (one.min(two), one.max(two));
-    let index = row * (2 * count - row - 1) / 2 + (column - row - 1);
-    distances[index]
-}
-
-fn keep_best(
-    states: &mut BTreeMap<(usize, usize), OrderedLeaves>,
-    endpoints: (usize, usize),
-    candidate: OrderedLeaves,
-) {
-    match states.get(&endpoints) {
-        Some(current) if compare_orders(current, &candidate).is_le() => {}
-        _ => {
-            states.insert(endpoints, candidate);
-        }
-    }
-}
-
-fn compare_orders(left: &OrderedLeaves, right: &OrderedLeaves) -> std::cmp::Ordering {
-    left.cost
-        .total_cmp(&right.cost)
-        .then_with(|| left.leaves.cmp(&right.leaves))
+    distances[row * (2 * count - row - 1) / 2 + column - row - 1]
 }
 
 #[cfg(test)]
@@ -261,5 +319,67 @@ mod tests {
                 .windows(2)
                 .any(|pair| pair == [1, 2] || pair == [2, 1])
         );
+    }
+
+    fn all_orders(node: &super::Node) -> Vec<Vec<usize>> {
+        match node {
+            super::Node::Leaf(i) => vec![vec![*i]],
+            super::Node::Merge(left, right) => {
+                let mut orders = Vec::new();
+                for left in all_orders(left) {
+                    for right in all_orders(right) {
+                        let mut order = left.clone();
+                        order.extend(&right);
+                        orders.push(order.clone());
+                        order.reverse();
+                        orders.push(order);
+                    }
+                }
+                orders
+            }
+        }
+    }
+
+    #[test]
+    fn matches_exhaustive_search_when_unpruned_and_preserves_groups_when_pruned() {
+        use super::Node::{Leaf, Merge};
+        let pair = |a, b| Merge(Box::new(Leaf(a)), Box::new(Leaf(b)));
+        let trees = [
+            Merge(
+                Box::new(Merge(Box::new(pair(0, 1)), Box::new(pair(2, 3)))),
+                Box::new(Merge(Box::new(Leaf(4)), Box::new(pair(5, 6)))),
+            ),
+            (1..7).fold(Leaf(0), |tree, i| Merge(Box::new(tree), Box::new(Leaf(i)))),
+        ];
+        for tree in &trees {
+            let possibilities = all_orders(tree);
+            for seed in 0..12 {
+                let distances = (0..21)
+                    .map(|i| ((i * 17 + seed * 13 + i * seed) % 31) as f64 / 31.0)
+                    .collect::<Vec<_>>();
+                let cost = |order: &[usize]| {
+                    order
+                        .windows(2)
+                        .map(|pair| super::condensed_distance(&distances, 7, pair[0], pair[1]))
+                        .sum::<f64>()
+                };
+                let expected = possibilities
+                    .iter()
+                    .map(|order| cost(order))
+                    .min_by(f64::total_cmp)
+                    .unwrap();
+                let actual = super::bounded_leaf_order(tree, &distances, 7, 32);
+                assert!(possibilities.contains(&actual));
+                for limit in [1, 4] {
+                    let pruned = super::bounded_leaf_order(tree, &distances, 7, limit);
+                    assert!(possibilities.contains(&pruned));
+                    assert!(cost(&pruned) >= expected - 1e-12);
+                }
+                assert!((cost(&actual) - expected).abs() < 1e-12);
+                assert_eq!(super::bounded_leaf_order(tree, &distances, 7, 32), actual);
+            }
+        }
+        assert!(ward_leaf_order(&[], 0).is_empty());
+        assert_eq!(ward_leaf_order(&[], 1), [0]);
     }
 }

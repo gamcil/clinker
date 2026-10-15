@@ -1,0 +1,11 @@
+LOCUS       CIRCULAR                  30 bp    DNA     circular UNA 01-JAN-2000
+FEATURES             Location/Qualifiers
+     CDS             join(25..30,1..9)
+                     /locus_tag="wraps"
+                     /translation="MMMMM"
+     CDS             10..18
+                     /locus_tag="middle"
+                     /translation="MMM"
+ORIGIN
+        1 atgatgatgatgatgatgatgatgatgatg
+//

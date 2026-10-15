@@ -6,6 +6,7 @@ use gb_io::{
 };
 use thiserror::Error;
 
+use crate::protein::{normalise_translation, translate_standard};
 use crate::{Cluster, Gene, Locus};
 
 #[derive(Debug, Error)]
@@ -92,7 +93,9 @@ pub fn parse_genbank_with_options(
                     .map(str::to_owned)
             })
             .or_else(|| record.source.as_ref().map(|source| source.source.clone()));
+        // Explicit trim coordinates refer to the original record, before rotation.
         if options.set_origin
+            && !options.ranges.contains_key(&name)
             && let Some(origin) = circular_origin_shift(&record)
         {
             record = record.set_origin(origin as i64);
@@ -226,7 +229,7 @@ fn gene_from_feature(record: &Seq, feature: &Feature, index: usize) -> Result<Ge
     // CDS features. Keep their geometry tied to the CDS itself.
     let (start, end) = cds_bounds;
     let translation = if let Some(translation) = feature.qualifier_values("translation").next() {
-        translation.split_whitespace().collect()
+        normalise_translation(translation)
     } else {
         let coding_sequence = record
             .extract_location(&feature.location)
@@ -243,14 +246,8 @@ fn gene_from_feature(record: &Seq, feature: &Feature, index: usize) -> Result<Ge
         start: start as usize,
         end: end as usize,
         strand,
-        translation: normalize_translation(translation),
+        translation,
     })
-}
-
-/// GenBank translations commonly include the terminal stop as `*`, but that
-/// codon is not part of the translated protein sequence.
-fn normalize_translation(translation: String) -> String {
-    translation.trim_end_matches('*').to_owned()
 }
 
 fn location_bounds(location: &Location) -> Result<(i64, i64), LocationError> {
@@ -296,34 +293,6 @@ fn location_strand(location: &Location) -> Option<i8> {
         }
     }
     visit(location, 1)
-}
-
-/// Translate an extracted CDS using the standard genetic code.
-fn translate_standard(coding_sequence: &[u8]) -> String {
-    coding_sequence
-        .as_chunks::<3>()
-        .0
-        .iter()
-        .map(|codon| amino_acid(codon).unwrap_or('X'))
-        .collect()
-}
-
-fn amino_acid(codon: &[u8]) -> Option<char> {
-    const TABLE: &[u8; 64] = b"FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG";
-    let first = base_index(codon[0])?;
-    let second = base_index(codon[1])?;
-    let third = base_index(codon[2])?;
-    Some(TABLE[first * 16 + second * 4 + third] as char)
-}
-
-fn base_index(base: u8) -> Option<usize> {
-    match base.to_ascii_uppercase() {
-        b'T' | b'U' => Some(0),
-        b'C' => Some(1),
-        b'A' => Some(2),
-        b'G' => Some(3),
-        _ => None,
-    }
 }
 
 fn label_for(feature: &Feature, index: usize) -> String {

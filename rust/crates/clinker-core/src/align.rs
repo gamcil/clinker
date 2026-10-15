@@ -1,3 +1,5 @@
+use crate::protein::normalise_protein;
+
 use block_aligner::{
     cigar::{Cigar, Operation},
     scan_block::{Block, PaddedBytes},
@@ -88,18 +90,6 @@ fn doubled_blosum62() -> AAMatrix {
         }
     }
     matrix
-}
-
-fn normalise_protein(protein: &[u8], output: &mut Vec<u8>) {
-    output.clear();
-    output.extend(protein.iter().map(|&amino_acid| {
-        let amino_acid = amino_acid.to_ascii_uppercase();
-        if b"ARNDCQEGHILKMFPSTWYVBZX".contains(&amino_acid) {
-            amino_acid
-        } else {
-            b'X'
-        }
-    }));
 }
 
 fn metrics_from_cigar(cigar: &Cigar, query: &[u8], target: &[u8]) -> ProteinMatch {

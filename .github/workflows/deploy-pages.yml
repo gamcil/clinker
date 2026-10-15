@@ -80,6 +80,16 @@ jobs:
         run: cargo install wasm-pack --locked
       - name: Build static web app
         run: sh web/build.sh
+      - name: Test compiled WASM
+        run: npm --prefix web run test:wasm
+      - name: Install test browser
+        run: cd web && npx playwright install --with-deps chromium
+      - name: Package static application
+        run: sh web/package.sh "$RUNNER_TEMP/clinker-web"
+      - name: Test project editing and exports
+        env:
+          CLINKER_WEB_ROOT: ${{ runner.temp }}/clinker-web
+        run: npm --prefix web run test:browser
       - name: Verify embedded CLI plot assets
         run: |
           cmp web/d3.min.js crates/clinker-cli/assets/d3.min.js
@@ -89,7 +99,7 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/rust-port'
         uses: actions/upload-pages-artifact@v5
         with:
-          path: rust/web
+          path: ${{ runner.temp }}/clinker-web
 
   deploy:
     # TODO: change to master once Rust port is final

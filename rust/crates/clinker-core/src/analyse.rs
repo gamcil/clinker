@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -172,27 +172,6 @@ pub struct ProteinTileMatch {
 pub struct ProteinPair {
     pub query_index: usize,
     pub target_index: usize,
-}
-
-/// Conservative settings for the optional, approximate protein k-mer filter.
-///
-/// Three-residue protein words are conventional for seed-and-extend search,
-/// while requiring three distinct hits avoids spending global alignment time on
-/// most coincidental single-word matches. These settings can still miss remote
-/// homologues, so callers must keep this filter opt-in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct KmerPrefilter {
-    pub kmer_size: usize,
-    pub min_shared_kmers: usize,
-}
-
-impl Default for KmerPrefilter {
-    fn default() -> Self {
-        Self {
-            kmer_size: 3,
-            min_shared_kmers: 3,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -742,80 +721,6 @@ pub fn analyse_protein_pairs_with_progress(
     matches
 }
 
-/// Return promising pairs from two protein collections using distinct exact
-/// peptide k-mers. The returned pairs still require full global alignment.
-///
-/// This is intentionally a heuristic: unlike the length bound, a k-mer filter
-/// can exclude a remote homologue. It is therefore not used by default.
-pub fn kmer_candidate_pairs(
-    query: &[&[u8]],
-    target: &[&[u8]],
-    identity_cutoff: f32,
-    prefilter: KmerPrefilter,
-) -> Vec<ProteinPair> {
-    kmer_candidate_pairs_with_progress(query, target, identity_cutoff, prefilter, |_| {})
-}
-
-/// As [`kmer_candidate_pairs`], reporting how many possible query-target pairs
-/// have been searched. A query protein accounts for `target.len()` pairs once
-/// all of its k-mers have been inspected.
-pub fn kmer_candidate_pairs_with_progress(
-    query: &[&[u8]],
-    target: &[&[u8]],
-    identity_cutoff: f32,
-    prefilter: KmerPrefilter,
-    mut progress: impl FnMut(usize),
-) -> Vec<ProteinPair> {
-    if prefilter.kmer_size == 0 || prefilter.kmer_size > 8 || prefilter.min_shared_kmers == 0 {
-        let pairs = cartesian_pairs(query, target, identity_cutoff);
-        progress(query.len() * target.len());
-        return pairs;
-    }
-
-    let mut target_index = HashMap::<u64, Vec<usize>>::new();
-    for (target_index_value, protein) in target.iter().enumerate() {
-        for kmer in distinct_kmers(protein, prefilter.kmer_size) {
-            target_index
-                .entry(kmer)
-                .or_default()
-                .push(target_index_value);
-        }
-    }
-
-    let mut candidates = Vec::new();
-    let mut shared_counts = vec![0_usize; target.len()];
-    let mut touched_targets = Vec::new();
-    for (query_index, protein) in query.iter().enumerate() {
-        for kmer in distinct_kmers(protein, prefilter.kmer_size) {
-            if let Some(targets) = target_index.get(&kmer) {
-                for &target_index in targets {
-                    if shared_counts[target_index] == 0 {
-                        touched_targets.push(target_index);
-                    }
-                    shared_counts[target_index] += 1;
-                }
-            }
-        }
-        for target_index in touched_targets.drain(..) {
-            let count = std::mem::take(&mut shared_counts[target_index]);
-            if count >= prefilter.min_shared_kmers
-                && can_reach_identity(protein.len(), target[target_index].len(), identity_cutoff)
-            {
-                candidates.push(ProteinPair {
-                    query_index,
-                    target_index,
-                });
-            }
-        }
-        progress((query_index + 1) * target.len());
-    }
-    if query.is_empty() {
-        progress(0);
-    }
-    candidates.sort_unstable_by_key(|pair| (pair.query_index, pair.target_index));
-    candidates
-}
-
 /// The largest possible global-alignment identity is the shorter sequence
 /// divided by the longer one. Rejecting pairs below this bound is exact.
 pub fn can_reach_identity(query_length: usize, target_length: usize, identity_cutoff: f32) -> bool {
@@ -824,35 +729,6 @@ pub fn can_reach_identity(query_length: usize, target_length: usize, identity_cu
     }
     let longer = query_length.max(target_length);
     longer != 0 && query_length.min(target_length) as f32 / longer as f32 >= identity_cutoff
-}
-
-fn cartesian_pairs(query: &[&[u8]], target: &[&[u8]], identity_cutoff: f32) -> Vec<ProteinPair> {
-    query
-        .iter()
-        .enumerate()
-        .flat_map(|(query_index, query_protein)| {
-            target
-                .iter()
-                .enumerate()
-                .filter_map(move |(target_index, target_protein)| {
-                    can_reach_identity(query_protein.len(), target_protein.len(), identity_cutoff)
-                        .then_some(ProteinPair {
-                            query_index,
-                            target_index,
-                        })
-                })
-        })
-        .collect()
-}
-
-fn distinct_kmers(protein: &[u8], kmer_size: usize) -> HashSet<u64> {
-    protein
-        .windows(kmer_size)
-        .map(|kmer| {
-            kmer.iter()
-                .fold(0_u64, |key, &amino_acid| (key << 8) | u64::from(amino_acid))
-        })
-        .collect()
 }
 
 fn max_protein_length(cluster: &Cluster) -> usize {
@@ -870,13 +746,13 @@ mod tests {
     #[cfg(not(target_arch = "wasm32"))]
     use super::{AlignmentTask, alignment_tasks, analyse_genbank_with_options_and_jobs};
     use super::{
-        AnalysisOptions, InputFile, KmerPrefilter, ProteinPair, analyse_genbank,
-        analyse_protein_pairs, analyse_protein_tile, analyse_protein_tile_with_progress,
-        can_reach_identity, kmer_candidate_pairs, kmer_candidate_pairs_with_progress,
+        AnalysisOptions, InputFile, ProteinPair, analyse_genbank, analyse_protein_pairs,
+        analyse_protein_tile, analyse_protein_tile_with_progress, can_reach_identity,
         parse_input_files_with_progress,
     };
     #[cfg(not(target_arch = "wasm32"))]
     use crate::ParseOptions;
+    use crate::{KmerPrefilter, kmer_candidate_pairs, kmer_candidate_pairs_with_progress};
 
     const FORWARD_CDS: &[u8] =
         br#"LOCUS       FIRST                      9 bp    DNA     linear   UNA 01-JAN-2000

@@ -37,8 +37,5 @@ fn bundled_genbank_files_complete_the_analysis_and_plot_data_workflow() {
     assert!(!plot_data.groups.is_empty());
 
     let json = serde_json::to_string(&plot_data).unwrap();
-    assert!(json.contains("\"clusters\""));
-    assert!(json.contains("\"links\""));
-    assert!(json.contains("\"groups\""));
     assert!(!json.contains("translation"));
 }

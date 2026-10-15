@@ -1,3 +1,4 @@
+import { displayedClusterOrder, similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261015-compact-kmers-v1";
 import { classifyInputFiles, fileStem, isGenBankFile, isGffFile, isFastaFile, isSupportedInputFile } from "./input-files.mjs?v=20261015-start-v35";
 import { Workflow } from "./workflow.mjs?v=20261015-start-v35";
 import {
@@ -58,7 +59,7 @@ const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
-const WORKER_VERSION = "20261015-cds-bounds-v1";
+const WORKER_VERSION = "20261015-compact-kmers-v1";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
@@ -935,108 +936,22 @@ function bestLinkCount(plotData) {
   return [...selectedByPair.values()].reduce((count, links) => count + links.length, 0);
 }
 
-function csvCell(value) {
-  const text = String(value);
-  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
-function downloadSimilarityCsv({ clusterNames, clusterOrder, similarityMatrix }) {
-  const plotPosition = new Map(clusterOrder.map((cluster, index) => [cluster, index + 1]));
-  const rows = [[
-    "query_plot_order",
-    "query_cluster",
-    "query_index",
-    "target_plot_order",
-    "target_cluster",
-    "target_index",
-    "query_to_target_coverage",
-    "target_to_query_coverage",
-    "containment_similarity",
-    "distance",
-  ]];
-  for (let query = 0; query < clusterNames.length; query += 1) {
-    for (let target = query + 1; target < clusterNames.length; target += 1) {
-      const pair = similarityMatrix[query][target];
-      rows.push([
-        plotPosition.get(query),
-        clusterNames[query],
-        query,
-        plotPosition.get(target),
-        clusterNames[target],
-        target,
-        pair.queryCoverage,
-        pair.targetCoverage,
-        pair.similarity,
-        1 - pair.similarity,
-      ]);
-    }
-  }
-  const csv = `${rows.map(row => row.map(csvCell).join(",")).join("\n")}\n`;
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-  const download = document.createElement("a");
-  download.href = url;
-  download.download = "clinker-cluster-similarity.csv";
-  document.body.append(download);
-  download.click();
-  download.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
 matrixButton.addEventListener("click", () => {
-  if (latestSimilarity) downloadSimilarityCsv(latestSimilarity);
+  if (!latestSimilarity) return;
+  try {
+    downloadText("clinker-cluster-similarity.csv", similarityCsv(latestSimilarity, displayedClusterOrder({ data: chart.data(), state: chart.state() })), "text/csv;charset=utf-8");
+  } catch (error) {
+    setContextStatus(`CSV export failed: ${error.message || String(error)}`, { tone: "error" });
+  }
 });
-
-function downloadSvg() {
-  const svg = chart.exportSvg();
-  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
-  const download = document.createElement("a");
-  download.href = url;
-  download.download = "clinker.svg";
-  document.body.append(download);
-  download.click();
-  download.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
 
 svgButton.addEventListener("click", () => {
   try {
-    downloadSvg();
+    downloadText("clinker.svg", chart.exportSvg(), "image/svg+xml;charset=utf-8");
   } catch (error) {
     setContextStatus(`SVG export failed: ${error.message || String(error)}`, { tone: "error" });
   }
 });
-
-function validatePlotData(data) {
-  if (!data || typeof data !== "object" || Array.isArray(data)) {
-    throw new Error("the file must contain a plot-data object");
-  }
-  if (!Array.isArray(data.clusters) || !Array.isArray(data.links) || !Array.isArray(data.groups)) {
-    throw new Error("plot data must contain clusters, links, and groups arrays");
-  }
-  const genes = new Set();
-  for (const cluster of data.clusters) {
-    if (!cluster || !Array.isArray(cluster.loci)) throw new Error("every cluster needs a loci array");
-    for (const locus of cluster.loci) {
-      if (!locus || !Array.isArray(locus.genes)) throw new Error("every locus needs a genes array");
-      for (const gene of locus.genes) {
-        if (gene?.uid === undefined || genes.has(gene.uid)) {
-          throw new Error("every gene needs a unique uid");
-        }
-        genes.add(gene.uid);
-      }
-    }
-  }
-  for (const group of data.groups) {
-    if (!group || !Array.isArray(group.genes) || group.genes.some(uid => !genes.has(uid))) {
-      throw new Error("every group must contain known gene IDs");
-    }
-  }
-  for (const link of data.links) {
-    if (!link?.query || !link?.target || !genes.has(link.query.uid) || !genes.has(link.target.uid)) {
-      throw new Error("every link must refer to known genes");
-    }
-  }
-}
 
 function replaceChart(config = chart.config()) {
   const previousChart = chart;
@@ -1051,13 +966,8 @@ function mountSelectionToolbar() {
   disposeSelectionToolbar = mountPlotSelectionToolbar(chart, plotStage);
 }
 
-function mountImportedPlot(data, { config = null, appearance = null, state = null } = {}) {
-  validatePlotData(data);
-  const chartConfig = config || appearance || chart.config();
-  if (!chartConfig || typeof chartConfig !== "object" || Array.isArray(chartConfig)) {
-    throw new Error("appearance settings must be an object");
-  }
-  replaceChart(chartConfig);
+function mountImportedPlot(data, { config, state = null }) {
+  replaceChart(config);
   plot.datum(data).call(chart);
   if (state) chart.state(state);
   mountSelectionToolbar();
@@ -1072,33 +982,10 @@ function mountImportedPlot(data, { config = null, appearance = null, state = nul
   closeRunPanel();
 }
 
-async function readJsonFile(file, workflow) {
-  const text = await workflow.readFile(file, true);
-  workflow.throwIfCancelled();
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error("the selected file is not valid JSON");
-  }
-}
-
 projectButton.addEventListener("click", () => {
   if (!latestAnalysisSession) return;
-  const project = {
-    ...chart.project(),
-    version: 2,
-    analysis: latestAnalysisSession,
-  };
-  const url = URL.createObjectURL(new Blob([`${JSON.stringify(project, null, 2)}\n`], {
-    type: "application/json;charset=utf-8",
-  }));
-  const download = document.createElement("a");
-  download.href = url;
-  download.download = "clinker-project.json";
-  document.body.append(download);
-  download.click();
-  download.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  const project = { ...chart.project(), version: 2, analysis: latestAnalysisSession };
+  downloadText("clinker-project.json", `${JSON.stringify(project, null, 2)}\n`, "application/json;charset=utf-8");
 });
 
 function openAnalysisSession(session, workflow) {
@@ -1124,7 +1011,6 @@ function openAnalysisSession(session, workflow) {
 function retainAnalysisResult(result) {
   latestSimilarity = {
     clusterNames: result.clusterNames,
-    clusterOrder: result.clusterOrder,
     similarityMatrix: result.similarityMatrix,
   };
   latestAnalysisSession = result.analysisSession;
@@ -1140,13 +1026,8 @@ clinkerFileInput.addEventListener("change", () => {
   if (!file) return;
   runWorkflow(async workflow => {
     setRunStatus("Opening project…");
-    const saved = await readJsonFile(file, workflow);
-    if (saved.format !== "clinker-project" || saved.version !== 2) {
-      throw new Error("the file is not a clinker project");
-    }
-    if (!saved.config) throw new Error("project is missing appearance settings");
-    if (!saved.analysis) throw new Error("project is missing analysis data");
-    validatePlotData(saved.data);
+    const saved = parseProject(await workflow.readFile(file, true));
+    workflow.throwIfCancelled();
     const analysisResult = await openAnalysisSession(saved.analysis, workflow);
     workflow.throwIfCancelled();
     mountImportedPlot(saved.data, { config: saved.config, state: saved.state });
@@ -1464,7 +1345,6 @@ async function analyseFiles(files, workflow) {
   const plotData = result.plotData;
   latestSimilarity = {
     clusterNames: result.clusterNames,
-    clusterOrder: result.clusterOrder,
     similarityMatrix: result.similarityMatrix,
   };
   latestAnalysisSession = result.analysisSession;
