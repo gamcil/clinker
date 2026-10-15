@@ -38,6 +38,8 @@ const openProjectStartButton = document.querySelector("#open-project-start");
 const plotActions = document.querySelector("#plot-actions");
 const clinkerFileInput = document.querySelector("#clinker-file");
 const plotEditor = document.querySelector("#plot-editor");
+const helpButton = document.querySelector("#plot-help");
+const helpDialog = document.querySelector("#help-dialog");
 const editPlotButton = document.querySelector("#edit-plot");
 const runPanel = document.querySelector("#run-panel");
 const newRunButton = document.querySelector("#new-run");
@@ -618,6 +620,25 @@ document.addEventListener("pointerdown", event => {
   toolbarMenus.forEach(menu => {
     if (!menu.contains(event.target)) menu.open = false;
   });
+});
+
+helpButton.addEventListener("click", () => {
+  toolbarMenus.forEach(menu => { menu.open = false; });
+  helpDialog.showModal();
+});
+// Keep plot shortcuts from changing the figure while the modal has focus.
+helpDialog.addEventListener("keydown", event => event.stopPropagation());
+helpDialog.addEventListener("close", () => helpButton.focus());
+helpDialog.addEventListener("click", event => {
+  const topic = event.target.closest("[data-help-section]");
+  if (topic) {
+    helpDialog.querySelector(`#${topic.dataset.helpSection}`).scrollIntoView({ block: "start" });
+    return;
+  }
+  if (event.target !== helpDialog) return;
+  const bounds = helpDialog.getBoundingClientRect();
+  if (event.clientX < bounds.left || event.clientX > bounds.right
+      || event.clientY < bounds.top || event.clientY > bounds.bottom) helpDialog.close();
 });
 
 document.addEventListener("keydown", event => {

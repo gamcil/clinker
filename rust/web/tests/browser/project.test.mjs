@@ -57,6 +57,31 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
+  const helpButton = page.getByRole('button', { name: 'Plot help', exact: true });
+  const help = page.getByRole('dialog', { name: 'Plot help' });
+  await helpButton.click();
+  assert.equal(await help.isVisible(), true);
+  assert.equal(await help.getByRole('heading', { name: 'Select loci' }).isVisible(), true);
+  assert.equal(await help.getByRole('button', { name: 'Close help' }).evaluate(el => el === document.activeElement), true);
+  await page.keyboard.press('Tab');
+  assert.equal(await help.getByRole('button', { name: 'Move around', exact: true }).evaluate(el => el === document.activeElement), true);
+  await page.keyboard.press('Shift+Tab');
+  assert.equal(await help.getByRole('button', { name: 'Close help' }).evaluate(el => el === document.activeElement), true);
+  await page.keyboard.press('Escape');
+  assert.equal(await help.isVisible(), false);
+  assert.equal(await helpButton.evaluate(el => el === document.activeElement), true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await helpButton.click();
+  const dimensions = await help.getByRole('region', { name: 'Plot controls and shortcuts' }).evaluate(el => ({
+    scrolls: el.scrollHeight > el.clientHeight,
+    fits: el.scrollWidth <= el.clientWidth,
+  }));
+  assert.deepEqual(dimensions, { scrolls: true, fits: true });
+  await help.getByRole('button', { name: 'Save your work', exact: true }).click();
+  assert.equal(await help.getByRole('region', { name: 'Plot controls and shortcuts' }).evaluate(el => el.scrollTop > 0), true);
+  await page.mouse.click(2, 2);
+  assert.equal(await help.isVisible(), false);
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.evaluate(() => {
     const transfer = new DataTransfer();
     transfer.items.add(new File(['LOCUS       old 10 bp DNA\n', ' '.repeat(1024 * 1024)], 'old.gbk'));
@@ -97,6 +122,12 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   });
   const figure = () => page.evaluate(() => document.querySelector('#plot-editor').chart.project());
   const beforeDelete = await figure();
+  const selectedLocus = beforeDelete.data.clusters[0].loci[0].uid;
+  await page.evaluate(uid => document.querySelector('#plot-editor').chart.locusSelection([uid]), selectedLocus);
+  await helpButton.click();
+  await page.keyboard.press('Escape');
+  assert.deepEqual(await page.evaluate(() => document.querySelector('#plot-editor').chart.locusSelection()), [selectedLocus]);
+  await page.evaluate(() => document.querySelector('#plot-editor').chart.locusSelection([]));
   await page.locator('#edit-plot').click();
   await page.locator('#plot-editor [data-kind="genes"]').click();
   const selection = page.locator('#plot-editor [data-select-many]').last();

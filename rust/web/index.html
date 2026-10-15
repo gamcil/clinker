@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261015-start-v44">
+    <link rel="stylesheet" href="style.css?v=20261015-help-v2">
     <link rel="stylesheet" href="clustermap-editor.css?v=20261014-clustermap-905a0f8-v16">
     <script src="d3.min.js"></script>
     <script src="clustermap.min.js?v=20261014-clustermap-905a0f8-v16"></script>
@@ -28,10 +28,7 @@
           <button id="edit-plot" type="button" disabled aria-controls="plot-editor" aria-expanded="false">Edit plot</button>
         </nav>
         <span class="about-help">
-          <button class="about-button" type="button" aria-label="About clinker web" aria-describedby="about-tooltip">?</button>
-          <span id="about-tooltip" class="about-tooltip" role="tooltip">
-            GenBank and GFF3 parsing and protein comparisons run locally in your browser using WebAssembly. Your files are not uploaded.
-          </span>
+          <button id="plot-help" class="about-button" type="button" aria-label="Plot help" aria-haspopup="dialog" aria-controls="help-dialog" title="Plot help">?</button>
         </span>
       </header>
       <div class="plot-stage">
@@ -222,6 +219,89 @@
         <clinker-editor id="plot-editor" resizable hidden></clinker-editor>
       </div>
     </main>
-    <script type="module" src="app.js?v=20261015-layout-v1"></script>
+    <dialog id="help-dialog" class="help-dialog" aria-labelledby="help-title" aria-describedby="help-intro">
+      <header class="help-heading">
+        <div class="help-heading-row">
+          <div>
+            <h2 id="help-title">Plot help</h2>
+            <p id="help-intro">Select, arrange and edit your figure directly in the plot.</p>
+          </div>
+          <form method="dialog"><button class="help-close" aria-label="Close help" autofocus>×</button></form>
+        </div>
+        <nav class="help-topics" aria-label="Help topics">
+          <button type="button" data-help-section="help-navigate">Move around</button>
+          <button type="button" data-help-section="help-selection">Select loci</button>
+          <button type="button" data-help-section="help-arrange">Arrange and trim</button>
+          <button type="button" data-help-section="help-genes">Genes and legend</button>
+          <button type="button" data-help-section="help-editor">Batch editing</button>
+          <button type="button" data-help-section="help-save">Save your work</button>
+          <button type="button" data-help-section="help-about">About clinker</button>
+        </nav>
+      </header>
+      <div class="help-body" tabindex="0" role="region" aria-label="Plot controls and shortcuts">
+        <div class="help-grid">
+          <section aria-labelledby="help-navigate">
+            <h3 id="help-navigate">Move around</h3>
+            <dl>
+              <div><dt>Scroll or pinch</dt><dd>Zoom in and out around the pointer.</dd></div>
+              <div><dt>Drag empty space</dt><dd>Pan the figure. In Canvas/GPU mode, hold <kbd>Space</kbd> while dragging to pan over plotted items too.</dd></div>
+              <div><dt>Minimap</dt><dd>Click or drag in the overview to move to another part of a large plot.</dd></div>
+            </dl>
+          </section>
+          <section aria-labelledby="help-selection">
+            <h3 id="help-selection">Select loci</h3>
+            <p>A locus is one sequence within a cluster. Selection highlights it and opens a batch-action toolbar.</p>
+            <dl>
+              <div><dt><kbd>Shift</kbd> + click</dt><dd>Add or remove a locus from the selection. Clicking a gene with Shift selects its locus.</dd></div>
+              <div><dt><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Shift</kbd> + click</dt><dd>Add all loci in the cluster rows between the previous selection and this one.</dd></div>
+              <div><dt><kbd>Alt</kbd> / <kbd>⌥</kbd> + <kbd>Shift</kbd> + click</dt><dd>Remove that range of cluster rows from the selection.</dd></div>
+              <div><dt><kbd>Esc</kbd> or Clear</dt><dd>Clear plot selection when you are not typing in a field.</dd></div>
+            </dl>
+          </section>
+          <section aria-labelledby="help-arrange">
+            <h3 id="help-arrange">Arrange and trim</h3>
+            <dl>
+              <div><dt>Drag a cluster label</dt><dd>Reorder rows vertically. Dragging a selected cluster moves the selected rows as a block.</dd></div>
+              <div><dt>Drag a locus track</dt><dd>Move it horizontally. Dragging a selected locus moves all selected loci together.</dd></div>
+              <div><dt>Double-click a locus</dt><dd>Flip its orientation.</dd></div>
+              <div><dt>Drag the end handles</dt><dd>Hover over a locus to reveal handles, then drag an end to adjust its displayed bounds.</dd></div>
+              <div><dt>Selection toolbar</dt><dd>Flip selected loci, trim them to their outermost displayed genes, or restore their full bounds.</dd></div>
+            </dl>
+          </section>
+          <section aria-labelledby="help-genes">
+            <h3 id="help-genes">Genes and legend</h3>
+            <dl>
+              <div><dt>Click a gene</dt><dd>Anchor the figure on that gene, bringing linked genes into alignment.</dd></div>
+              <div><dt>Right-click a gene</dt><dd>Open its label, colour and anchoring controls.</dd></div>
+              <div><dt>Click legend text or colour</dt><dd>Rename a group or change its colour. Right-click its text for more group controls.</dd></div>
+              <div><dt>Click the scale bar</dt><dd>Change the length represented by the bar.</dd></div>
+            </dl>
+          </section>
+          <section aria-labelledby="help-editor">
+            <h3 id="help-editor">Batch editing</h3>
+            <dl>
+              <div><dt>Edit plot</dt><dd>Open the bottom panel to edit genes, groups, links and appearance settings.</dd></div>
+              <div><dt>Select rows or checkboxes</dt><dd>Apply actions to multiple records. In the Genes tree, a cluster or locus checkbox selects its genes; <kbd>Shift</kbd>-click selects a range of rows.</dd></div>
+              <div><dt>Group actions</dt><dd>Assign genes to groups, create or merge groups, and set shared labels, colours or visibility. Drag a group’s reorder grip, or focus it and use <kbd>↑</kbd> / <kbd>↓</kbd>, to reorder the legend.</dd></div>
+              <div><dt>Undo / Redo</dt><dd>Use the buttons at the top of the editor to reverse or reapply figure edits. <kbd>Enter</kbd> commits an inline field; <kbd>Esc</kbd> cancels it.</dd></div>
+            </dl>
+          </section>
+          <section aria-labelledby="help-save">
+            <h3 id="help-save">Save your work</h3>
+            <dl>
+              <div><dt>Export → Project</dt><dd>Save the analysis, appearance and edits. Use Open project to continue later; work is not saved automatically.</dd></div>
+              <div><dt>Export → SVG</dt><dd>Download the figure for publication or further editing.</dd></div>
+              <div><dt>Export → Similarity CSV</dt><dd>Download analysis scores with current cluster names and plot order. Visual edits do not recompute scores.</dd></div>
+            </dl>
+          </section>
+        </div>
+        <section class="help-about" aria-labelledby="help-about">
+          <h3 id="help-about">About clinker</h3>
+          <p>clinker compares gene clusters, groups homologous proteins and arranges the results as an interactive figure. Its analysis engine is written in Rust and is also available as a command-line application. The web app runs that engine through WebAssembly, using block-aligner for SIMD-accelerated global protein alignments.</p>
+          <p>Analysis runs in background browser workers while you view and edit the plot. Your input files and analysis stay on your device; no upload or analysis server is required. Save a project to keep your work between visits.</p>
+        </section>
+      </div>
+    </dialog>
+    <script type="module" src="app.js?v=20261015-help-v1"></script>
   </body>
 </html>

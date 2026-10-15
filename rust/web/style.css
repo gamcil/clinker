@@ -212,42 +212,170 @@ h1 {
   font-weight: 700;
 }
 
-.about-tooltip {
-  position: absolute;
-  z-index: 30;
-  top: calc(100% + 8px);
-  right: 0;
-  width: min(280px, calc(100vw - 24px));
-  padding: 8px 10px;
+.help-dialog {
+  width: min(840px, calc(100vw - 32px));
+  max-height: min(860px, calc(100dvh - 40px));
+  padding: 0;
+  overflow: hidden;
   border: 1px solid #d7dce3;
-  border-radius: 7px;
-  background: #273444;
-  box-shadow: 0 8px 24px rgba(23, 36, 54, .18);
-  color: #fff;
-  font-size: .8rem;
-  font-weight: 400;
-  line-height: 1.4;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-3px);
-  transition: opacity 120ms ease, transform 120ms ease;
+  border-radius: 14px;
+  background: #fff;
+  color: #273444;
+  box-shadow: 0 20px 80px rgba(23, 36, 54, .24);
 }
 
-.about-tooltip::before {
-  position: absolute;
-  top: -5px;
-  right: 9px;
-  width: 9px;
-  height: 9px;
-  background: #273444;
-  content: "";
-  transform: rotate(45deg);
+.help-dialog[open] {
+  display: flex;
+  flex-direction: column;
 }
 
-.about-help:hover .about-tooltip,
-.about-help:focus-within .about-tooltip {
-  opacity: 1;
-  transform: translateY(0);
+.help-dialog::backdrop {
+  background: rgba(25, 38, 55, .4);
+}
+
+.help-heading {
+  flex: none;
+  padding: 22px 26px 18px;
+  border-bottom: 1px solid #e5eaf0;
+}
+
+.help-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.help-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 16px;
+}
+
+.help-topics button {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: #2769af;
+  font: inherit;
+  font-size: .9rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.help-heading h2 {
+  margin: 0 0 5px;
+  font-size: 1.4rem;
+  letter-spacing: -.025em;
+}
+
+.help-heading p {
+  margin: 0;
+  color: #63728a;
+}
+
+.help-close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid #d7dce3;
+  border-radius: 6px;
+  background: #fff;
+  color: #526178;
+  font: inherit;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.help-close:hover {
+  background: #f1f5f9;
+}
+
+.help-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 22px 26px 26px;
+}
+
+.help-body:focus-visible {
+  outline: 2px solid #2a6ebb;
+  outline-offset: -3px;
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 26px 32px;
+}
+
+.help-grid h3,
+.help-about h3 {
+  margin: 0 0 12px;
+  color: #1f2d3d;
+  font-size: 1rem;
+}
+
+.help-grid p,
+.help-grid dl {
+  margin: 0;
+}
+
+.help-grid section > p {
+  margin-bottom: 12px;
+  color: #63728a;
+}
+
+.help-grid dl > div + div {
+  margin-top: 12px;
+}
+
+.help-grid dt {
+  margin-bottom: 3px;
+  font-weight: 600;
+}
+
+.help-grid dd {
+  margin: 0;
+  color: #526178;
+  line-height: 1.45;
+}
+
+.help-grid kbd {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid #d7dce3;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #f6f8fb;
+  font: inherit;
+  font-size: .85em;
+  white-space: nowrap;
+}
+
+.help-about {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid #e5eaf0;
+}
+
+.help-about p {
+  margin: 0;
+  color: #526178;
+  line-height: 1.45;
+}
+
+.help-about p + p {
+  margin-top: 12px;
+}
+
+@media (max-width: 620px) {
+  .help-grid { grid-template-columns: minmax(0, 1fr); }
+  .help-heading { padding: 18px; }
+  .help-body { padding: 18px; }
 }
 
 .plot-stage {
