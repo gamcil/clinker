@@ -8,7 +8,7 @@ import { chromium } from 'playwright';
 
 const root = resolve(process.env.CLINKER_WEB_ROOT || fileURLToPath(new URL('../../', import.meta.url)));
 
-test('analysis → edit → project → reopen → CSV and SVG preserves the displayed figure', { timeout: 120000 }, async t => {
+test('analysis, cancellation, failure recovery and project exports preserve the displayed figure', { timeout: 120000 }, async t => {
   const server = createServer(async (request, response) => {
     const path = resolve(root, '.' + decodeURIComponent(new URL(request.url, 'http://localhost').pathname).replace(/\/$/, '/index.html'));
     if (!path.startsWith(root + '/')) { response.writeHead(403).end(); return; }
@@ -23,14 +23,59 @@ test('analysis → edit → project → reopen → CSV and SVG preserves the dis
   const browser = await chromium.launch({ headless: true });
   t.after(() => browser.close());
   const page = await browser.newPage();
+  await page.addInitScript(() => {
+    window.inputAudit = { reads: [], aborts: 0 };
+    const readAsText = FileReader.prototype.readAsText;
+    FileReader.prototype.readAsText = function(file, ...args) {
+      window.inputAudit.reads.push(file.name);
+      this.addEventListener('abort', () => { window.inputAudit.aborts += 1; }, { once: true });
+      return readAsText.call(this, file, ...args);
+    };
+    const NativeWorker = window.Worker;
+    window.workerAudit = { hold: null, pending: null, live: new Set() };
+    window.Worker = class extends NativeWorker {
+      constructor(...args) {
+        super(...args);
+        window.workerAudit.live.add(this);
+      }
+      postMessage(message, ...args) {
+        if (message.type === window.workerAudit.hold) {
+          window.workerAudit.pending = { worker: this, lateMessage: this.onmessage };
+          return;
+        }
+        super.postMessage(message, ...args);
+      }
+      terminate() {
+        window.workerAudit.live.delete(this);
+        super.terminate();
+      }
+    };
+  });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
+  await page.evaluate(() => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(['LOCUS       old 10 bp DNA\n', ' '.repeat(1024 * 1024)], 'old.gbk'));
+    transfer.items.add(new File(['LOCUS       queued 10 bp DNA'], 'queued.gbk'));
+    const input = document.querySelector('#files');
+    input.files = transfer.files;
+    input.dispatchEvent(new Event('change'));
+    document.querySelector('#clear-input-files').click();
+  });
+  await page.waitForFunction(() => !document.querySelector('#record-ranges').hasAttribute('aria-busy'));
+  assert.deepEqual(await page.evaluate(() => window.inputAudit), { reads: ['old.gbk'], aborts: 1 });
+  assert.equal(await page.locator('#analyse').isDisabled(), true);
+  assert.equal(await page.locator('[data-record-range]').count(), 0);
   await page.locator('#files').setInputFiles([
     resolve(root, 'examples/A. versicolor CBS 583.65.gbk'),
     resolve(root, 'examples/A. burnettii MST-FP2249.gbk'),
   ]);
   await page.waitForFunction(() => !document.querySelector('#analyse').disabled);
+  const inspectionReads = await page.evaluate(() => window.inputAudit.reads);
+  await page.locator('#files').dispatchEvent('change');
+  await page.waitForFunction(() => !document.querySelector('#analyse').disabled);
+  assert.deepEqual(await page.evaluate(() => window.inputAudit.reads), inspectionReads);
   await page.locator('#analyse').click();
   await page.waitForFunction(() => document.querySelector('#run-panel').hidden, {}, { timeout: 60000 });
   const expected = await page.evaluate(() => {
@@ -58,6 +103,55 @@ test('analysis → edit → project → reopen → CSV and SVG preserves the dis
   }
   checkCsv(await download('#download-matrix'));
   const project = await download('#download-project');
+  const openProject = buffer => page.locator('#clinker-file').setInputFiles({
+    name: 'edited.json', mimeType: 'application/json', buffer: Buffer.from(buffer),
+  });
+  async function checkRecovery() {
+    await page.waitForFunction(() => !document.querySelector('.run-card').classList.contains('is-busy'));
+    assert.equal(await page.evaluate(() => window.workerAudit.live.size), 0);
+    for (const id of ['#analyse', '#load-example', '#open-project-start', '#download-matrix', '#download-svg', '#download-project']) {
+      assert.equal(await page.locator(id).isEnabled(), true, id);
+    }
+    const preserved = await page.evaluate(() => document.querySelector('#plot-editor').chart.project());
+    assert.deepEqual(preserved.data, JSON.parse(project).data);
+    assert.deepEqual(preserved.state.clusterOrder, expected.state.clusterOrder);
+  }
+  await page.locator('#new-run').click();
+  // Hold each worker stage at its request boundary so cancellation is reliable
+  // even when the example analysis finishes in milliseconds.
+  for (const stage of ['parse-start', 'parse-finish', 'analyse-pairs', 'post-process', 'open-session']) {
+    await page.evaluate(stage => {
+      window.workerAudit.hold = stage;
+      window.workerAudit.pending = null;
+    }, stage);
+    if (stage === 'open-session') await openProject(project);
+    else await page.locator('#analyse').click();
+    await page.waitForFunction(() => window.workerAudit.pending !== null);
+    await page.locator('#cancel-run').click();
+    await checkRecovery();
+    await page.evaluate(() => window.workerAudit.pending.lateMessage({
+      data: { type: 'error', message: 'Abandoned worker response' },
+    }));
+    assert.match(await page.locator('#run-status').textContent(), /Cancelled/);
+  }
+  for (const stage of ['parse-start', 'analyse-pairs', 'post-process', 'open-session']) {
+    await page.evaluate(stage => {
+      window.workerAudit.hold = stage;
+      window.workerAudit.pending = null;
+    }, stage);
+    if (stage === 'open-session') await openProject(project);
+    else await page.locator('#analyse').click();
+    await page.waitForFunction(() => window.workerAudit.pending !== null);
+    await page.evaluate(() => window.workerAudit.pending.worker.onmessageerror());
+    await checkRecovery();
+    assert.match(await page.locator('#run-status').textContent(), /Could not read/);
+  }
+  await page.evaluate(() => { window.workerAudit.hold = null; });
+  await openProject('{invalid json');
+  await checkRecovery();
+  assert.match(await page.locator('#run-status').textContent(), /Could not open project/);
+  await openProject(project);
+  await page.waitForFunction(() => document.querySelector('#run-panel').hidden, {}, { timeout: 60000 });
   await page.reload();
   await page.locator('#clinker-file').setInputFiles({ name: 'edited.json', mimeType: 'application/json', buffer: Buffer.from(project) });
   await page.waitForFunction(() => document.querySelector('#plot-status').textContent.includes('Loaded clinker project'), {}, { timeout: 60000 });

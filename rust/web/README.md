@@ -76,12 +76,16 @@ shared-word threshold are in Advanced settings.
 Analysis, example downloads, and project loading can be cancelled. Cancelling
 terminates their workers and keeps any existing plot and selected inputs.
 The progress view retains the analysis stages and their progress bars.
+Input pairing and trim controls share one sequential inspection pass. Only
+sequence metadata is cached; changing the selection aborts obsolete reads.
 
 Run `npm test` for input pairing, workflow lifecycle, and project/export tests.
 After building WASM, run `npm run test:wasm` to exercise the incremental parser
 and exported analysis functions. For the browser round trip, install Chromium
 with `npx playwright install chromium` and run `npm run test:browser`. CI runs
-that browser test against the packaged static application.
+that browser test against the packaged static application. It also checks
+cancellation at worker-stage boundaries, worker failures, and retrying project
+loading while preserving an edited plot.
 
 ## Build for local preview or static hosting
 

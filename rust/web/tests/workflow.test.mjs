@@ -64,3 +64,51 @@ test("cancelling aborts an in-progress file read", async t => {
   await assert.rejects(read, { name: "AbortError" });
   assert.equal(reader.reading, false);
 });
+
+test("disposing a failed workflow aborts outstanding requests and reads", async t => {
+  const originalReader = globalThis.FileReader;
+  globalThis.FileReader = class {
+    readAsText() {}
+    abort() { this.onabort(); }
+  };
+  t.after(() => {
+    if (originalReader) globalThis.FileReader = originalReader;
+    else delete globalThis.FileReader;
+  });
+  const workflow = new Workflow();
+  const read = workflow.readFile({}, true);
+  const request = new Promise((_, reject) => {
+    workflow.signal.addEventListener("abort", () => reject(workflow.signal.reason));
+  });
+  workflow.dispose();
+  await assert.rejects(read, { name: "AbortError" });
+  await assert.rejects(request, { name: "AbortError" });
+});
+
+test("worker requests clean up on messaging failures and ignore late messages", async t => {
+  let worker;
+  const originalWorker = globalThis.Worker;
+  globalThis.Worker = class {
+    terminations = 0;
+    constructor() { worker = this; }
+    postMessage(message) {
+      if (message.uncloneable) throw new DOMException("Cannot clone", "DataCloneError");
+    }
+    terminate() { this.terminations += 1; }
+  };
+  t.after(() => {
+    if (originalWorker) globalThis.Worker = originalWorker;
+    else delete globalThis.Worker;
+  });
+  const workflow = new Workflow();
+  await assert.rejects(workflow.request("worker.js", { uncloneable: true }), { name: "DataCloneError" });
+  assert.equal(worker.terminations, 1);
+  const request = workflow.request("worker.js", {});
+  const lateMessage = worker.onmessage;
+  worker.onmessageerror();
+  await assert.rejects(request, /Could not read/);
+  lateMessage({ data: { type: "post-process", result: "late result" } });
+  assert.equal(worker.onmessage, null);
+  workflow.dispose();
+  assert.equal(worker.terminations, 1);
+});

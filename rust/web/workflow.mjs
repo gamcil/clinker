@@ -9,13 +9,12 @@ export class Workflow {
   throwIfCancelled() { this.signal.throwIfAborted(); }
 
   cancel() {
-    this.#controller.abort(new DOMException("Cancelled", "AbortError"));
     this.dispose();
   }
 
   dispose() {
-    for (const worker of this.#workers) worker.terminate();
-    this.#workers.clear();
+    this.#controller.abort(new DOMException("Cancelled", "AbortError"));
+    for (const worker of this.#workers) this.releaseWorker(worker);
   }
 
   worker(url) {
@@ -26,8 +25,37 @@ export class Workflow {
   }
 
   releaseWorker(worker) {
+    worker.onmessage = worker.onerror = worker.onmessageerror = null;
     worker.terminate();
     this.#workers.delete(worker);
+  }
+
+  request(url, message, onProgress = () => {}) {
+    const worker = this.worker(url);
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        this.signal.removeEventListener("abort", cancel);
+        this.releaseWorker(worker);
+        callback(value);
+      };
+      const cancel = () => finish(reject, this.signal.reason);
+      this.signal.addEventListener("abort", cancel, { once: true });
+      worker.onmessage = ({ data }) => {
+        if (settled) return;
+        try {
+          if (data.type === "error") finish(reject, new Error(data.message));
+          else if (data.type === "post-process") finish(resolve, data.result);
+          else if (data.type === "post-process-progress") onProgress(data);
+        } catch (error) { finish(reject, error); }
+      };
+      worker.onerror = event => finish(reject, new Error(event.message || "Worker failed"));
+      worker.onmessageerror = () => finish(reject, new Error("Could not read the analysis worker response."));
+      try { worker.postMessage(message); }
+      catch (error) { finish(reject, error); }
+    });
   }
 
   wait(promise) {

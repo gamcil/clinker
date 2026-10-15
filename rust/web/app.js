@@ -1,6 +1,6 @@
 import { displayedClusterOrder, similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261015-compact-kmers-v1";
-import { classifyInputFiles, fileStem, isGenBankFile, isGffFile, isFastaFile, isSupportedInputFile } from "./input-files.mjs?v=20261015-start-v35";
-import { Workflow } from "./workflow.mjs?v=20261015-start-v35";
+import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261015-workflow-v1";
+import { Workflow } from "./workflow.mjs?v=20261015-workflow-v1";
 import {
   defineClinkerEditor,
   mountPlotSelectionToolbar,
@@ -81,9 +81,9 @@ let latestSimilarity = null;
 let latestAnalysisSession = null;
 let analysisInProgress = false;
 let activeWorkflow = null;
-let recordInspectionVersion = 0;
-let recordInspectionPromise = Promise.resolve();
-let inputValidationPromise = Promise.resolve({ ready: false, rows: [] });
+let inputInspection = null;
+let inputInspectionPromise = Promise.resolve({ ready: false, rows: [] });
+const inputMetadata = new WeakMap();
 let inputsReady = false;
 const selectedInputFiles = new Map();
 const EXAMPLE_FILES = [
@@ -308,53 +308,6 @@ function renderInputValidation(validation) {
   }
 }
 
-function genBankRecords(text) {
-  const records = [];
-  const locusLine = /^LOCUS\s+(\S+)\s+(\d+)\s+bp(?:\s|$)/gim;
-  for (const match of text.matchAll(locusLine)) {
-    const length = Number(match[2]);
-    if (Number.isSafeInteger(length) && length > 0) {
-      records.push({ name: match[1], start: 1, end: length, length });
-    }
-  }
-  return records;
-}
-
-function fastaRecords(text) {
-  const records = [];
-  let current = null;
-  for (const line of text.split(/\r?\n/)) {
-    if (line.startsWith(">")) {
-      if (current) records.push(current);
-      current = { name: line.slice(1).trim().split(/\s+/, 1)[0], start: 1, end: 0, length: 0 };
-    } else if (current) {
-      current.length += line.replace(/\s/g, "").length;
-    }
-  }
-  if (current) records.push(current);
-  return records
-    .filter(record => record.name && record.length > 0)
-    .map(record => ({ ...record, end: record.length }));
-}
-
-function gffRecords(text, companionText = "") {
-  const records = [...text.matchAll(/^##sequence-region\s+(\S+)\s+(\d+)\s+(\d+)\s*$/gim)]
-    .map(match => ({
-      name: match[1],
-      start: Number(match[2]),
-      end: Number(match[3]),
-      length: Number(match[3]) - Number(match[2]) + 1,
-    }))
-    .filter(record => Number.isSafeInteger(record.start)
-      && Number.isSafeInteger(record.end)
-      && Number.isSafeInteger(record.length)
-      && record.start > 0
-      && record.end >= record.start);
-  if (records.length > 0) return records;
-  const embedded = text.match(/^##FASTA\s*$([\s\S]*)/im)?.[1] || companionText;
-  return fastaRecords(embedded);
-}
-
 function emptyRecordRanges(message) {
   recordRangesElement.replaceChildren();
   const empty = document.createElement("p");
@@ -453,29 +406,6 @@ function renderRecordRanges(filesWithRecords) {
   }
 }
 
-async function inspectSelectedFiles(files, version) {
-  recordRangesElement.setAttribute("aria-busy", "true");
-  emptyRecordRanges(files.length ? "Reading annotation records…" : "Choose input files to trim their sequences.");
-  const fastaTexts = new Map(await Promise.all(files.filter(isFastaFile).map(async file => [
-    fileStem(file.name),
-    await file.text(),
-  ])));
-  const inspected = await Promise.all(files
-    .filter(file => isGenBankFile(file) || isGffFile(file))
-    .map(async file => {
-      const text = await file.text();
-      return {
-        file,
-        records: isGenBankFile(file)
-          ? genBankRecords(text)
-          : gffRecords(text, fastaTexts.get(fileStem(file.name)) || ""),
-      };
-    }));
-  if (version !== recordInspectionVersion) return;
-  renderRecordRanges(inspected);
-  recordRangesElement.removeAttribute("aria-busy");
-}
-
 function collectRecordRanges() {
   const selections = new Map();
   for (const row of recordRangesElement.querySelectorAll("[data-record-range]")) {
@@ -521,44 +451,51 @@ function syncAnnotationFiles() {
 
 function handleFileSelection() {
   syncFileSummary();
-  const version = ++recordInspectionVersion;
+  inputInspection?.dispose();
+  const inspection = new Workflow();
+  inputInspection = inspection;
   const files = [...filesInput.files];
   inputsReady = false;
   analyseButton.disabled = true;
   fileInputStatusList.replaceChildren();
   fileInputStatus.hidden = files.length === 0;
   if (files.length > 0) fileInputStatusSummary.textContent = "Checking selected inputs…";
-  inputValidationPromise = classifyInputFiles(files)
-    .then(validation => {
-      if (version !== recordInspectionVersion) return validation;
-      inputsReady = validation.ready;
-      renderInputValidation(validation);
-      analyseButton.disabled = analysisInProgress || !inputsReady;
-      return validation;
-    })
-    .catch(error => {
-      const validation = {
+  recordRangesElement.setAttribute("aria-busy", "true");
+  emptyRecordRanges(files.length ? "Reading annotation records…" : "Choose input files to trim their sequences.");
+  inputInspectionPromise = inspectInputFiles(files, {
+    readText: file => inspection.readFile(file, true),
+    cache: inputMetadata,
+  }).then(validation => {
+    if (inspection.signal.aborted) return validation;
+    inputsReady = validation.ready;
+    renderInputValidation(validation);
+    renderRecordRanges(validation.filesWithRecords);
+    analyseButton.disabled = analysisInProgress || !inputsReady;
+    return validation;
+  }).catch(error => {
+    const validation = {
+      ready: false,
+      rows: [{
+        name: "Selected inputs",
+        detail: "Not ready",
+        reason: error.message || String(error),
         ready: false,
-        rows: [{
-          name: "Selected inputs",
-          detail: "Not ready",
-          reason: error.message || String(error),
-          ready: false,
-        }],
-      };
-      if (version === recordInspectionVersion) {
-        inputsReady = false;
-        renderInputValidation(validation);
-        analyseButton.disabled = true;
-      }
-      return validation;
-    });
-  recordInspectionPromise = inspectSelectedFiles(files, version)
-    .catch(error => {
-      if (version !== recordInspectionVersion) return;
-      emptyRecordRanges(`Could not inspect record names: ${error.message || String(error)}`);
+      }],
+    };
+    if (!inspection.signal.aborted) {
+      inputsReady = false;
+      analyseButton.disabled = true;
+      renderInputValidation(validation);
+      emptyRecordRanges("Could not inspect selected inputs.");
+    }
+    return validation;
+  }).finally(() => {
+    if (inputInspection === inspection) {
+      inputInspection = null;
       recordRangesElement.removeAttribute("aria-busy");
-    });
+    }
+    inspection.dispose();
+  });
 }
 
 prefilterInput.addEventListener("change", syncPrefilterControls);
@@ -787,7 +724,7 @@ function parseInputFiles(
       }
     };
     worker.onmessage = ({ data }) => {
-      if (workflow.signal.aborted) return;
+      if (settled) return;
       if (data.type === "error") finish(reject, new Error(data.message));
       else if (data.type === "parse-ready") {
         clearTimeout(startupTimeout);
@@ -803,6 +740,7 @@ function parseInputFiles(
       }
     };
     worker.onerror = event => finish(reject, new Error(event.message || "Worker failed"));
+    worker.onmessageerror = () => finish(reject, new Error("Could not read the analysis worker response."));
     worker.postMessage({ type: "parse-start", prefilter });
   });
 }
@@ -989,23 +927,7 @@ projectButton.addEventListener("click", () => {
 });
 
 function openAnalysisSession(session, workflow) {
-  const worker = workflow.worker(WORKER_URL);
-  return new Promise((resolve, reject) => {
-    const finish = (callback, value) => {
-      workflow.signal.removeEventListener("abort", cancel);
-      workflow.releaseWorker(worker);
-      callback(value);
-    };
-    const cancel = () => finish(reject, workflow.signal.reason);
-    workflow.signal.addEventListener("abort", cancel, { once: true });
-    worker.onmessage = ({ data }) => {
-      if (workflow.signal.aborted) return;
-      if (data.type === "error") finish(reject, new Error(data.message));
-      else if (data.type === "post-process") finish(resolve, data.result);
-    };
-    worker.onerror = event => finish(reject, new Error(event.message || "Worker failed"));
-    worker.postMessage({ type: "open-session", session, useFileOrder: false });
-  });
+  return workflow.request(WORKER_URL, { type: "open-session", session, useFileOrder: false });
 }
 
 function retainAnalysisResult(result) {
@@ -1048,39 +970,22 @@ function postProcess(
   onProgress,
   workflow,
 ) {
-  const worker = workflow.worker(WORKER_URL);
-  return new Promise((resolve, reject) => {
-    const finish = (callback, value) => {
-      workflow.signal.removeEventListener("abort", cancel);
-      workflow.releaseWorker(worker);
-      callback(value);
-    };
-    const cancel = () => finish(reject, workflow.signal.reason);
-    workflow.signal.addEventListener("abort", cancel, { once: true });
-    worker.onmessage = ({ data }) => {
-      if (workflow.signal.aborted) return;
-      if (data.type === "error") finish(reject, new Error(data.message));
-      else if (data.type === "post-process-progress") onProgress(data);
-      else if (data.type === "post-process") finish(resolve, data.result);
-    };
-    worker.onerror = event => finish(reject, new Error(event.message || "Worker failed"));
-    worker.postMessage({
-      type: "post-process",
-      layout,
-      proteins,
-      useFileOrder,
-      wasmModule,
-      identity,
-      reportProgress: true,
-      links: links.map(link => ({
-        query: link.query,
-        target: link.target,
-        identity: link.identity,
-        similarity: link.similarity,
-      })),
-      groupDefinitions,
-    });
-  });
+  return workflow.request(WORKER_URL, {
+    type: "post-process",
+    layout,
+    proteins,
+    useFileOrder,
+    wasmModule,
+    identity,
+    reportProgress: true,
+    links: links.map(link => ({
+      query: link.query,
+      target: link.target,
+      identity: link.identity,
+      similarity: link.similarity,
+    })),
+    groupDefinitions,
+  }, onProgress);
 }
 
 function analyseTilesInWorkerPool(
@@ -1137,11 +1042,13 @@ function analyseTilesInWorkerPool(
       onProgress(processedPairs, totalPairs);
     };
     const dispatch = worker => {
-      if (nextTask === totalTiles) return;
+      if (settled || nextTask === totalTiles) return;
       const taskIndex = nextTask++;
-      const tile = tiles.next().value;
-      processedPairsByTask[taskIndex] = 0;
-      worker.postMessage({ ...tile, identity, taskIndex, wasmModule });
+      try {
+        const tile = tiles.next().value;
+        processedPairsByTask[taskIndex] = 0;
+        worker.postMessage({ ...tile, identity, taskIndex, wasmModule });
+      } catch (error) { finish(error); }
     };
 
     workers.forEach(worker => {
@@ -1169,6 +1076,7 @@ function analyseTilesInWorkerPool(
         else dispatch(worker);
       };
       worker.onerror = event => finish(new Error(event.message || "Worker failed"));
+      worker.onmessageerror = () => finish(new Error("Could not read the analysis worker response."));
       dispatch(worker);
     });
   });
@@ -1382,9 +1290,8 @@ analyseButton.addEventListener("click", () => {
   const selected = [...filesInput.files];
   runWorkflow(async workflow => {
     setRunStatus("Preparing selected files…");
-    const validation = await workflow.wait(inputValidationPromise);
+    const validation = await workflow.wait(inputInspectionPromise);
     if (!validation.ready) throw new Error("Resolve the selected input-file problems before starting the analysis.");
-    await workflow.wait(recordInspectionPromise);
     const files = [];
     for (const file of selected) {
       files.push({ name: file.name, bytes: new Uint8Array(await workflow.readFile(file)) });
