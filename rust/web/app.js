@@ -392,7 +392,12 @@ function renderRecordRanges(filesWithRecords) {
     cell.textContent = text;
     head.append(cell);
   }
-  recordRangesElement.append(headings);
+  const header = document.createElement("div");
+  header.className = "sequence-region-header";
+  header.append(headings);
+  const rows = document.createElement("div");
+  rows.className = "sequence-region-rows";
+  recordRangesElement.append(header, rows);
   for (const { file, records } of filesWithRecords) {
     const table = document.createElement("table");
     table.className = "sequence-regions";
@@ -404,7 +409,7 @@ function renderRecordRanges(filesWithRecords) {
       columns.append(column);
     }
     table.append(columns);
-    recordRangesElement.append(table);
+    rows.append(table);
     const body = table.createTBody();
     if (records.length > 1) table.classList.add("sequence-file-group");
     if (records.length === 0) {

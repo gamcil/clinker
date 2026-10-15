@@ -309,6 +309,8 @@ h1 {
 }
 
 .run-card {
+  --input-row-height: 40px;
+  --input-row-padding: 5px;
   width: min(580px, 100%);
   padding: 24px;
   border: 1px solid #d7dce3;
@@ -499,8 +501,8 @@ h1 {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  min-height: 1.7rem;
-  padding: 8px 0;
+  min-height: var(--input-row-height);
+  padding: var(--input-row-padding) 0;
   border-top: 1px solid #edf0f4;
 }
 
@@ -510,6 +512,8 @@ h1 {
 
 .file-input-name {
   overflow: hidden;
+  color: #344257;
+  font-size: .8rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -517,13 +521,18 @@ h1 {
 .file-input-label {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: 1px;
+}
+
+.file-input-name,
+.file-input-description {
+  line-height: 1.2;
 }
 
 .file-input-description {
   overflow: hidden;
   color: #728094;
-  font-size: .73rem;
+  font-size: .72rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -757,15 +766,30 @@ h1 {
 }
 
 .record-range-list {
-  display: block;
+  display: flex;
+  flex-direction: column;
   max-height: 230px;
   min-width: 0;
   margin: 0;
-  overflow: auto;
+  overflow: hidden;
   padding: 0;
   border: 1px solid #dfe4ea;
   border-radius: 8px;
   background: #fff;
+}
+
+.sequence-region-header {
+  flex: none;
+  overflow: hidden;
+  scrollbar-gutter: stable;
+  background: #f6f8fb;
+  border-bottom: 1px solid #dfe4ea;
+}
+
+.sequence-region-rows {
+  min-height: 0;
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .sequence-regions {
@@ -778,20 +802,20 @@ h1 {
 
 .sequence-regions th,
 .sequence-regions td {
-  padding: 3px 8px;
+  padding: var(--input-row-padding) 8px;
   vertical-align: middle;
   text-align: left;
   font-weight: normal;
 }
 
+.sequence-regions [data-record-range] {
+  height: var(--input-row-height);
+}
+
 .sequence-regions thead th {
-  position: sticky;
-  z-index: 1;
-  top: 0;
   padding-top: 7px;
   padding-bottom: 7px;
   background: #f6f8fb;
-  box-shadow: 0 1px 0 #dfe4ea;
   color: #667386;
   font-size: .73rem;
   font-weight: 600;
@@ -803,13 +827,6 @@ h1 {
 
 .sequence-coordinate-column {
   width: 100px;
-}
-
-.sequence-region-headings {
-  position: sticky;
-  z-index: 1;
-  top: 0;
-  background: #f6f8fb;
 }
 
 .sequence-regions + .sequence-regions,
