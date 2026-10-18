@@ -932,6 +932,28 @@ function replaceChart(config = chart.config()) {
   previousChart.destroy();
 }
 
+function configureInitialMinimap({ keepEnabled = false } = {}) {
+  const config = chart.config().plot;
+  if (!["canvas", "webgpu"].includes(config.renderer) || (keepEnabled && config.minimap.show)) return;
+  // The export envelope includes labels, legends and trees across renderers.
+  // Read just its viewBox; parsing the complete SVG would duplicate its DOM.
+  const viewBox = chart.exportSvg({ padding: 0 }).match(/\bviewBox="([^"]+)"/)?.[1];
+  if (!viewBox) return;
+  const [x, y, width, height] = viewBox.split(/\s+/).map(Number);
+  const viewport = document.querySelector("#plot").getBoundingClientRect();
+  const camera = chart.state().camera;
+  if (!viewport.width || !viewport.height) return;
+  const left = x * camera.k + camera.x;
+  const top = y * camera.k + camera.y;
+  const show = left < -1 || top < -1
+    || left + width * camera.k > viewport.width + 1
+    || top + height * camera.k > viewport.height + 1;
+  if (show !== config.minimap.show) {
+    chart.config({ plot: { minimap: { show } } });
+    chart.clearHistory();
+  }
+}
+
 function mountSelectionToolbar() {
   disposeSelectionToolbar?.();
   disposeSelectionToolbar = mountPlotSelectionToolbar(chart, plotStage);
@@ -942,6 +964,7 @@ function mountImportedPlot(data, { config, state = null }) {
   replaceChart(config);
   plot.datum(data).call(chart);
   if (state) chart.state(state);
+  configureInitialMinimap({ keepEnabled: true });
   mountSelectionToolbar();
   plotEditor.chart = chart;
   latestSimilarity = null;
@@ -1314,6 +1337,7 @@ async function analyseFiles(files, workflow) {
 
   replaceChart();
   plot.datum(plotData).call(chart);
+  configureInitialMinimap();
   mountSelectionToolbar();
   plotEditor.chart = chart;
   svgButton.disabled = false;
