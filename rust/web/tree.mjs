@@ -217,3 +217,32 @@ export function bindInputTree(tree, clusters, separateRecords = false) {
   validateTree(bound, new Set(clusters.map(cluster => cluster.uid)));
   return bound;
 }
+
+// Ward leaves use the analysis cluster indices, independent of plot array order.
+export function clusteringTree(merges, clusters, heights = []) {
+  if (!merges?.length) return undefined;
+  const count = clusters.length;
+  const byId = new Map(clusters.map(cluster => [cluster.uid, cluster]));
+  const uid = index => `clustering-${index}`;
+  const nodes = Array.from({ length: count }, (_, index) => ({
+    uid: uid(index), cluster: `cluster-${index}`, label: byId.get(`cluster-${index}`)?.name,
+  }));
+  merges.forEach((children, index) => nodes.push({ uid: uid(count + index), children: children.map(uid) }));
+  if (heights.length) {
+    if (heights.length !== merges.length || heights.some(height => !Number.isFinite(height) || height < 0)) {
+      throw new Error('Invalid Ward merge heights');
+    }
+    const heightAt = index => index < count ? 0 : heights[index - count];
+    merges.forEach((children, index) => {
+      for (const child of children) {
+        const length = heights[index] - heightAt(child);
+        if (length < -1e-10) throw new Error('Ward merge heights must not decrease toward the root');
+        if (nodes[child]) nodes[child].branchLength = Math.max(0, length);
+      }
+    });
+  }
+  const tree = { root: uid(nodes.length - 1), rooted: null, nodes };
+  if (heights.length) tree.distance = { kind: 'mergeHeight', label: 'Ward merge height' };
+  validateTree(tree, new Set(byId.keys()));
+  return tree;
+}

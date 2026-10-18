@@ -1,13 +1,58 @@
 //! Agglomerative hierarchy construction and leaf ordering for cluster ordering.
 
+#[derive(Debug, serde::Serialize)]
+pub struct ClusterOrdering {
+    pub order: Vec<usize>,
+    /// Leaves are input cluster indices; merge i has ID leaf_count + i.
+    pub merges: Vec<[usize; 2]>,
+    /// Ward linkage height for each merge, in the same order as merges.
+    pub heights: Vec<f64>,
+}
+
 /// Build a Ward hierarchy, then approximately minimize neighbouring distances
 /// while preserving its groups. Retaining 32 endpoint alternatives per subtree
 /// bounds the leaf-ordering work; the hierarchy uses O(n²) time and memory.
-pub(crate) fn ward_leaf_order(distances: &[f64], count: usize) -> Vec<usize> {
+pub(crate) fn ward_ordering(distances: &[f64], count: usize) -> ClusterOrdering {
     if count < 2 {
-        return (0..count).collect();
+        return ClusterOrdering {
+            order: (0..count).collect(),
+            merges: Vec::new(),
+            heights: Vec::new(),
+        };
     }
-    bounded_leaf_order(&ward_tree(distances, count), distances, count, 32)
+    let tree = ward_tree(distances, count);
+    let order = bounded_leaf_order(&tree, distances, count, 32);
+    let mut merges = Vec::with_capacity(count - 1);
+    let mut heights = Vec::with_capacity(count - 1);
+    let mut stack = vec![(&tree, false)];
+    let mut children = Vec::new();
+    while let Some((node, visited)) = stack.pop() {
+        match node {
+            Node::Leaf(index) => children.push(*index),
+            Node::Merge(left, right, _) if !visited => {
+                stack.push((node, true));
+                stack.push((right, false));
+                stack.push((left, false));
+            }
+            Node::Merge(_, _, height) => {
+                let right = children.pop().expect("right subtree was visited");
+                let left = children.pop().expect("left subtree was visited");
+                children.push(count + merges.len());
+                merges.push([left, right]);
+                heights.push(*height);
+            }
+        }
+    }
+    ClusterOrdering {
+        order,
+        merges,
+        heights,
+    }
+}
+
+#[cfg(test)]
+fn ward_leaf_order(distances: &[f64], count: usize) -> Vec<usize> {
+    ward_ordering(distances, count).order
 }
 
 fn ward_tree(distances: &[f64], count: usize) -> Node {
@@ -115,7 +160,7 @@ fn merge_ward(
 
     let old_keep = std::mem::replace(&mut nodes[keep], Node::Leaf(keep));
     let old_remove = std::mem::replace(&mut nodes[remove], Node::Leaf(remove));
-    nodes[keep] = Node::Merge(Box::new(old_keep), Box::new(old_remove));
+    nodes[keep] = Node::Merge(Box::new(old_keep), Box::new(old_remove), between);
     active[remove] = false;
     sizes[keep] += sizes[remove];
 }
@@ -123,7 +168,7 @@ fn merge_ward(
 #[derive(Debug)]
 enum Node {
     Leaf(usize),
-    Merge(Box<Node>, Box<Node>),
+    Merge(Box<Node>, Box<Node>, f64),
 }
 
 #[derive(Clone, Copy)]
@@ -164,7 +209,7 @@ fn bounded_leaf_order(node: &Node, distances: &[f64], count: usize, limit: usize
                     trace: *i,
                 }];
             }
-            Node::Merge(left_node, right_node) => (
+            Node::Merge(left_node, right_node, _) => (
                 fill(left_node, distances, count, limit, traces),
                 fill(right_node, distances, count, limit, traces),
             ),
@@ -286,6 +331,14 @@ mod tests {
     use super::ward_leaf_order;
 
     #[test]
+    fn retains_ward_linkage_heights() {
+        let result = super::ward_ordering(&[1.0, 4.0, 4.0], 3);
+        assert_eq!(result.merges, [[0, 1], [3, 2]]);
+        assert!((result.heights[0] - 1.0).abs() < 1e-12);
+        assert!((result.heights[1] - 21.0_f64.sqrt()).abs() < 1e-12);
+    }
+
+    #[test]
     fn orders_two_close_pairs_next_to_each_other() {
         // (0, 1) and (2, 3) are the nearest pairs.
         let order = ward_leaf_order(&[1.0, 8.0, 8.0, 8.0, 8.0, 1.0], 4);
@@ -324,7 +377,7 @@ mod tests {
     fn all_orders(node: &super::Node) -> Vec<Vec<usize>> {
         match node {
             super::Node::Leaf(i) => vec![vec![*i]],
-            super::Node::Merge(left, right) => {
+            super::Node::Merge(left, right, _) => {
                 let mut orders = Vec::new();
                 for left in all_orders(left) {
                     for right in all_orders(right) {
@@ -343,13 +396,11 @@ mod tests {
     #[test]
     fn matches_exhaustive_search_when_unpruned_and_preserves_groups_when_pruned() {
         use super::Node::{Leaf, Merge};
-        let pair = |a, b| Merge(Box::new(Leaf(a)), Box::new(Leaf(b)));
+        let merge = |left, right| Merge(Box::new(left), Box::new(right), 0.0);
+        let pair = |a, b| merge(Leaf(a), Leaf(b));
         let trees = [
-            Merge(
-                Box::new(Merge(Box::new(pair(0, 1)), Box::new(pair(2, 3)))),
-                Box::new(Merge(Box::new(Leaf(4)), Box::new(pair(5, 6)))),
-            ),
-            (1..7).fold(Leaf(0), |tree, i| Merge(Box::new(tree), Box::new(Leaf(i)))),
+            merge(merge(pair(0, 1), pair(2, 3)), merge(Leaf(4), pair(5, 6))),
+            (1..7).fold(Leaf(0), |tree, i| merge(tree, Leaf(i))),
         ];
         for tree in &trees {
             let possibilities = all_orders(tree);

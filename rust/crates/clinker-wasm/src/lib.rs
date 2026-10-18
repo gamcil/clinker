@@ -304,6 +304,8 @@ struct BrowserPostProcess {
     plot_data: PlotData,
     cluster_names: Vec<String>,
     cluster_order: Vec<usize>,
+    clustering_merges: Vec<[usize; 2]>,
+    clustering_heights: Vec<f64>,
     similarity_matrix: Vec<Vec<ClusterPairSimilarity>>,
     analysis_session: AnalysisSession,
 }
@@ -542,11 +544,15 @@ fn post_process_analysis(
         )
     });
     report_progress_event(progress, "ordering", 0, cluster_count);
-    let order = if use_file_order {
-        (0..cluster_count).collect()
+    let ordering = if use_file_order {
+        None
     } else {
-        analysis.cluster_order_from_similarity_matrix(&similarity_matrix)
+        Some(analysis.cluster_ordering_from_similarity_matrix(&similarity_matrix))
     };
+    let (order, clustering_merges, clustering_heights) = ordering.map_or_else(
+        || ((0..cluster_count).collect(), Vec::new(), Vec::new()),
+        |ordering| (ordering.order, ordering.merges, ordering.heights),
+    );
     report_progress_event(progress, "ordering", cluster_count, cluster_count);
     let group_total = analysis.links.len() * 2;
     let mut last_group_report = 0;
@@ -584,6 +590,8 @@ fn post_process_analysis(
         plot_data: arranged,
         cluster_names,
         cluster_order: order,
+        clustering_merges,
+        clustering_heights,
         similarity_matrix,
         analysis_session,
     };

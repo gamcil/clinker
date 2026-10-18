@@ -60,6 +60,59 @@ test('tree import, matching, edits, renderers and project round-trips retain the
   await page.waitForFunction(() => !document.querySelector('#edit-plot').disabled);
   const initialTree = await page.evaluate(() => document.querySelector('#plot-editor').chart.data().tree);
   assert.ok(initialTree);
+  await page.evaluate(() => {
+    const chart = document.querySelector('#plot-editor').chart;
+    if (typeof chart.figureBounds !== "function") throw new Error("Pinned clustermap must expose figureBounds");
+    window.exportSvgForTest = chart.exportSvg;
+    chart.exportSvg = () => { throw new Error('Tree framing must not export the figure'); };
+  });
+  await chooseOrder('clustering');
+  await page.evaluate(() => {
+    document.querySelector('#plot-editor').chart.exportSvg = window.exportSvgForTest;
+    delete window.exportSvgForTest;
+  });
+  const dendrogram = await page.evaluate(() => document.querySelector('#plot-editor').chart.project());
+  assert.equal(await page.locator('#plot-order').getAttribute('data-order'), 'clustering');
+  assert.deepEqual(dendrogram.state.clusterOrder, dendrogram.data.clusters.map(cluster => cluster.uid));
+  assert.ok(dendrogram.data.tree.nodes.every(node => node.support === undefined));
+  assert.ok(dendrogram.data.tree.nodes.filter(node => node.uid !== dendrogram.data.tree.root).every(node => Number.isFinite(node.branchLength)));
+  assert.equal(dendrogram.config.tree.useBranchLengths, true);
+  await page.evaluate(() => {
+    const chart = document.querySelector('#plot-editor').chart;
+    const root = chart.data().tree.root;
+    chart.patch([
+      { type: 'tree.presentation.update', scope: 'tree', changes: { colouring: { mode: 'cutHeight' } } },
+      { type: 'tree.presentation.update', scope: 'node', ids: [root], changes: { label: { text: 'Cluster relationships', fontWeight: 700 } } },
+    ]);
+  });
+  const annotatedTree = await page.evaluate(() => document.querySelector('#plot-editor').chart.data().tree);
+  assert.equal(annotatedTree.presentation.colouring.mode, 'cutHeight');
+  const branchPaths = () => page.evaluate(() => {
+    const svg = document.querySelector('#plot-editor').chart.exportSvg();
+    return [...new DOMParser().parseFromString(svg, 'image/svg+xml').querySelectorAll('.tree-branch')].map(path => path.getAttribute('d'));
+  });
+  const scaledPaths = await branchPaths();
+  await orderMenu();
+  await page.locator('#clustering-scaled').uncheck();
+  assert.equal(await page.evaluate(() => document.querySelector('#plot-editor').chart.config().tree.useBranchLengths), false);
+  assert.notDeepEqual(await branchPaths(), scaledPaths);
+  assert.deepEqual(await page.evaluate(() => document.querySelector('#plot-editor').chart.state().clusterOrder), dendrogram.state.clusterOrder);
+  const dendrogramDownload = page.waitForEvent('download');
+  await page.getByText('Export', { exact: true }).click();
+  await page.locator('#download-project').click();
+  const dendrogramBytes = await readFile(await (await dendrogramDownload).path());
+  const dendrogramProject = JSON.parse(dendrogramBytes);
+  assert.equal(dendrogramProject.treeSource, 'clustering');
+  assert.deepEqual(dendrogramProject.inactiveTree, initialTree);
+  await chooseOrder('tree');
+  assert.deepEqual(await page.evaluate(() => document.querySelector('#plot-editor').chart.data().tree), initialTree);
+  await page.locator('#clinker-file').setInputFiles({ name: 'dendrogram.json', mimeType: 'application/json', buffer: dendrogramBytes });
+  await page.waitForFunction(() => document.querySelector('#run-panel').hidden);
+  assert.equal(await page.locator('#plot-order').getAttribute('data-order'), 'clustering');
+  assert.equal(await page.evaluate(() => document.querySelector('#plot-editor').chart.config().tree.useBranchLengths), false);
+  assert.deepEqual(await page.evaluate(() => document.querySelector('#plot-editor').chart.data().tree), annotatedTree);
+  await chooseOrder('tree');
+  assert.deepEqual(await page.evaluate(() => document.querySelector('#plot-editor').chart.data().tree), initialTree);
   await chooseOrder('computed');
   assert.equal(await page.evaluate(() => document.querySelector('#plot-editor').chart.data().tree), undefined);
   assert.deepEqual(await page.evaluate(() => document.querySelector('#plot-editor').chart.state().clusterOrder), []);

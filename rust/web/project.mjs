@@ -1,4 +1,4 @@
-import { validateTree } from './tree.mjs?v=20261018-tree-v5';
+import { validateTree } from './tree.mjs?v=20261018-clustering-v2';
 
 export function displayedClusterOrder({ data, state }) {
   if (data.tree !== undefined) return validateTree(data.tree, new Set(data.clusters.map(cluster => cluster.uid)));
@@ -143,8 +143,12 @@ export function parseProject(text) {
   const clusterIds = validatePlotData(saved.data, saved.analysis);
   const treeOrder = saved.data.tree === undefined ? null : validateTree(saved.data.tree, clusterIds);
   if (saved.inactiveTree !== undefined) {
-    if (treeOrder) throw new Error("project cannot have both an active and inactive tree");
+    if (treeOrder && saved.treeSource !== "clustering") throw new Error("project cannot have both an active and inactive tree");
     validateTree(saved.inactiveTree, clusterIds);
+  }
+  if (saved.clusteringDendrogram !== undefined) validateTree(saved.clusteringDendrogram, clusterIds);
+  if (saved.treeSource !== undefined && (saved.treeSource !== 'clustering' || !treeOrder || !saved.clusteringDendrogram)) {
+    throw new Error('Invalid clustering tree source');
   }
   if (saved.state != null) {
     if (typeof saved.state !== "object" || Array.isArray(saved.state) || saved.state.version !== 1) {

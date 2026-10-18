@@ -259,6 +259,7 @@ h1 {
 .tree-root-metadata p { margin: 0 0 8px; }
 .tree-matching { margin-top: 18px; }
 .tree-matching[open] summary { margin-bottom: 12px; }
+.menu-checkbox { display: flex; align-items: center; gap: 7px; padding: 5px 8px; white-space: nowrap; }
 .menu-section-divider { border-top: 1px solid #e5eaf0; margin: 4px 0; }
 #plot-order button[aria-pressed="true"]::after { content: "✓"; float: right; margin-left: 16px; color: #286ab3; }
 .tree-import-options { display: flex; flex-wrap: wrap; gap: 14px; margin: 20px 0 14px; }

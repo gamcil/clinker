@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261018-navigation-v1">
-    <link rel="stylesheet" href="clustermap-editor.css?v=20261018-clustermap-9d398ba-v1">
+    <link rel="stylesheet" href="style.css?v=20261018-clustering-v2">
+    <link rel="stylesheet" href="clustermap-editor.css?v=20261019-clustermap-0410ce0-v1">
     <script src="d3.min.js"></script>
-    <script src="clustermap.min.js?v=20261018-clustermap-9d398ba-v1"></script>
+    <script src="clustermap.min.js?v=20261019-clustermap-0410ce0-v1"></script>
   </head>
   <body>
     <main>
@@ -20,6 +20,8 @@
             <summary id="plot-order-label">Order: Computed</summary>
             <div class="menu-popover">
               <button type="button" data-order="computed" aria-pressed="true">Computed</button>
+              <button type="button" data-order="clustering" aria-pressed="false" hidden>Show clustering dendrogram</button>
+              <label id="clustering-scale-control" class="menu-checkbox" hidden><input id="clustering-scaled" type="checkbox" checked>Scale by merge height</label>
               <button type="button" data-order="tree" aria-pressed="false" hidden>Tree</button>
               <span class="menu-section-divider" aria-hidden="true"></span>
               <button id="manage-tree" type="button" aria-haspopup="dialog" aria-controls="tree-dialog" disabled>Import tree…</button>
@@ -274,7 +276,7 @@
             <h3 id="help-arrange">Arrange and trim</h3>
             <dl>
               <div><dt>Drag a cluster label</dt><dd>Reorder rows vertically. Dragging a selected cluster moves the selected rows as a block. An attached tree limits movement to orders that keep each clade together.</dd></div>
-              <div><dt>Tree</dt><dd>Choose a Newick tree with a new run or attach one using Order → Import tree. Click an internal node to rotate its children. Use Order to switch between the computed default and tree order. Edit plot contains tree appearance settings; hiding a tree retains its ordering constraints.</dd></div>
+              <div><dt>Tree</dt><dd>Choose a Newick tree with a new run or attach one using Order → Import tree. Click an internal node to rotate its children. Use Order to switch between the computed default, an imported tree and the clustering dendrogram. The dendrogram shows gene-cluster similarity, not evolutionary ancestry. Right-click an internal node to style branches or clades and add text annotations. Edit plot contains tree appearance and dendrogram clade-colouring settings; hiding a tree retains its ordering constraints.</dd></div>
               <div><dt>Drag a locus track</dt><dd>Move it horizontally. Dragging a selected locus moves all selected loci together.</dd></div>
               <div><dt>Double-click a locus</dt><dd>Flip its orientation.</dd></div>
               <div><dt>Drag the end handles</dt><dd>Hover over a locus to reveal handles, then drag an end to adjust its displayed bounds.</dd></div>
@@ -358,6 +360,6 @@
           </div>
         </details>
     </template>
-    <script type="module" src="app.js?v=20261018-navigation-v1"></script>
+    <script type="module" src="app.js?v=20261019-bounds-v1"></script>
   </body>
 </html>

@@ -37,7 +37,7 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 | Save and reopen complete analysis state | Yes | Session | Project | Core round-trip, CLI append workflow, and browser smoke test |
 | Add new files to a saved session | Yes | Yes | Future enhancement | Core and CLI workflow tests |
 | SVG export and interactive plot editing | Plot contract | Not applicable | Yes | Browser integration coverage |
-| Import a Newick tree, resolve leaves and preserve interactive tree edits | Not applicable | Not exposed | Yes | Parser/matching fixtures and browser project/export tests |
+| Import a Newick tree or display the Ward clustering dendrogram, preserving interactive tree edits | Not applicable | Not exposed | Yes | Parser/matching fixtures and browser project/export tests |
 | Offline analysis without Python or a server | Yes | Yes | Yes | Native and WASM builds |
 
 ## Features still needed for replacement

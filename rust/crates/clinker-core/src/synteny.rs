@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::hierarchy::ward_leaf_order;
+use crate::hierarchy::{ClusterOrdering, ward_ordering};
 use crate::{Analysis, Cluster, GeneRef, Link};
 
 /// Directional best-hit coverages and their containment-aware similarity.
@@ -114,9 +114,21 @@ impl Analysis {
         &self,
         matrix: &[Vec<ClusterPairSimilarity>],
     ) -> Vec<usize> {
+        self.cluster_ordering_from_similarity_matrix(matrix).order
+    }
+
+    /// Retain Ward topology, oriented to the bounded display order.
+    pub fn cluster_ordering_from_similarity_matrix(
+        &self,
+        matrix: &[Vec<ClusterPairSimilarity>],
+    ) -> ClusterOrdering {
         let count = self.clusters.len();
         if count < 2 || self.links.is_empty() {
-            return (0..count).collect();
+            return ClusterOrdering {
+                order: (0..count).collect(),
+                merges: Vec::new(),
+                heights: Vec::new(),
+            };
         }
         assert_eq!(matrix.len(), count);
         assert!(matrix.iter().all(|row| row.len() == count));
@@ -132,9 +144,27 @@ impl Analysis {
                     .map(|similarity| 1.0 - similarity),
             );
         }
-        let mut order = ward_leaf_order(&condensed, count);
+        let ClusterOrdering {
+            mut order,
+            mut merges,
+            heights,
+        } = ward_ordering(&condensed, count);
         orient_strongest_component_first(&mut order, &similarities);
-        order
+        let mut positions = vec![0; count + merges.len()];
+        for (position, &leaf) in order.iter().enumerate() {
+            positions[leaf] = position;
+        }
+        for (index, pair) in merges.iter_mut().enumerate() {
+            if positions[pair[0]] > positions[pair[1]] {
+                pair.swap(0, 1);
+            }
+            positions[count + index] = positions[pair[0]];
+        }
+        ClusterOrdering {
+            order,
+            merges,
+            heights,
+        }
     }
 }
 
@@ -350,6 +380,47 @@ mod tests {
         };
 
         assert!((analysis.synteny_matrix()[0][1] - 90.0 / 110.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn retained_dendrogram_reproduces_the_computed_order() {
+        let analysis = Analysis {
+            clusters: (0..5).map(|index| cluster(&index.to_string(), 1)).collect(),
+            links: vec![
+                link_between(0, 0, 1, 0, 0.95),
+                link_between(1, 0, 2, 0, 0.8),
+                link_between(3, 0, 4, 0, 0.7),
+            ],
+        };
+        let matrix = analysis.cluster_similarity_matrix();
+        let ordering = analysis.cluster_ordering_from_similarity_matrix(&matrix);
+        assert_eq!(
+            ordering.order,
+            analysis.cluster_order_from_similarity_matrix(&matrix)
+        );
+        assert_eq!(ordering.merges.len(), 4);
+        let mut leaves = Vec::new();
+        let mut stack = vec![5 + ordering.merges.len() - 1];
+        while let Some(node) = stack.pop() {
+            if node < 5 {
+                leaves.push(node);
+            } else {
+                let [left, right] = ordering.merges[node - 5];
+                assert!(left < node && right < node);
+                stack.extend([right, left]);
+            }
+        }
+        assert_eq!(leaves, ordering.order);
+        let empty = Analysis {
+            clusters: analysis.clusters,
+            links: Vec::new(),
+        };
+        assert!(
+            empty
+                .cluster_ordering_from_similarity_matrix(&matrix)
+                .merges
+                .is_empty()
+        );
     }
 
     #[test]

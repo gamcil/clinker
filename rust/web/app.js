@@ -1,12 +1,12 @@
-import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261018-tree-v5";
+import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261018-clustering-v2";
 import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261018-tree-v5";
 import { Workflow } from "./workflow.mjs?v=20261015-workflow-v1";
-import { mountTreeImport } from "./tree-import.mjs?v=20261018-tree-v8";
-import { inputTreeClusters, bindInputTree } from "./tree.mjs?v=20261018-tree-v5";
+import { mountTreeImport } from "./tree-import.mjs?v=20261019-bounds-v1";
+import { inputTreeClusters, bindInputTree, clusteringTree } from "./tree.mjs?v=20261018-annotations-v1";
 import {
   defineClinkerEditor,
   mountPlotSelectionToolbar,
-} from "./clustermap-editor.mjs?v=20261018-clustermap-9d398ba-v1";
+} from "./clustermap-editor.mjs?v=20261019-clustermap-0410ce0-v1";
 
 defineClinkerEditor();
 
@@ -65,7 +65,7 @@ const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
 const GENES_PER_TILE_SIDE = 40;
 const PAIRS_PER_TILE = 1600;
-const WORKER_VERSION = "20261015-layout-v1";
+const WORKER_VERSION = "20261018-clustering-v2";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
@@ -935,11 +935,11 @@ function replaceChart(config = chart.config()) {
 function configureInitialMinimap({ keepEnabled = false } = {}) {
   const config = chart.config().plot;
   if (!["canvas", "webgpu"].includes(config.renderer) || (keepEnabled && config.minimap.show)) return;
-  // The export envelope includes labels, legends and trees across renderers.
-  // Read just its viewBox; parsing the complete SVG would duplicate its DOM.
-  const viewBox = chart.exportSvg({ padding: 0 }).match(/\bviewBox="([^"]+)"/)?.[1];
-  if (!viewBox) return;
-  const [x, y, width, height] = viewBox.split(/\s+/).map(Number);
+  const bounds = chart.figureBounds();
+  if (!bounds) return;
+  const { minX: x, minY: y } = bounds;
+  const width = bounds.maxX - x;
+  const height = bounds.maxY - y;
   const viewport = document.querySelector("#plot").getBoundingClientRect();
   const camera = chart.state().camera;
   if (!viewport.width || !viewport.height) return;
@@ -981,7 +981,7 @@ function mountImportedPlot(data, { config, state = null }) {
 projectButton.addEventListener("click", () => {
   if (!latestAnalysisSession) return;
   try {
-    const project = { ...chart.project(), version: 2, analysis: latestAnalysisSession, inactiveTree: treeImport.inactiveTree() };
+    const project = { ...chart.project(), version: 2, analysis: latestAnalysisSession, ...treeImport.projectTrees() };
     downloadText("clinker-project.json", `${JSON.stringify(project, null, 2)}\n`, "application/json;charset=utf-8");
   } catch (error) {
     setContextStatus(`Project export failed: ${error.message || String(error)}`, { tone: "error" });
@@ -1012,7 +1012,7 @@ clinkerFileInput.addEventListener("change", () => {
     const analysisResult = await openAnalysisSession(saved.analysis, workflow);
     workflow.throwIfCancelled();
     mountImportedPlot(saved.data, { config: saved.config, state: saved.state });
-    treeImport.restoreInactiveTree(saved.inactiveTree);
+    treeImport.restoreTrees(saved);
     retainAnalysisResult(analysisResult);
     setPlotStatus("Loaded clinker project with its analysis data.");
     return true;
@@ -1339,6 +1339,7 @@ async function analyseFiles(files, workflow) {
   plot.datum(plotData).call(chart);
   configureInitialMinimap();
   mountSelectionToolbar();
+  treeImport.setDendrogram(clusteringTree(result.clusteringMerges, plotData.clusters, result.clusteringHeights));
   plotEditor.chart = chart;
   svgButton.disabled = false;
   projectButton.disabled = false;

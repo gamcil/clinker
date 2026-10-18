@@ -66,3 +66,23 @@ test('incremental parsing applies frame, split CDS phase and genetic code to der
   const result = post_process(parsed.layout, parsed.proteins, [], [], 0.3, true, () => {});
   assert.deepEqual(result.analysisSession.analysis.clusters.flatMap(c => c.loci.flatMap(l => l.genes.map(g => g.translation))), ['MW', 'MW', 'MW']);
 });
+
+
+test('post-processing retains Ward merges only when similarity ordering runs', () => {
+  const parsed = parse([genbank('a.gbk', 'MSTAVKDLGYRQAA'), genbank('b.gbk', 'MSTAVKDLGYRQAA'), genbank('c.gbk', 'MSTAVKDLGYRQAA')]);
+  const ref = cluster => ({ cluster, locus: 0, gene: 0 });
+  const links = [{ query: ref(0), target: ref(1), identity: 0.95, similarity: 0.95 }, { query: ref(1), target: ref(2), identity: 0.7, similarity: 0.7 }];
+  const result = post_process(parsed.layout, parsed.proteins, links, [], 0.3, false, () => {});
+  assert.equal(result.clusteringMerges.length, 2);
+  assert.equal(result.clusteringHeights.length, 2);
+  assert.ok(result.clusteringHeights.every(height => Number.isFinite(height) && height > 0));
+  const leaves = [];
+  const stack = [4];
+  while (stack.length) {
+    const node = stack.pop();
+    if (node < 3) leaves.push(node);
+    else stack.push(...[...result.clusteringMerges[node - 3]].reverse());
+  }
+  assert.deepEqual(leaves, result.clusterOrder);
+  assert.deepEqual(post_process(parsed.layout, parsed.proteins, links, [], 0.3, true, () => {}).clusteringMerges, []);
+});

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseNewick, matchTreeLeaves, resolveTree, validateTree, inputTreeClusters, bindInputTree } from '../tree.mjs';
+import { parseNewick, matchTreeLeaves, resolveTree, validateTree, inputTreeClusters, bindInputTree, clusteringTree } from '../tree.mjs';
 import { parseProject, displayedClusterOrder } from '../project.mjs';
 
 const clusters = [
@@ -112,6 +112,18 @@ test('project trees retain metadata and authoritative child order, rejecting inv
   assert.throws(() => parseProject(JSON.stringify(saved)), /active and inactive/);
   delete saved.data.tree;
   assert.deepEqual(parseProject(JSON.stringify(saved)), saved);
+  saved.data.tree = structuredClone(saved.inactiveTree);
+  saved.clusteringDendrogram = structuredClone(saved.data.tree);
+  saved.treeSource = 'clustering';
+  assert.deepEqual(parseProject(JSON.stringify(saved)), saved);
+  saved.treeSource = 'unknown';
+  assert.throws(() => parseProject(JSON.stringify(saved)), /active and inactive|tree source/);
+  saved.treeSource = 'clustering';
+  saved.clusteringDendrogram.nodes[0].children.push('missing');
+  assert.throws(() => parseProject(JSON.stringify(saved)), /Invalid tree/);
+  delete saved.data.tree;
+  delete saved.clusteringDendrogram;
+  delete saved.treeSource;
   saved.inactiveTree.nodes[0].children.push('missing');
   assert.throws(() => parseProject(JSON.stringify(saved)), /Invalid tree/);
 });
@@ -136,4 +148,30 @@ test('input matching splits GenBank records only and retains sequence and organi
   assert.equal(split[0].name, 'Organism A');
   assert.equal(matchTreeLeaves(parseNewick("('Organism A','Organism B',multi.gff3);"), split).ready, true);
   assert.throws(() => inputTreeClusters([{ file: { name: 'duplicate.gbk' }, records: [records[0], records[0]] }], true), /distinct record/);
+});
+
+
+test('Ward merges map original analysis indices to stable cluster IDs', () => {
+  const tree = clusteringTree([[2, 0], [3, 1]], [...clusters].reverse());
+  assert.deepEqual(validateTree(tree, new Set(clusters.map(c => c.uid))), ['cluster-2', 'cluster-0', 'cluster-1']);
+  assert.ok(tree.nodes.every(node => node.support === undefined && node.branchLength === undefined));
+  assert.equal(clusteringTree([], clusters), undefined);
+  assert.throws(() => clusteringTree([[2, 0], [3, 1]], clusters.slice(1)), /Invalid tree/);
+});
+
+
+test('Ward branch lengths encode merge heights and align every leaf at zero', () => {
+  const tree = clusteringTree([[2, 0], [3, 1]], clusters, [0.4, 1.2]);
+  assert.deepEqual(tree.distance, { kind: 'mergeHeight', label: 'Ward merge height' });
+  const nodes = new Map(tree.nodes.map(node => [node.uid, node]));
+  const stack = [[tree.root, 0]];
+  while (stack.length) {
+    const [uid, distance] = stack.pop();
+    const node = nodes.get(uid);
+    if (!node.children) assert.ok(Math.abs(distance - 1.2) < 1e-12);
+    else for (const child of node.children) stack.push([child, distance + nodes.get(child).branchLength]);
+  }
+  assert.equal(nodes.get(tree.root).branchLength, undefined);
+  assert.throws(() => clusteringTree([[2, 0], [3, 1]], clusters, [0.4, 0.2]), /must not decrease/);
+  assert.throws(() => clusteringTree([[2, 0], [3, 1]], clusters, [NaN, 1]), /Invalid Ward/);
 });

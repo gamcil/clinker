@@ -122,6 +122,20 @@ while retaining the root label. Missing branch lengths are retained as unknown;
 the viewer falls back to a cladogram if any non-root length is absent or every
 root-to-tip distance is zero.
 
+**Order → Show clustering dendrogram** displays the Ward hierarchy already used
+for similarity ordering. Its initial leaf order matches the computed plot order;
+branches can be rotated using the same controls as an imported tree. It shows
+gene-cluster similarity, with horizontal spacing scaled by Ward merge height
+and all leaves aligned at zero height. **Scale by merge height** in the Order
+menu toggles between this default and an unscaled topology. The same setting
+is available as **Use branch lengths** under tree appearance. These are
+clustering distances, with no support values.
+The dendrogram and any imported tree are retained separately when switching
+orders, and both survive project saving and reopening. It is available for new
+analyses that perform similarity ordering; keeping input order or skipping
+alignment does not generate a dendrogram. Older projects without a saved
+hierarchy continue to open normally.
+
 The [bundled example tree](../../examples/bundled-clusters.nwk) matches **Try
 example** and is fully bifurcating. Its topology, branch lengths and support values are illustrative,
 not an inferred phylogeny.
@@ -130,7 +144,11 @@ Click an internal node to reverse its children. Vertical cluster and batch
 dragging follows the tree's clade constraints; horizontal locus movement,
 flipping and trimming remain independent. Node rotations and compatible drags
 support undo/redo. Use the existing **Edit plot → Appearance → Tree** section to
-change width, branches, support labels, guides and the tree scale bar. Hiding
+change width, branches, support labels, guides and the tree scale bar.
+Right-click an internal node for branch/clade styling and text annotations;
+these edits support undo/redo and
+are preserved in saved projects and SVG exports. Generated Ward dendrograms
+also expose cut-height clade colouring in the Tree appearance controls. Hiding
 the tree keeps its ordering constraints. The toolbar's **Order** menu
 switches between **Computed** and **Tree**. The computed default is the
 original analysis order retained in the plot-data cluster array; tree rotations
@@ -143,9 +161,10 @@ history; existing gene edits and locus placements are retained.
 
 Version 2 projects preserve the live edited tree, child order, appearance and
 analysis data. When using computed order, the retained tree is saved in the
-optional frontend `inactiveTree` field and validated on reopening. Projects
-cannot contain both an active and an inactive tree. Invalid tree projects are
-rejected before replacing the figure.
+optional frontend `inactiveTree` field and validated on reopening. The Ward
+dendrogram is saved separately as `clusteringDendrogram`, with `treeSource`
+identifying when it is active. Invalid tree projects are rejected before
+replacing the figure.
 Tree file reads can be cancelled by closing the dialog; new analyses/project
 loads cancel pending imports. Each new analysis rematches the tree selected
 in the new-run panel, rather than reusing the previous figure's index-based
