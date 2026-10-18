@@ -37,6 +37,7 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 | Save and reopen complete analysis state | Yes | Session | Project | Core round-trip, CLI append workflow, and browser smoke test |
 | Add new files to a saved session | Yes | Yes | Future enhancement | Core and CLI workflow tests |
 | SVG export and interactive plot editing | Plot contract | Not applicable | Yes | Browser integration coverage |
+| Import a Newick tree, resolve leaves and preserve interactive tree edits | Not applicable | Not exposed | Yes | Parser/matching fixtures and browser project/export tests |
 | Offline analysis without Python or a server | Yes | Yes | Yes | Native and WASM builds |
 
 ## Features still needed for replacement
@@ -50,6 +51,7 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 | Enhancement | Current state | Release scope |
 | --- | --- | --- |
 | Add new data to an edited browser project | Core and CLI can append to saved analysis sessions, and the web app can reopen and export projects. A browser workflow would also need to reconcile new analysis results with existing figure edits. | Post-1.0; not required for Python parity |
+| Import files directly from external web apps | Deferred until the web app is more mature and there is concrete integration demand. A future handoff would populate input files in a new clinker tab, leaving settings and starting analysis to the user. | Later addition; not required for release or Python parity |
 
 ## Release criterion
 

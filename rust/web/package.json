@@ -7,7 +7,7 @@
     "test:browser": "node --test tests/browser/*.test.mjs"
   },
   "dependencies": {
-    "clustermap.js": "https://codeload.github.com/gamcil/clustermap.js/tar.gz/905a0f809c08adf232b5a369a313e9b9ab524ae0",
+    "clustermap.js": "https://codeload.github.com/gamcil/clustermap.js/tar.gz/9d398bae205115a0f8fe1553d643c2927e1051b6",
     "d3": "7.9.0"
   },
   "devDependencies": {

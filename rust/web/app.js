@@ -1,10 +1,12 @@
-import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261015-layout-v1";
-import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261015-workflow-v1";
+import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261018-tree-v5";
+import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261018-tree-v5";
 import { Workflow } from "./workflow.mjs?v=20261015-workflow-v1";
+import { mountTreeImport } from "./tree-import.mjs?v=20261018-tree-v8";
+import { inputTreeClusters, bindInputTree } from "./tree.mjs?v=20261018-tree-v5";
 import {
   defineClinkerEditor,
   mountPlotSelectionToolbar,
-} from "./clustermap-editor.mjs?v=20261014-clustermap-905a0f8-v16";
+} from "./clustermap-editor.mjs?v=20261018-clustermap-9d398ba-v1";
 
 defineClinkerEditor();
 
@@ -41,6 +43,8 @@ const plotEditor = document.querySelector("#plot-editor");
 const helpButton = document.querySelector("#plot-help");
 const helpDialog = document.querySelector("#help-dialog");
 const editPlotButton = document.querySelector("#edit-plot");
+const treeButton = document.querySelector("#manage-tree");
+const plotOrder = document.querySelector("#plot-order");
 const runPanel = document.querySelector("#run-panel");
 const newRunButton = document.querySelector("#new-run");
 const cancelRunButton = document.querySelector("#cancel-run");
@@ -107,7 +111,7 @@ function setAnalysisInputsDisabled(disabled) {
   recordRangesElement.disabled = disabled;
   geneFunctionsInput.disabled = disabled;
   colourMapInput.disabled = disabled || geneFunctionsInput.files.length === 0;
-  analyseButton.disabled = disabled || !inputsReady;
+  analyseButton.disabled = disabled || !inputsReady || !treeImport.runReady();
   clearInputFilesButton.disabled = disabled;
   fileInputStatusList.querySelectorAll(".remove-input-file").forEach(button => {
     button.disabled = disabled;
@@ -116,6 +120,10 @@ function setAnalysisInputsDisabled(disabled) {
   loadClinkerFileButton.disabled = disabled;
   openProjectStartButton.disabled = disabled;
   newRunButton.disabled = disabled;
+  treeButton.disabled = disabled || !chart.data();
+  plotOrder.inert = disabled || !chart.data();
+  if (disabled) plotOrder.open = false;
+  document.querySelector("#run-tree-fields").disabled = disabled;
   cancelRunButton.disabled = false;
   cancelRunButton.hidden = !disabled && !chart.data();
   cancelRunButton.textContent = disabled ? "Cancel" : "Back to plot";
@@ -132,6 +140,7 @@ function syncPrefilterControls() {
 
 async function runWorkflow(task, failureMessage) {
   if (activeWorkflow) return;
+  treeImport.close();
   const workflow = new Workflow();
   const trigger = document.activeElement;
   openRunPanel();
@@ -472,7 +481,7 @@ function handleFileSelection() {
     inputsReady = validation.ready;
     renderInputValidation(validation);
     renderRecordRanges(validation.filesWithRecords);
-    analyseButton.disabled = analysisInProgress || !inputsReady;
+    analyseButton.disabled = analysisInProgress || !inputsReady || !treeImport.runReady();
     return validation;
   }).catch(error => {
     const validation = {
@@ -498,10 +507,12 @@ function handleFileSelection() {
     }
     inspection.dispose();
   });
+  treeImport.inputsChanged();
 }
 
 prefilterInput.addEventListener("change", syncPrefilterControls);
 noAlignInput.addEventListener("change", syncPrefilterControls);
+separateRecordsInput.addEventListener("change", () => treeImport.inputsChanged());
 filesInput.addEventListener("change", () => {
   setSelectedInputFiles([...filesInput.files]);
   handleFileSelection();
@@ -913,6 +924,7 @@ svgButton.addEventListener("click", () => {
 });
 
 function replaceChart(config = chart.config()) {
+  treeImport.close();
   const previousChart = chart;
   disposeSelectionToolbar?.();
   disposeSelectionToolbar = null;
@@ -923,6 +935,7 @@ function replaceChart(config = chart.config()) {
 function mountSelectionToolbar() {
   disposeSelectionToolbar?.();
   disposeSelectionToolbar = mountPlotSelectionToolbar(chart, plotStage);
+  treeImport.bind();
 }
 
 function mountImportedPlot(data, { config, state = null }) {
@@ -938,13 +951,14 @@ function mountImportedPlot(data, { config, state = null }) {
   projectButton.disabled = true;
   editPlotButton.disabled = false;
   closePlotEditor();
+  treeButton.disabled = false;
   closeRunPanel();
 }
 
 projectButton.addEventListener("click", () => {
   if (!latestAnalysisSession) return;
   try {
-    const project = { ...chart.project(), version: 2, analysis: latestAnalysisSession };
+    const project = { ...chart.project(), version: 2, analysis: latestAnalysisSession, inactiveTree: treeImport.inactiveTree() };
     downloadText("clinker-project.json", `${JSON.stringify(project, null, 2)}\n`, "application/json;charset=utf-8");
   } catch (error) {
     setContextStatus(`Project export failed: ${error.message || String(error)}`, { tone: "error" });
@@ -975,6 +989,7 @@ clinkerFileInput.addEventListener("change", () => {
     const analysisResult = await openAnalysisSession(saved.analysis, workflow);
     workflow.throwIfCancelled();
     mountImportedPlot(saved.data, { config: saved.config, state: saved.state });
+    treeImport.restoreInactiveTree(saved.inactiveTree);
     retainAnalysisResult(analysisResult);
     setPlotStatus("Loaded clinker project with its analysis data.");
     return true;
@@ -1105,6 +1120,7 @@ function analyseTilesInWorkerPool(
 }
 
 async function analyseFiles(files, workflow) {
+  const runTree = treeImport.runTree();
   const identity = Number(identityInput.value) / 100;
   if (!identityInput.value.trim() || !Number.isFinite(identity) || identity < 0 || identity > 1) {
     setRunStatus("Minimum protein identity must be a percentage between 0 and 100.", { tone: "error" });
@@ -1164,6 +1180,8 @@ async function analyseFiles(files, workflow) {
       );
     },
   }, workflow);
+  workflow.throwIfCancelled();
+  const resolvedRunTree = await treeImport.resolveRunTree(parsed.layout.clusters, runTree, prefilter.genbank.asSeparateClusters, workflow);
   workflow.throwIfCancelled();
   setRunStep(
     "parse",
@@ -1273,6 +1291,7 @@ async function analyseFiles(files, workflow) {
   );
   workflow.throwIfCancelled();
   const plotData = result.plotData;
+  if (resolvedRunTree) plotData.tree = bindInputTree(resolvedRunTree, plotData.clusters, prefilter.genbank.asSeparateClusters);
   latestSimilarity = result.similarityMatrix;
   latestAnalysisSession = result.analysisSession;
   matrixButton.disabled = false;
@@ -1301,6 +1320,7 @@ async function analyseFiles(files, workflow) {
   projectButton.disabled = false;
   editPlotButton.disabled = false;
   setPlotStatus(summary);
+  treeButton.disabled = false;
   return true;
 }
 
@@ -1330,4 +1350,30 @@ exampleButton.addEventListener("click", () => {
     workflow.throwIfCancelled();
     return analyseFiles(files, workflow);
   }, "Example analysis failed");
+});
+
+const treeImport = mountTreeImport({
+  button: treeButton,
+  getChart: () => chart,
+  getRunInputs: async () => {
+    let inspection;
+    let validation;
+    do {
+      inspection = inputInspectionPromise;
+      validation = await inspection;
+    } while (inspection !== inputInspectionPromise);
+    return { ready: validation.ready, clusters: inputTreeClusters(validation.filesWithRecords || [], separateRecordsInput.checked) };
+  },
+  onAppearance: () => {
+    showPlotEditor();
+    plotEditor.querySelector('[data-tab="appearance"]').click();
+    const field = plotEditor.querySelector('[data-config="tree.show"]');
+    field?.scrollIntoView({ block: 'nearest' });
+    field?.focus({ preventScroll: true });
+  },
+  onRunChange: ready => { analyseButton.disabled = analysisInProgress || !inputsReady || !ready; },
+  onChange: message => {
+    plotEditor.chart = chart;
+    setPlotStatus(message);
+  },
 });

@@ -40,7 +40,7 @@ test("inspection joins companion metadata, preserves coordinates and reuses unch
   const files = [
     file("cluster.gff3", "##gff-version 3"),
     file("cluster.fna", ">scaffold_1 description\nATG\nAAA\n>scaffold_2\nCC"),
-    file("other.gbk", "LOCUS       chromosome 42 bp DNA"),
+    file("other.gbk", "LOCUS       chromosome 42 bp DNA\nSOURCE      fallback source\n  ORGANISM  Inspected organism\n"),
     file("offset.gff3", "##sequence-region part 101 200"),
     file("offset.fa", ">part\nATG"),
   ];
@@ -59,7 +59,7 @@ test("inspection joins companion metadata, preserves coordinates and reuses unch
   assert.equal(result.ready, true);
   assert.deepEqual(result.filesWithRecords.map(({ records }) => records), [
     [{ name: "scaffold_1", start: 1, end: 6, length: 6 }, { name: "scaffold_2", start: 1, end: 2, length: 2 }],
-    [{ name: "chromosome", start: 1, end: 42, length: 42 }],
+    [{ name: "chromosome", start: 1, end: 42, length: 42, organism: "Inspected organism" }],
     [{ name: "part", start: 101, end: 200, length: 100 }],
   ]);
   const added = file("added.gbk", "LOCUS       new 10 bp DNA");

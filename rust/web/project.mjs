@@ -1,4 +1,7 @@
+import { validateTree } from './tree.mjs?v=20261018-tree-v5';
+
 export function displayedClusterOrder({ data, state }) {
+  if (data.tree !== undefined) return validateTree(data.tree, new Set(data.clusters.map(cluster => cluster.uid)));
   return state?.clusterOrder?.length ? state.clusterOrder : data.clusters.map(cluster => cluster.uid);
 }
 
@@ -138,6 +141,11 @@ export function parseProject(text) {
   }
   if (!saved.analysis) throw new Error("project is missing analysis data");
   const clusterIds = validatePlotData(saved.data, saved.analysis);
+  const treeOrder = saved.data.tree === undefined ? null : validateTree(saved.data.tree, clusterIds);
+  if (saved.inactiveTree !== undefined) {
+    if (treeOrder) throw new Error("project cannot have both an active and inactive tree");
+    validateTree(saved.inactiveTree, clusterIds);
+  }
   if (saved.state != null) {
     if (typeof saved.state !== "object" || Array.isArray(saved.state) || saved.state.version !== 1) {
       throw new Error("unsupported project layout state");
@@ -147,6 +155,9 @@ export function parseProject(text) {
         && (order.length !== clusterIds.size || new Set(order).size !== order.length
           || order.some(uid => !clusterIds.has(uid))))) {
       throw new Error("project cluster order must contain each displayed cluster once");
+    }
+    if (treeOrder && order.length && order.some((uid, i) => uid !== treeOrder[i])) {
+      throw new Error("project cluster order must agree with its tree child order");
     }
   }
   return saved;

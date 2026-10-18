@@ -28,5 +28,6 @@ cp node_modules/clustermap.js/dist/editor.mjs clustermap-editor.mjs
 cp node_modules/clustermap.js/dist/editor.css clustermap-editor.css
 mkdir -p examples
 cp ../../examples/*.gbk examples/
+cp ../../examples/bundled-clusters.nwk examples/
 mkdir -p examples/gff3
 cp ../../examples/gff3/*.gff3 ../../examples/gff3/*.fna examples/gff3/

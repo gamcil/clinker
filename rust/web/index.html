@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261015-help-v2">
-    <link rel="stylesheet" href="clustermap-editor.css?v=20261014-clustermap-905a0f8-v16">
+    <link rel="stylesheet" href="style.css?v=20261018-tree-v8">
+    <link rel="stylesheet" href="clustermap-editor.css?v=20261018-clustermap-9d398ba-v1">
     <script src="d3.min.js"></script>
-    <script src="clustermap.min.js?v=20261014-clustermap-905a0f8-v16"></script>
+    <script src="clustermap.min.js?v=20261018-clustermap-9d398ba-v1"></script>
   </head>
   <body>
     <main>
@@ -16,6 +16,17 @@
         <button id="new-run" type="button" aria-controls="run-panel" aria-expanded="false" hidden>New run</button>
         <nav id="plot-actions" class="app-actions" aria-label="Plot actions" hidden>
           <button id="load-clinker-file" type="button">Open project</button>
+          <details id="plot-order" class="menu menu-end">
+            <summary id="plot-order-label">Order: Computed</summary>
+            <div class="menu-popover">
+              <button type="button" data-order="computed" aria-pressed="true">Computed</button>
+              <button type="button" data-order="tree" aria-pressed="false" hidden>Tree</button>
+              <span class="menu-section-divider" aria-hidden="true"></span>
+              <button id="manage-tree" type="button" aria-haspopup="dialog" aria-controls="tree-dialog" disabled>Import tree…</button>
+              <button id="tree-appearance" type="button" hidden>Tree appearance…</button>
+              <button id="remove-tree" type="button" hidden>Remove tree</button>
+            </div>
+          </details>
           <details class="menu menu-end">
             <summary>Export</summary>
             <div class="menu-popover">
@@ -56,6 +67,7 @@
               </div>
               <ul id="file-input-status-list"></ul>
             </div>
+            <fieldset id="run-tree-fields" class="run-tree-fields" aria-label="Optional tree"></fieldset>
             <div class="run-options">
               <label class="basic-number-row">
                 <span>Minimum protein identity</span>
@@ -261,7 +273,8 @@
           <section aria-labelledby="help-arrange">
             <h3 id="help-arrange">Arrange and trim</h3>
             <dl>
-              <div><dt>Drag a cluster label</dt><dd>Reorder rows vertically. Dragging a selected cluster moves the selected rows as a block.</dd></div>
+              <div><dt>Drag a cluster label</dt><dd>Reorder rows vertically. Dragging a selected cluster moves the selected rows as a block. An attached tree limits movement to orders that keep each clade together.</dd></div>
+              <div><dt>Tree</dt><dd>Choose a Newick tree with a new run or attach one using Order → Import tree. Click an internal node to rotate its children. Use Order to switch between the computed default and tree order. Edit plot contains tree appearance settings; hiding a tree retains its ordering constraints.</dd></div>
               <div><dt>Drag a locus track</dt><dd>Move it horizontally. Dragging a selected locus moves all selected loci together.</dd></div>
               <div><dt>Double-click a locus</dt><dd>Flip its orientation.</dd></div>
               <div><dt>Drag the end handles</dt><dd>Hover over a locus to reveal handles, then drag an end to adjust its displayed bounds.</dd></div>
@@ -302,6 +315,49 @@
         </section>
       </div>
     </dialog>
-    <script type="module" src="app.js?v=20261015-help-v1"></script>
+    <dialog id="tree-dialog" class="help-dialog tree-dialog" aria-labelledby="tree-title">
+      <header class="help-heading">
+        <div class="help-heading-row">
+          <h2 id="tree-title">Import tree</h2>
+          <form method="dialog"><button class="help-close" aria-label="Close tree import">×</button></form>
+        </div>
+      </header>
+      <div class="help-body tree-import-body">
+        <div id="dialog-tree-fields"></div>
+        <p id="tree-import-note" class="tree-import-note" hidden>Importing a tree clears undo history.</p>
+      </div>
+      <footer class="tree-import-actions">
+        <form method="dialog"><button type="submit">Cancel</button></form>
+        <button id="apply-tree" class="primary" type="button" disabled>Apply tree</button>
+      </footer>
+    </dialog>
+    <template id="tree-input-template">
+        <div class="tree-file-picker">
+          <span class="tree-inline-label">Tree <span>(optional)</span></span>
+          <button id="choose-tree-file" type="button" autofocus>Choose Newick file</button>
+          <span id="tree-file-name">None selected</span>
+          <button id="tree-clear" class="quiet-action" type="button" hidden>Remove</button>
+          <input id="tree-file" class="visually-hidden" tabindex="-1" type="file" accept=".nwk,.newick,.tree,.tre,.txt" aria-label="Newick file">
+        </div>
+        <p id="tree-import-status" class="tree-import-status" role="status" hidden></p>
+        <details id="tree-matching" class="tree-matching" hidden>
+          <summary>Leaf matching</summary>
+          <p class="tree-import-note">Exact cluster names, sequence IDs and input filenames are matched automatically. Choose a different cluster to resolve a mismatch.</p>
+          <div class="tree-matching-table"><table><thead><tr><th>Tree leaf</th><th>Plotted cluster</th></tr></thead></table><div class="tree-matching-scroll"><table><tbody id="tree-matching-rows"></tbody></table></div></div>
+          <p id="tree-missing" class="tree-match-error"></p>
+        </details>
+        <section id="tree-root-metadata" class="tree-root-metadata" hidden>
+          <p>This tree has a root branch length or support value, which cannot be displayed.</p>
+          <label class="tree-root-option"><input id="tree-ignore-root" type="checkbox">Discard root branch length and support</label>
+        </section>
+        <details id="tree-options" class="tree-options">
+          <summary>Import options</summary>
+          <div class="tree-import-options">
+            <label>Numeric node labels<select id="tree-internal-labels"><option value="support">Support values</option><option value="names">Node names</option></select></label>
+            <label>Support scale<select id="tree-support-scale"><option value="unspecified">Unspecified</option><option value="percent">Percent (0–100)</option><option value="proportion">Proportion (0–1)</option></select></label>
+          </div>
+        </details>
+    </template>
+    <script type="module" src="app.js?v=20261018-tree-v8"></script>
   </body>
 </html>

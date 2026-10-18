@@ -49,10 +49,17 @@ function classifyInputFiles(files, metadata) {
 function genBankRecords(text) {
   const records = [];
   const locusLine = /^LOCUS\s+(\S+)\s+(\d+)\s+bp(?:\s|$)/gim;
-  for (const match of text.matchAll(locusLine)) {
+  const matches = [...text.matchAll(locusLine)];
+  for (let index = 0; index < matches.length; index++) {
+    const match = matches[index];
     const length = Number(match[2]);
     if (Number.isSafeInteger(length) && length > 0) {
-      records.push({ name: match[1], start: 1, end: length, length });
+      const record = { name: match[1], start: 1, end: length, length };
+      const header = text.slice(match.index, matches[index + 1]?.index ?? text.length);
+      const organism = header.match(/^\s+ORGANISM\s+([^\r\n]+)/m)?.[1].trim()
+        || header.match(/^SOURCE\s+([^\r\n]+)/m)?.[1].trim();
+      if (organism) record.organism = organism;
+      records.push(record);
     }
   }
   return records;

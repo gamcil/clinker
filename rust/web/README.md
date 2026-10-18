@@ -85,6 +85,73 @@ deleted from the figure.
 Adding new files to an existing analysis is currently available through the
 CLI; browser append support remains pending.
 
+## Trees
+
+Choose an optional **Tree** directly in the new-run panel, or use
+**Order → Import tree** in the plot toolbar after analysis. New-run tree matches
+appear below the file chooser and edits take effect immediately; no separate
+confirmation is needed. Imports into an existing plot use a dialog. A tree selected for a new run is matched using the inspected input filenames
+and sequence IDs, so differences can be resolved before starting. Matches are
+checked against parsed clusters before protein alignment; if the parsed inputs
+differ, analysis pauses for corrections. The computed default order is still
+retained. The
+dialog matches each leaf to exactly one plotted cluster and lists any missing,
+ambiguous or duplicate matches. It accepts exact cluster names, cluster UIDs,
+locus/sequence names, source filenames, basenames and annotation filename
+stems. Matching is case-sensitive: accession versions, underscores and spaces
+are preserved. Use the mapping dropdowns to resolve differences without
+renaming the inputs. A multi-locus cluster is one tree leaf; records plotted
+as separate clusters each require their own leaf. Extra leaves and missing
+clusters must be resolved before applying; automatic pruning is not supported.
+
+The reader accepts one semicolon-terminated Newick tree, single-quoted labels
+with doubled apostrophes (`'O''Brien'`), optional finite non-negative branch
+lengths (including zero and scientific notation), named internal nodes,
+multifurcations and unary nodes. Quote labels containing spaces or punctuation.
+Leading `[&R]` and `[&U]` flags set biological rootedness; otherwise it remains
+unspecified. Other comments and annotations, including NHX, are rejected with
+an error rather than discarded. The parser is a small iterative frontend
+module; no tree-viewer or parser dependency is added.
+
+Under **Import options**, choose whether numeric internal labels are support
+values or node names. Numeric leaf labels remain leaf labels. Original internal text is kept
+even when also interpreted as support. Support scale defaults to unspecified;
+percent and proportion are explicit alternatives and values are never rescaled.
+Incoming branch lengths/support on the display root require the **Discard root branch length and support** option before import, shown only when needed. This discards those root attributes
+while retaining the root label. Missing branch lengths are retained as unknown;
+the viewer falls back to a cladogram if any non-root length is absent or every
+root-to-tip distance is zero.
+
+The [bundled example tree](../../examples/bundled-clusters.nwk) matches **Try
+example** and is fully bifurcating. Its topology, branch lengths and support values are illustrative,
+not an inferred phylogeny.
+
+Click an internal node to reverse its children. Vertical cluster and batch
+dragging follows the tree's clade constraints; horizontal locus movement,
+flipping and trimming remain independent. Node rotations and compatible drags
+support undo/redo. Use the existing **Edit plot → Appearance → Tree** section to
+change width, branches, support labels, guides and the tree scale bar. Hiding
+the tree keeps its ordering constraints. The toolbar's **Order** menu
+switches between **Computed** and **Tree**. The computed default is the
+original analysis order retained in the plot-data cluster array; tree rotations
+and manual dragging change display state, not that array. The menu shows
+**Manual** after unrestricted manual reordering, so selecting Computed
+also resets those edits. Switching to computed order retains the edited tree
+for switching back. **Order → Remove tree** discards it instead.
+Applying/replacing/removing a tree or switching tree ordering resets chart undo
+history; existing gene edits and locus placements are retained.
+
+Version 2 projects preserve the live edited tree, child order, appearance and
+analysis data. When using computed order, the retained tree is saved in the
+optional frontend `inactiveTree` field and validated on reopening. Projects
+cannot contain both an active and an inactive tree. Invalid tree projects are
+rejected before replacing the figure.
+Tree file reads can be cancelled by closing the dialog; new analyses/project
+loads cancel pending imports. Each new analysis rematches the tree selected
+in the new-run panel, rather than reusing the previous figure's index-based
+mapping. Clear that selection to run without a tree. SVG export includes the tree in every
+renderer. Tree inference and rerooting are not provided.
+
 GFF3 annotations and companion FASTA files stay together in the input-file
 list and are removed together. Counts include every selected input file.
 The prefilter checkbox sits beside the identity setting; its k-mer size and
