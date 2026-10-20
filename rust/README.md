@@ -49,6 +49,24 @@ Native protein comparisons run in parallel. As in the Python CLI, `--jobs 0`
 (the default) uses the available CPU threads; pass `--jobs 1` for serial
 alignment or another positive value to set the size of the local thread pool.
 
+Enable the optional k-mer prefilter to reduce protein comparisons (off by default):
+
+```bash
+cargo run -p clinker-cli -- annotations/ --prefilter
+cargo run -p clinker-cli -- annotations/ --prefilter --kmer-size 5 --min-shared-kmers 8
+```
+
+The default filter requires three distinct shared 3-mers. More stringent settings
+can be faster but may miss distant homologues. Both modes use the same alignment
+batch planner and alignment loop. Work is split into at most 1,600 pairs per
+batch, distributed by Rayon on native builds and Web Workers in the browser.
+Native and browser inputs use the same core preparation, batch API and workload
+counts. Unfiltered pairs are expanded on demand within each batch; filtered
+candidate pairs are currently collected before alignment.
+
+Alignment buffers are reused across batches. When extending a session, these
+options apply to new comparisons; existing links are retained.
+
 Write data for the JavaScript renderer or a portable offline HTML figure:
 
 ```bash

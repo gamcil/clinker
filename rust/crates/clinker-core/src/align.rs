@@ -24,8 +24,8 @@ const GAPS: Gaps = Gaps {
 
 /// A reusable SIMD global protein aligner.
 ///
-/// `Block`, padded sequences, and traceback storage are allocated once for a
-/// tile and reused for every comparison in that tile. The adaptive 32–256
+/// `Block`, padded sequences, and traceback storage are reused across
+/// comparisons while the buffers have sufficient capacity. The adaptive 32–256
 /// block range is block-aligner’s recommended setting for proteins.
 pub(crate) struct ProteinAligner {
     matrix: AAMatrix,

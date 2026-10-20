@@ -1,17 +1,17 @@
 import init, {
-  analyse_pairs,
-  analyse_tile,
+  AlignmentWorker,
   BrowserFileParser,
   open_session,
   post_process,
-} from "./pkg/clinker_wasm.js?v=20261018-clustering-v2";
+} from "./pkg/clinker_wasm.js?v=20261020-shared-preparation-v1";
 
-const WASM_VERSION = "20261018-clustering-v2";
+const WASM_VERSION = "20261020-shared-preparation-v1";
 const wasmUrl = new URL("./pkg/clinker_wasm_bg.wasm", import.meta.url);
 wasmUrl.searchParams.set("v", WASM_VERSION);
 let wasmModule = null;
 let wasm = null;
 let fileParser = null;
+let alignmentWorker = null;
 
 async function compileWasmModule() {
   const response = await fetch(wasmUrl);
@@ -57,33 +57,20 @@ self.onmessage = async ({ data }) => {
       const parsed = fileParser.finish(filterProgress);
       releaseFileParser();
       self.postMessage({ type: "parsed", parsed, wasmModule });
-    } else if (data.type === "analyse-tile") {
+    } else if (data.type === "analyse-batch") {
+      alignmentWorker ||= new AlignmentWorker();
       const progress = processedPairs => self.postMessage({
         type: "tile-progress",
         taskIndex: data.taskIndex,
         processedPairs,
       });
-      const result = analyse_tile(data.query, data.target, data.identity, progress);
+      const result = alignmentWorker.analyse_batch(data.proteins, data.batch, data.pairs, data.identity, progress);
       self.postMessage({
         type: "tile-result",
         links: result.links,
         alignmentCount: result.alignmentCount,
         taskIndex: data.taskIndex,
-        pairCount: data.pairCount,
-      });
-    } else if (data.type === "analyse-pairs") {
-      const progress = processedPairs => self.postMessage({
-        type: "tile-progress",
-        taskIndex: data.taskIndex,
-        processedPairs,
-      });
-      const result = analyse_pairs(data.proteins, data.pairs, data.identity, progress);
-      self.postMessage({
-        type: "tile-result",
-        links: result.links,
-        alignmentCount: result.alignmentCount,
-        taskIndex: data.taskIndex,
-        pairCount: data.pairCount,
+        pairCount: result.pairCount,
       });
     } else if (data.type === "post-process") {
       const progress = data.reportProgress

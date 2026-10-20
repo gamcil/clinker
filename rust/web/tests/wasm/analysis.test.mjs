@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { initSync, BrowserFileParser, analyse_tile, post_process, open_session } from '../../pkg/clinker_wasm.js';
+import { initSync, BrowserFileParser, AlignmentWorker, post_process, open_session } from '../../pkg/clinker_wasm.js';
 
 initSync({ module: readFileSync(new URL('../../pkg/clinker_wasm_bg.wasm', import.meta.url)) });
 const fixture = name => readFileSync(new URL(`../../../crates/clinker-core/tests/fixtures/${name}`, import.meta.url));
@@ -36,9 +36,12 @@ test('prefilter and alignment agree on case and unsupported amino acids', () => 
     assert.deepEqual(parsed.candidatePairs, [{ queryIndex: 0, targetIndex: 1 }]);
   }
   const parsed = parse(files);
-  const matches = analyse_tile([parsed.proteins[0]], [parsed.proteins[1]], 0.3, () => {});
-  assert.equal(matches.links.length, 1);
-  assert.equal(matches.links[0].identity, 1);
+  const worker = new AlignmentWorker();
+  try {
+    const matches = worker.analyse_batch(parsed.proteins, parsed.alignmentBatches[0], [], 0.3, () => {});
+    assert.equal(matches.links.length, 1);
+    assert.equal(matches.links[0].identity, 1);
+  } finally { worker.free(); }
 });
 
 test('explicit circular trim retains original coordinates despite automatic rotation', () => {
@@ -85,4 +88,30 @@ test('post-processing retains Ward merges only when similarity ordering runs', (
   }
   assert.deepEqual(leaves, result.clusterOrder);
   assert.deepEqual(post_process(parsed.layout, parsed.proteins, links, [], 0.3, true, () => {}).clusteringMerges, []);
+});
+
+
+test('alignment workers reuse buffers for successive Cartesian and selected batches', () => {
+  const worker = new AlignmentWorker();
+  try {
+    for (const length of [3, 100, 5]) {
+      const protein = { cluster: 0, locus: 0, gene: 0, translation: 'MSTAVKLMDEFGH'.repeat(8).slice(0, length) };
+      const target = { ...protein, cluster: 1 };
+      const tile = worker.analyse_batch([protein, target], { kind: 'cartesian', query: { start: 0, end: 1 }, target: { start: 1, end: 2 } }, [], 0.3, () => {});
+      const pairs = worker.analyse_batch([protein, target], { kind: 'selected', pairs: { start: 0, end: 1 } }, [{ queryIndex: 0, targetIndex: 1 }], 0.3, () => {});
+      assert.deepEqual(pairs, tile);
+      assert.equal(tile.alignmentCount, 1);
+      assert.equal(tile.links.length, 1);
+      assert.equal(tile.links[0].identity, 1);
+    }
+    const parsed = parse([genbank('a.gbk', 'MSTAVKLMDEFGH'), genbank('b.gbk', 'MSTAVKLMDEFGH')]);
+    assert.deepEqual(parsed.alignmentBatches, [{ kind: 'cartesian', query: { start: 0, end: 1 }, target: { start: 1, end: 2 } }]);
+    assert.deepEqual(parsed.alignmentCounts, { possiblePairs: 1, plannedPairs: 1, batchCount: 1 });
+    assert.throws(() => worker.analyse_batch(parsed.proteins, { kind: 'selected', pairs: { start: 0, end: 1 } }, [], 0.3, () => {}), /out of bounds/);
+    const filtered = parse([genbank('a.gbk', 'MSTAVKLMDEFGH'), genbank('b.gbk', 'MSTAVKLMDEFGH')], { ...settings, enabled: true });
+    assert.deepEqual(filtered.alignmentBatches, [{ kind: 'selected', pairs: { start: 0, end: 1 } }]);
+    assert.deepEqual(filtered.alignmentCounts, { possiblePairs: 1, plannedPairs: 1, batchCount: 1 });
+    const rejected = parse([genbank('a.gbk', 'MSTAVKLMDEFGH'), genbank('b.gbk', 'QQQQQQQQQQQQQ')], { ...settings, enabled: true });
+    assert.deepEqual(rejected.alignmentCounts, { possiblePairs: 1, plannedPairs: 0, batchCount: 0 });
+  } finally { worker.free(); }
 });

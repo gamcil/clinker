@@ -6,8 +6,10 @@ use thiserror::Error;
 #[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 
-use crate::align::ProteinAligner;
-use crate::{Cluster, ParseOptions, ProteinMatch, parse_genbank_with_options, parse_gff3};
+use crate::{
+    AlignmentCounts, Cluster, KmerPrefilter, ParseOptions, PreparedAlignment, ProteinBatchAligner,
+    parse_genbank_with_options, parse_gff3,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct InputFile<'a> {
@@ -18,12 +20,22 @@ pub struct InputFile<'a> {
 #[derive(Debug, Clone, Copy)]
 pub struct AnalysisOptions {
     pub identity_cutoff: f32,
+    /// Optional approximate candidate selection before alignment.
+    pub prefilter: Option<KmerPrefilter>,
+}
+
+/// Work performed by the alignment workflow, after length and optional k-mer filtering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AlignmentStats {
+    pub aligned_pairs: usize,
+    pub counts: AlignmentCounts,
 }
 
 impl Default for AnalysisOptions {
     fn default() -> Self {
         Self {
             identity_cutoff: 0.30,
+            prefilter: None,
         }
     }
 }
@@ -168,7 +180,8 @@ pub struct ProteinTileMatch {
 }
 
 /// A pair of positions in caller-provided protein slices.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProteinPair {
     pub query_index: usize,
     pub target_index: usize,
@@ -189,7 +202,10 @@ impl Analysis {
         self.links.extend(cross_cluster_links_from(
             &self.clusters,
             first_new_cluster,
-            identity_cutoff,
+            AnalysisOptions {
+                identity_cutoff,
+                ..AnalysisOptions::default()
+            },
         ));
     }
 
@@ -202,16 +218,32 @@ impl Analysis {
         identity_cutoff: f32,
         jobs: usize,
     ) -> Result<(), AnalysisError> {
+        self.append_clusters_with_options_and_jobs(
+            clusters,
+            AnalysisOptions {
+                identity_cutoff,
+                ..AnalysisOptions::default()
+            },
+            jobs,
+        )
+        .map(|_| ())
+    }
+
+    /// Append clusters using the same native scheduler with or without prefiltering.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn append_clusters_with_options_and_jobs(
+        &mut self,
+        clusters: Vec<Cluster>,
+        options: AnalysisOptions,
+        jobs: usize,
+    ) -> Result<AlignmentStats, AnalysisError> {
         let pool = alignment_pool(jobs)?;
         let first_new_cluster = self.clusters.len();
         self.clusters.extend(clusters);
-        self.links.extend(cross_cluster_links_parallel_from(
-            &self.clusters,
-            first_new_cluster,
-            identity_cutoff,
-            &pool,
-        ));
-        Ok(())
+        let (links, stats) =
+            cross_cluster_links_parallel_from(&self.clusters, first_new_cluster, options, &pool);
+        self.links.extend(links);
+        Ok(stats)
     }
 
     /// Append parsed clusters without producing protein links.
@@ -238,7 +270,7 @@ pub fn analyse_genbank_with_options(
     let clusters = parse_input_files_with_options(files, parse_options)?;
 
     Ok(Analysis {
-        links: cross_cluster_links(&clusters, options.identity_cutoff),
+        links: cross_cluster_links_from(&clusters, 0, options),
         clusters,
     })
 }
@@ -258,7 +290,7 @@ pub fn analyse_genbank_with_options_and_jobs(
     let pool = alignment_pool(jobs)?;
 
     Ok(Analysis {
-        links: cross_cluster_links_parallel_from(&clusters, 0, options.identity_cutoff, &pool),
+        links: cross_cluster_links_parallel_from(&clusters, 0, options, &pool).0,
         clusters,
     })
 }
@@ -382,99 +414,68 @@ fn is_fasta(name: &str) -> bool {
     )
 }
 
-fn cross_cluster_links(clusters: &[Cluster], identity_cutoff: f32) -> Vec<Link> {
-    cross_cluster_links_from(clusters, 0, identity_cutoff)
+fn collect_batch_links(
+    results: impl IntoIterator<Item = (Vec<Link>, usize)>,
+    counts: AlignmentCounts,
+) -> (Vec<Link>, AlignmentStats) {
+    let mut links = Vec::new();
+    let mut stats = AlignmentStats {
+        aligned_pairs: 0,
+        counts,
+    };
+    for (batch_links, aligned_pairs) in results {
+        links.extend(batch_links);
+        stats.aligned_pairs += aligned_pairs;
+    }
+    // Tile boundaries must not change link order or stable IDs in native output.
+    links.sort_unstable_by_key(|link| {
+        (
+            link.query.cluster,
+            link.target.cluster,
+            link.query.locus,
+            link.query.gene,
+            link.target.locus,
+            link.target.gene,
+        )
+    });
+    (links, stats)
 }
 
 fn cross_cluster_links_from(
     clusters: &[Cluster],
     first_new_cluster: usize,
-    identity_cutoff: f32,
+    options: AnalysisOptions,
 ) -> Vec<Link> {
-    let mut links = Vec::new();
-
-    for query_cluster_index in 0..clusters.len() {
-        let first_target = (query_cluster_index + 1).max(first_new_cluster);
-        for target_cluster_index in first_target..clusters.len() {
-            links.extend(
-                analyse_cluster_pair(
-                    &clusters[query_cluster_index],
-                    &clusters[target_cluster_index],
-                    identity_cutoff,
-                )
-                .into_iter()
-                .map(|mut link| {
-                    link.query.cluster = query_cluster_index;
-                    link.target.cluster = target_cluster_index;
-                    link
-                }),
-            );
-        }
-    }
-
-    links
+    let inputs = PreparedAlignment::new(clusters, first_new_cluster, options, |_, _| {});
+    let mut aligner = ProteinBatchAligner::default();
+    collect_batch_links(
+        inputs
+            .batches
+            .iter()
+            .map(|batch| inputs.run(batch, &mut aligner, options.identity_cutoff)),
+        inputs.counts,
+    )
+    .0
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn cross_cluster_links_parallel_from(
     clusters: &[Cluster],
     first_new_cluster: usize,
-    identity_cutoff: f32,
+    options: AnalysisOptions,
     pool: &rayon::ThreadPool,
-) -> Vec<Link> {
-    let tasks = alignment_tasks(clusters, first_new_cluster);
-    let max_protein_length = clusters
-        .iter()
-        .map(max_protein_length)
-        .max()
-        .unwrap_or_default();
-    let links = pool.install(|| {
-        tasks
-            .into_par_iter()
-            .map_init(
-                || ProteinAligner::with_capacity(max_protein_length, max_protein_length),
-                |aligner, task| analyse_gene_task(clusters, task, identity_cutoff, aligner),
-            )
+) -> (Vec<Link>, AlignmentStats) {
+    let inputs = PreparedAlignment::new(clusters, first_new_cluster, options, |_, _| {});
+    let results = pool.install(|| {
+        inputs
+            .batches
+            .par_iter()
+            .map_init(ProteinBatchAligner::default, |aligner, batch| {
+                inputs.run(batch, aligner, options.identity_cutoff)
+            })
             .collect::<Vec<_>>()
     });
-
-    links.into_iter().flatten().collect()
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct AlignmentTask {
-    query_cluster: usize,
-    target_cluster: usize,
-    query_locus: usize,
-    query_gene: usize,
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn alignment_tasks(clusters: &[Cluster], first_new_cluster: usize) -> Vec<AlignmentTask> {
-    (0..clusters.len())
-        .flat_map(|query_cluster_index| {
-            let first_target = (query_cluster_index + 1).max(first_new_cluster);
-            (first_target..clusters.len()).flat_map(move |target_cluster_index| {
-                clusters[query_cluster_index]
-                    .loci
-                    .iter()
-                    .enumerate()
-                    .flat_map(move |(query_locus_index, query_locus)| {
-                        query_locus
-                            .genes
-                            .iter()
-                            .enumerate()
-                            .map(move |(query_gene_index, _)| AlignmentTask {
-                                query_cluster: query_cluster_index,
-                                target_cluster: target_cluster_index,
-                                query_locus: query_locus_index,
-                                query_gene: query_gene_index,
-                            })
-                    })
-            })
-        })
-        .collect()
+    collect_batch_links(results, inputs.counts)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -489,238 +490,6 @@ fn alignment_pool(jobs: usize) -> Result<rayon::ThreadPool, rayon::ThreadPoolBui
     rayon::ThreadPoolBuilder::new().num_threads(threads).build()
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn analyse_gene_task(
-    clusters: &[Cluster],
-    task: AlignmentTask,
-    identity_cutoff: f32,
-    aligner: &mut ProteinAligner,
-) -> Vec<Link> {
-    let query_gene = &clusters[task.query_cluster].loci[task.query_locus].genes[task.query_gene];
-    let mut links = Vec::new();
-
-    for (target_locus_index, target_locus) in clusters[task.target_cluster].loci.iter().enumerate()
-    {
-        for (target_gene_index, target_gene) in target_locus.genes.iter().enumerate() {
-            if !can_reach_identity(
-                query_gene.translation.len(),
-                target_gene.translation.len(),
-                identity_cutoff,
-            ) {
-                continue;
-            }
-            let ProteinMatch {
-                identity,
-                similarity,
-            } = aligner.compare(
-                query_gene.translation.as_bytes(),
-                target_gene.translation.as_bytes(),
-            );
-            if identity >= identity_cutoff {
-                links.push(Link {
-                    query: GeneRef {
-                        cluster: task.query_cluster,
-                        locus: task.query_locus,
-                        gene: task.query_gene,
-                    },
-                    target: GeneRef {
-                        cluster: task.target_cluster,
-                        locus: target_locus_index,
-                        gene: target_gene_index,
-                    },
-                    identity,
-                    similarity,
-                });
-            }
-        }
-    }
-
-    links
-}
-
-/// Compare every gene in `query` with every gene in `target`.
-///
-/// Returned references are local to this pair: query genes use cluster index
-/// zero and target genes use index one. A caller that combines several pair
-/// jobs assigns their global cluster indices from its own task metadata.
-pub fn analyse_cluster_pair(query: &Cluster, target: &Cluster, identity_cutoff: f32) -> Vec<Link> {
-    let mut links = Vec::new();
-    let mut aligner =
-        ProteinAligner::with_capacity(max_protein_length(query), max_protein_length(target));
-
-    for (query_locus_index, query_locus) in query.loci.iter().enumerate() {
-        for (query_gene_index, query_gene) in query_locus.genes.iter().enumerate() {
-            for (target_locus_index, target_locus) in target.loci.iter().enumerate() {
-                for (target_gene_index, target_gene) in target_locus.genes.iter().enumerate() {
-                    let ProteinMatch {
-                        identity,
-                        similarity,
-                    } = if can_reach_identity(
-                        query_gene.translation.len(),
-                        target_gene.translation.len(),
-                        identity_cutoff,
-                    ) {
-                        aligner.compare(
-                            query_gene.translation.as_bytes(),
-                            target_gene.translation.as_bytes(),
-                        )
-                    } else {
-                        continue;
-                    };
-
-                    if identity >= identity_cutoff {
-                        links.push(Link {
-                            query: GeneRef {
-                                cluster: 0,
-                                locus: query_locus_index,
-                                gene: query_gene_index,
-                            },
-                            target: GeneRef {
-                                cluster: 1,
-                                locus: target_locus_index,
-                                gene: target_gene_index,
-                            },
-                            identity,
-                            similarity,
-                        });
-                    }
-                }
-            }
-        }
-    }
-
-    links
-}
-
-/// Compare the Cartesian product of two protein slices with the clinker
-/// global-alignment metric.
-///
-/// Callers should keep the slices small enough to form a bounded work tile.
-/// The aligner is reused for every pair in the tile.
-pub fn analyse_protein_tile(
-    query: &[&[u8]],
-    target: &[&[u8]],
-    identity_cutoff: f32,
-) -> Vec<ProteinTileMatch> {
-    analyse_protein_tile_with_progress(query, target, identity_cutoff, |_| {})
-}
-
-/// As [`analyse_protein_tile`], reporting the number of processed pairs every
-/// 100 comparisons and once at completion.
-pub fn analyse_protein_tile_with_progress(
-    query: &[&[u8]],
-    target: &[&[u8]],
-    identity_cutoff: f32,
-    mut progress: impl FnMut(usize),
-) -> Vec<ProteinTileMatch> {
-    let mut aligner = ProteinAligner::with_capacity(
-        query
-            .iter()
-            .map(|protein| protein.len())
-            .max()
-            .unwrap_or_default(),
-        target
-            .iter()
-            .map(|protein| protein.len())
-            .max()
-            .unwrap_or_default(),
-    );
-    let mut matches = Vec::new();
-    let mut processed = 0;
-
-    for (query_index, query_protein) in query.iter().enumerate() {
-        for (target_index, target_protein) in target.iter().enumerate() {
-            processed += 1;
-            if processed % 100 == 0 {
-                progress(processed);
-            }
-            if !can_reach_identity(query_protein.len(), target_protein.len(), identity_cutoff) {
-                continue;
-            }
-            let ProteinMatch {
-                identity,
-                similarity,
-            } = aligner.compare(query_protein, target_protein);
-            if identity >= identity_cutoff {
-                matches.push(ProteinTileMatch {
-                    query_index,
-                    target_index,
-                    identity,
-                    similarity,
-                });
-            }
-        }
-    }
-
-    if processed % 100 != 0 {
-        progress(processed);
-    }
-    matches
-}
-
-/// Compare selected pairs from one compact protein collection.
-///
-/// This is used after an optional candidate filter, so a worker receives each
-/// protein once per task instead of expanding selected pairs back into a
-/// Cartesian product.
-pub fn analyse_protein_pairs(
-    proteins: &[&[u8]],
-    pairs: &[ProteinPair],
-    identity_cutoff: f32,
-) -> Vec<ProteinTileMatch> {
-    analyse_protein_pairs_with_progress(proteins, pairs, identity_cutoff, |_| {})
-}
-
-/// As [`analyse_protein_pairs`], reporting the number of processed pairs
-/// every 100 comparisons and once at completion.
-pub fn analyse_protein_pairs_with_progress(
-    proteins: &[&[u8]],
-    pairs: &[ProteinPair],
-    identity_cutoff: f32,
-    mut progress: impl FnMut(usize),
-) -> Vec<ProteinTileMatch> {
-    let capacity = proteins
-        .iter()
-        .map(|protein| protein.len())
-        .max()
-        .unwrap_or_default();
-    let mut aligner = ProteinAligner::with_capacity(capacity, capacity);
-    let mut matches = Vec::new();
-    let mut processed = 0;
-
-    for &pair in pairs {
-        processed += 1;
-        if processed % 100 == 0 {
-            progress(processed);
-        }
-        let (Some(query), Some(target)) = (
-            proteins.get(pair.query_index),
-            proteins.get(pair.target_index),
-        ) else {
-            continue;
-        };
-        if !can_reach_identity(query.len(), target.len(), identity_cutoff) {
-            continue;
-        }
-        let ProteinMatch {
-            identity,
-            similarity,
-        } = aligner.compare(query, target);
-        if identity >= identity_cutoff {
-            matches.push(ProteinTileMatch {
-                query_index: pair.query_index,
-                target_index: pair.target_index,
-                identity,
-                similarity,
-            });
-        }
-    }
-    if processed % 100 != 0 {
-        progress(processed);
-    }
-    matches
-}
-
 /// The largest possible global-alignment identity is the shorter sequence
 /// divided by the longer one. Rejecting pairs below this bound is exact.
 pub fn can_reach_identity(query_length: usize, target_length: usize, identity_cutoff: f32) -> bool {
@@ -731,28 +500,19 @@ pub fn can_reach_identity(query_length: usize, target_length: usize, identity_cu
     longer != 0 && query_length.min(target_length) as f32 / longer as f32 >= identity_cutoff
 }
 
-fn max_protein_length(cluster: &Cluster) -> usize {
-    cluster
-        .loci
-        .iter()
-        .flat_map(|locus| &locus.genes)
-        .map(|gene| gene.translation.len())
-        .max()
-        .unwrap_or_default()
-}
-
 #[cfg(test)]
 mod tests {
     #[cfg(not(target_arch = "wasm32"))]
-    use super::{AlignmentTask, alignment_tasks, analyse_genbank_with_options_and_jobs};
+    use super::analyse_genbank_with_options_and_jobs;
     use super::{
-        AnalysisOptions, InputFile, ProteinPair, analyse_genbank, analyse_protein_pairs,
-        analyse_protein_tile, analyse_protein_tile_with_progress, can_reach_identity,
+        AnalysisOptions, InputFile, ProteinPair, analyse_genbank, can_reach_identity,
         parse_input_files_with_progress,
     };
     #[cfg(not(target_arch = "wasm32"))]
     use crate::ParseOptions;
-    use crate::{KmerPrefilter, kmer_candidate_pairs, kmer_candidate_pairs_with_progress};
+    use crate::{
+        KmerPrefilter, ProteinBatch, kmer_candidate_pairs, kmer_candidate_pairs_with_progress,
+    };
 
     const FORWARD_CDS: &[u8] =
         br#"LOCUS       FIRST                      9 bp    DNA     linear   UNA 01-JAN-2000
@@ -836,40 +596,112 @@ ORIGIN
 
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn appended_alignment_tasks_include_only_pairs_with_new_clusters() {
-        let files = [
-            InputFile {
-                name: "first.gbk",
-                bytes: FORWARD_CDS,
+    fn prefiltered_workflow_preserves_references_order_and_incremental_links() {
+        let template = super::parse_input_files(&[InputFile {
+            name: "first.gbk",
+            bytes: FORWARD_CDS,
+        }])
+        .unwrap()
+        .remove(0);
+        let mut clusters = vec![template; 3];
+        for cluster in &mut clusters {
+            cluster.loci.push(cluster.loci[0].clone());
+            cluster.loci[0].genes[0].translation = "MSTAVKLMDEFGH".into();
+            cluster.loci[1].genes[0].translation = "MSTAVRLMDEFGH".into();
+            let mut short = cluster.loci[1].genes[0].clone();
+            short.translation = "MS".into();
+            cluster.loci[1].genes.push(short);
+        }
+        for (first_new, expected) in [(0, 27), (2, 18), (3, 0)] {
+            let prepared = super::PreparedAlignment::new(
+                &clusters,
+                first_new,
+                AnalysisOptions::default(),
+                |_, _| {},
+            );
+            assert_eq!(prepared.counts.possible_pairs, expected);
+            assert_eq!(prepared.counts.planned_pairs, expected);
+            assert_eq!(prepared.counts.batch_count, prepared.batches.len());
+        }
+        let unfiltered = super::cross_cluster_links_from(&clusters, 0, AnalysisOptions::default());
+        for prefilter in [
+            KmerPrefilter::default(),
+            KmerPrefilter {
+                kmer_size: 5,
+                min_shared_kmers: 8,
             },
-            InputFile {
-                name: "second.gbk",
-                bytes: REVERSE_CDS,
+            KmerPrefilter {
+                kmer_size: 8,
+                min_shared_kmers: 100,
             },
-            InputFile {
-                name: "third.gbk",
-                bytes: FORWARD_CDS,
-            },
-        ];
-        let clusters = super::parse_input_files(&files).unwrap();
-
-        assert_eq!(
-            alignment_tasks(&clusters, 2),
-            vec![
-                AlignmentTask {
-                    query_cluster: 0,
-                    target_cluster: 2,
-                    query_locus: 0,
-                    query_gene: 0,
-                },
-                AlignmentTask {
-                    query_cluster: 1,
-                    target_cluster: 2,
-                    query_locus: 0,
-                    query_gene: 0,
-                },
-            ]
-        );
+        ] {
+            let options = AnalysisOptions {
+                prefilter: Some(prefilter),
+                ..AnalysisOptions::default()
+            };
+            let prepared = super::PreparedAlignment::new(&clusters, 0, options, |_, _| {});
+            assert_eq!(
+                prepared.counts.planned_pairs,
+                prepared.candidates.as_ref().unwrap().len()
+            );
+            assert_eq!(
+                prepared.counts.planned_pairs,
+                prepared
+                    .batches
+                    .iter()
+                    .map(ProteinBatch::pair_count)
+                    .sum::<usize>()
+            );
+            let expected = unfiltered
+                .iter()
+                .filter(|link| {
+                    let protein = |r: super::GeneRef| {
+                        clusters[r.cluster].loci[r.locus].genes[r.gene]
+                            .translation
+                            .as_bytes()
+                    };
+                    !kmer_candidate_pairs(
+                        &[protein(link.query)],
+                        &[protein(link.target)],
+                        options.identity_cutoff,
+                        prefilter,
+                    )
+                    .is_empty()
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            assert_eq!(
+                super::cross_cluster_links_from(&clusters, 0, options),
+                expected
+            );
+            for jobs in [1, 2] {
+                let mut analysis = super::Analysis {
+                    clusters: Vec::new(),
+                    links: Vec::new(),
+                };
+                let stats = analysis
+                    .append_clusters_with_options_and_jobs(clusters.clone(), options, jobs)
+                    .unwrap();
+                assert_eq!(analysis.links, expected);
+                assert!(stats.aligned_pairs >= analysis.links.len());
+                if prefilter.min_shared_kmers == 100 {
+                    assert_eq!(stats.aligned_pairs, 0);
+                }
+                let mut incremental = super::Analysis {
+                    clusters: Vec::new(),
+                    links: Vec::new(),
+                };
+                incremental
+                    .append_clusters_with_options_and_jobs(clusters[..2].to_vec(), options, jobs)
+                    .unwrap();
+                let existing = incremental.links.clone();
+                incremental
+                    .append_clusters_with_options_and_jobs(clusters[2..].to_vec(), options, jobs)
+                    .unwrap();
+                assert_eq!(incremental.links, expected);
+                assert!(incremental.links.starts_with(&existing));
+            }
+        }
     }
 
     #[test]
@@ -898,7 +730,13 @@ ORIGIN
         let query: [&[u8]; 2] = [b"MST", b"AAA"];
         let target: [&[u8]; 2] = [b"GGG", b"MST"];
 
-        let matches = analyse_protein_tile(&query, &target, 0.99);
+        let batch = ProteinBatch::Cartesian {
+            query: 0..query.len(),
+            target: 0..target.len(),
+        };
+        let matches = super::ProteinBatchAligner::default()
+            .analyse_pairs(&query, &target, batch.pairs(&[]), 0.99, |_| {})
+            .matches;
 
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].query_index, 0);
@@ -943,14 +781,18 @@ ORIGIN
     #[test]
     fn selected_pair_alignment_does_not_expand_to_a_cartesian_product() {
         let proteins: [&[u8]; 3] = [b"MST", b"AAA", b"GGG"];
-        let matches = analyse_protein_pairs(
-            &proteins,
-            &[ProteinPair {
-                query_index: 0,
-                target_index: 2,
-            }],
-            0.99,
-        );
+        let matches = super::ProteinBatchAligner::default()
+            .analyse_pairs(
+                &proteins,
+                &proteins,
+                [ProteinPair {
+                    query_index: 0,
+                    target_index: 2,
+                }],
+                0.99,
+                |_| {},
+            )
+            .matches;
         assert!(matches.is_empty());
     }
 
@@ -958,9 +800,17 @@ ORIGIN
     fn tile_progress_reports_the_final_processed_pair_count() {
         let proteins: [&[u8]; 2] = [b"MST", b"AAA"];
         let mut reports = Vec::new();
-        let _ = analyse_protein_tile_with_progress(&proteins, &proteins, 0.99, |processed| {
-            reports.push(processed)
-        });
+        let batch = ProteinBatch::Cartesian {
+            query: 0..proteins.len(),
+            target: 0..proteins.len(),
+        };
+        let _ = super::ProteinBatchAligner::default().analyse_pairs(
+            &proteins,
+            &proteins,
+            batch.pairs(&[]),
+            0.99,
+            |processed| reports.push(processed),
+        );
         assert_eq!(reports, vec![4]);
     }
 }

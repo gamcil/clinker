@@ -1,3 +1,4 @@
+import { analyseTilesInWorkerPool } from "./alignment.mjs?v=20261020-shared-preparation-v1";
 import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261018-clustering-v2";
 import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261018-tree-v5";
 import { Workflow } from "./workflow.mjs?v=20261015-workflow-v1";
@@ -63,9 +64,7 @@ const plotStatus = document.querySelector("#plot-status");
 const plot = d3.select("#plot");
 const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
-const GENES_PER_TILE_SIDE = 40;
-const PAIRS_PER_TILE = 1600;
-const WORKER_VERSION = "20261018-clustering-v2";
+const WORKER_VERSION = "20261020-shared-preparation-v1";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
@@ -702,12 +701,6 @@ editPlotButton.addEventListener("click", () => {
   else showPlotEditor();
 });
 
-function workerCount(taskCount) {
-  // Each worker owns a separate Wasm instance and its alignment buffers. A
-  // modest cap avoids making many large DP matrices resident at once.
-  return Math.min(taskCount, Math.max(1, Math.min(navigator.hardwareConcurrency || 2, 4)));
-}
-
 function parseInputFiles(
   files,
   prefilter,
@@ -777,52 +770,6 @@ function parseInputFiles(
   });
 }
 
-function* candidateTiles(proteins, candidatePairs) {
-  for (let start = 0; start < candidatePairs.length; start += PAIRS_PER_TILE) {
-    const proteinIndexes = new Map();
-    const tileProteins = [];
-    const localIndex = index => {
-      if (!proteinIndexes.has(index)) {
-        proteinIndexes.set(index, tileProteins.length);
-        tileProteins.push(proteins[index]);
-      }
-      return proteinIndexes.get(index);
-    };
-    const pairs = candidatePairs.slice(start, start + PAIRS_PER_TILE).map(pair => ({
-      queryIndex: localIndex(pair.queryIndex),
-      targetIndex: localIndex(pair.targetIndex),
-    }));
-    yield { type: "analyse-pairs", proteins: tileProteins, pairs, pairCount: pairs.length };
-  }
-}
-
-function proteinsByCluster(proteins, clusterCount) {
-  const clusters = Array.from({ length: clusterCount }, () => []);
-  proteins.forEach(protein => clusters[protein.cluster].push(protein));
-  return clusters;
-}
-
-function tileCount(clusters) {
-  let count = 0;
-  for (let queryCluster = 0; queryCluster < clusters.length; queryCluster += 1) {
-    for (let targetCluster = queryCluster + 1; targetCluster < clusters.length; targetCluster += 1) {
-      count += Math.ceil(clusters[queryCluster].length / GENES_PER_TILE_SIDE)
-        * Math.ceil(clusters[targetCluster].length / GENES_PER_TILE_SIDE);
-    }
-  }
-  return count;
-}
-
-function pairCount(clusters) {
-  let count = 0;
-  for (let queryCluster = 0; queryCluster < clusters.length; queryCluster += 1) {
-    for (let targetCluster = queryCluster + 1; targetCluster < clusters.length; targetCluster += 1) {
-      count += clusters[queryCluster].length * clusters[targetCluster].length;
-    }
-  }
-  return count;
-}
-
 function progressPercent(completed, total) {
   if (total === 0) return 100;
   return Math.min(100, Math.floor((completed / total) * 100));
@@ -833,43 +780,6 @@ function prefilterResult(aligned, possible) {
   const percentage = possible === 0 ? 0 : (skipped / possible) * 100;
   const formattedPercentage = percentage < 10 ? percentage.toFixed(1) : Math.round(percentage);
   return `Filtered out ${skipped.toLocaleString()} of ${possible.toLocaleString()} possible alignments (${formattedPercentage}%)`;
-}
-
-function* alignmentTiles(clusters) {
-  for (let queryCluster = 0; queryCluster < clusters.length; queryCluster += 1) {
-    for (let targetCluster = queryCluster + 1; targetCluster < clusters.length; targetCluster += 1) {
-      const queryProteins = clusters[queryCluster];
-      const targetProteins = clusters[targetCluster];
-      for (let queryStart = 0; queryStart < queryProteins.length; queryStart += GENES_PER_TILE_SIDE) {
-        for (let targetStart = 0; targetStart < targetProteins.length; targetStart += GENES_PER_TILE_SIDE) {
-          yield {
-            type: "analyse-tile",
-            query: queryProteins.slice(queryStart, queryStart + GENES_PER_TILE_SIDE),
-            target: targetProteins.slice(targetStart, targetStart + GENES_PER_TILE_SIDE),
-            pairCount: Math.min(GENES_PER_TILE_SIDE, queryProteins.length - queryStart)
-              * Math.min(GENES_PER_TILE_SIDE, targetProteins.length - targetStart),
-          };
-        }
-      }
-    }
-  }
-}
-
-function plotLink(link) {
-  return {
-    // Keep positional references too: the grouping worker needs them to build
-    // Rust-side union-find components, while clustermap.js uses only `uid`.
-    query: {
-      ...link.query,
-      uid: `gene-${link.query.cluster}-${link.query.locus}-${link.query.gene}`,
-    },
-    target: {
-      ...link.target,
-      uid: `gene-${link.target.cluster}-${link.target.locus}-${link.target.gene}`,
-    },
-    identity: link.identity,
-    similarity: link.similarity,
-  };
 }
 
 function bestLinkCount(plotData) {
@@ -1048,100 +958,6 @@ function postProcess(
   }, onProgress);
 }
 
-function analyseTilesInWorkerPool(
-  proteins,
-  clusterCount,
-  identity,
-  candidatePairs,
-  wasmModule,
-  onProgress,
-  workflow,
-) {
-  const clusters = proteinsByCluster(proteins, clusterCount);
-  const totalTiles = candidatePairs
-    ? Math.ceil(candidatePairs.length / PAIRS_PER_TILE)
-    : tileCount(clusters);
-  if (totalTiles === 0) return Promise.resolve({ links: [], alignmentCount: 0 });
-  const tiles = candidatePairs ? candidateTiles(proteins, candidatePairs) : alignmentTiles(clusters);
-  const totalPairs = candidatePairs ? candidatePairs.length : pairCount(clusters);
-  const workers = Array.from(
-    { length: workerCount(totalTiles) },
-    () => workflow.worker(WORKER_URL),
-  );
-  const linksByTask = new Array(totalTiles);
-  const alignmentCountsByTask = new Array(totalTiles).fill(0);
-  const processedPairsByTask = new Array(totalTiles).fill(0);
-  let nextTask = 0;
-  let completed = 0;
-  let processedPairs = 0;
-  let settled = false;
-
-  return new Promise((resolve, reject) => {
-    const finish = error => {
-      if (settled) return;
-      settled = true;
-      workflow.signal.removeEventListener("abort", cancel);
-      workers.forEach(worker => workflow.releaseWorker(worker));
-      if (error) reject(error);
-      else {
-        const links = linksByTask.flat();
-        links.forEach((link, index) => { link.uid = `link-${index}`; });
-        resolve({
-          links,
-          alignmentCount: alignmentCountsByTask.reduce((sum, count) => sum + count, 0),
-        });
-      }
-    };
-
-    const cancel = () => finish(workflow.signal.reason);
-    workflow.signal.addEventListener("abort", cancel, { once: true });
-    const reportTaskProgress = (taskIndex, count) => {
-      const next = Math.max(processedPairsByTask[taskIndex], count);
-      processedPairs += next - processedPairsByTask[taskIndex];
-      processedPairsByTask[taskIndex] = next;
-      onProgress(processedPairs, totalPairs);
-    };
-    const dispatch = worker => {
-      if (settled || nextTask === totalTiles) return;
-      const taskIndex = nextTask++;
-      try {
-        const tile = tiles.next().value;
-        processedPairsByTask[taskIndex] = 0;
-        worker.postMessage({ ...tile, identity, taskIndex, wasmModule });
-      } catch (error) { finish(error); }
-    };
-
-    workers.forEach(worker => {
-      worker.onmessage = ({ data }) => {
-        if (settled) return;
-        if (data.type === "error") {
-          finish(new Error(data.message));
-          return;
-        }
-
-        if (data.type === "tile-progress") {
-          reportTaskProgress(data.taskIndex, data.processedPairs);
-          return;
-        }
-
-        if (data.type !== "tile-result") return;
-        linksByTask[data.taskIndex] = data.links.map(plotLink);
-        alignmentCountsByTask[data.taskIndex] = data.alignmentCount || 0;
-        reportTaskProgress(
-          data.taskIndex,
-          data.pairCount || processedPairsByTask[data.taskIndex],
-        );
-        completed += 1;
-        if (completed === totalTiles) finish();
-        else dispatch(worker);
-      };
-      worker.onerror = event => finish(new Error(event.message || "Worker failed"));
-      worker.onmessageerror = () => finish(new Error("Could not read the analysis worker response."));
-      dispatch(worker);
-    });
-  });
-}
-
 async function analyseFiles(files, workflow) {
   const runTree = treeImport.runTree();
   const identity = Number(identityInput.value) / 100;
@@ -1211,12 +1027,7 @@ async function analyseFiles(files, workflow) {
     "complete",
     `Parsed ${files.length} ${files.length === 1 ? "file" : "files"} · ${parsed.proteins.length.toLocaleString()} genes`,
   );
-  const proteinsByInputCluster = proteinsByCluster(
-    parsed.proteins,
-    parsed.layout.clusters.length,
-  );
-  const possibleAlignments = pairCount(proteinsByInputCluster);
-  const plannedAlignments = parsed.candidatePairs?.length ?? possibleAlignments;
+  const { possiblePairs: possibleAlignments, plannedPairs: plannedAlignments } = parsed.alignmentCounts;
   if (prefilter.enabled) {
     setRunStep(
       "prefilter",
@@ -1228,10 +1039,8 @@ async function analyseFiles(files, workflow) {
   const alignmentResult = noAlignInput.checked
     ? { links: [], alignmentCount: 0 }
     : await analyseTilesInWorkerPool(
-      parsed.proteins,
-      parsed.layout.clusters.length,
+      parsed,
       identity,
-      parsed.candidatePairs,
       parsed.wasmModule,
       (completedPairs, total) => {
         const progress = progressPercent(completedPairs, total);

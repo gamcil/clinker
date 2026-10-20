@@ -8,7 +8,7 @@ case "$destination" in
 esac
 cd "$(dirname "$0")"
 mkdir -p "$destination"
-cp index.html app.js worker.js style.css input-files.mjs workflow.mjs project.mjs tree.mjs tree-import.mjs tree-input.mjs \
+cp index.html app.js worker.js style.css input-files.mjs alignment.mjs workflow.mjs project.mjs tree.mjs tree-import.mjs tree-input.mjs \
   d3.min.js clustermap.min.js clustermap-editor.css clustermap-editor.mjs "$destination/"
 cp -R pkg examples "$destination/"
 cp ../../LICENSE ../crates/clinker-cli/assets/LICENSE.* "$destination/"

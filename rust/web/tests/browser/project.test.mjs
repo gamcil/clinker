@@ -183,7 +183,7 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   await page.locator('#new-run').click();
   // Hold each worker stage at its request boundary so cancellation is reliable
   // even when the example analysis finishes in milliseconds.
-  for (const stage of ['parse-start', 'parse-finish', 'analyse-pairs', 'post-process', 'open-session']) {
+  for (const stage of ['parse-start', 'parse-finish', 'analyse-batch', 'post-process', 'open-session']) {
     await page.evaluate(stage => {
       window.workerAudit.hold = stage;
       window.workerAudit.pending = null;
@@ -198,7 +198,7 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
     }));
     assert.match(await page.locator('#run-status').textContent(), /Cancelled/);
   }
-  for (const stage of ['parse-start', 'analyse-pairs', 'post-process', 'open-session']) {
+  for (const stage of ['parse-start', 'analyse-batch', 'post-process', 'open-session']) {
     await page.evaluate(stage => {
       window.workerAudit.hold = stage;
       window.workerAudit.pending = null;

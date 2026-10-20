@@ -7,8 +7,9 @@ use std::{
 
 use clap::Parser;
 use clinker_core::{
-    Analysis, AnalysisOptions, AnalysisSession, GeneGroupDefinition, InputFile, ParseOptions,
-    SequenceRange, analyse_genbank_with_options_and_jobs, parse_input_files_with_options,
+    Analysis, AnalysisOptions, AnalysisSession, GeneGroupDefinition, InputFile, KmerPrefilter,
+    ParseOptions, SequenceRange, analyse_genbank_with_options_and_jobs,
+    parse_input_files_with_options,
 };
 
 /// Analyse GenBank or GFF3 input with clinker.
@@ -25,6 +26,18 @@ struct Args {
     /// Number of alignment jobs to run in parallel (0 uses available CPUs).
     #[arg(short = 'j', long, default_value_t = 0)]
     jobs: usize,
+
+    /// Skip protein pairs with too few shared k-mers; may miss distant homologues.
+    #[arg(long, conflicts_with = "no_align")]
+    prefilter: bool,
+
+    /// Protein k-mer size for --prefilter.
+    #[arg(long, default_value_t = 3, requires = "prefilter", value_parser = clap::value_parser!(u8).range(1..=8))]
+    kmer_size: u8,
+
+    /// Minimum distinct shared k-mers for --prefilter.
+    #[arg(long, default_value_t = 3, requires = "prefilter", value_parser = clap::value_parser!(u32).range(1..))]
+    min_shared_kmers: u32,
 
     /// Save analysis state here, or resume it when the path already exists.
     #[arg(short, long, value_name = "PATH")]
@@ -132,6 +145,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let supplied_group_definitions =
         read_group_definitions(args.gene_functions.as_deref(), args.colour_map.as_deref())?;
     let replace_group_definitions = args.gene_functions.is_some();
+    let prefilter = args.prefilter.then_some(KmerPrefilter {
+        kmer_size: usize::from(args.kmer_size),
+        min_shared_kmers: args.min_shared_kmers as usize,
+    });
     let mut session_was_modified = false;
     let session = if session_exists {
         let path = args
@@ -145,9 +162,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if args.no_align {
                 session.analysis.append_clusters_without_alignment(clusters);
             } else {
-                session
-                    .analysis
-                    .append_clusters_with_jobs(clusters, identity_cutoff, args.jobs)?;
+                session.analysis.append_clusters_with_options_and_jobs(
+                    clusters,
+                    AnalysisOptions {
+                        identity_cutoff,
+                        prefilter,
+                    },
+                    args.jobs,
+                )?;
             }
             session.identity_cutoff = identity_cutoff;
             session_was_modified = true;
@@ -167,7 +189,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             analyse_genbank_with_options_and_jobs(
                 &inputs,
-                AnalysisOptions { identity_cutoff },
+                AnalysisOptions {
+                    identity_cutoff,
+                    prefilter,
+                },
                 &parse_options,
                 args.jobs,
             )?
@@ -517,6 +542,28 @@ mod tests {
     use super::{
         discover_input_paths, group_definitions, parse_identity, parse_ranges, portable_html,
     };
+
+    #[test]
+    fn validates_prefilter_arguments() {
+        use clap::Parser;
+        assert!(
+            super::Args::try_parse_from(["clinker-rs", "--prefilter"])
+                .unwrap()
+                .prefilter
+        );
+        for args in [
+            vec!["--kmer-size", "5"],
+            vec!["--min-shared-kmers", "8"],
+            vec!["--prefilter", "--kmer-size", "0"],
+            vec!["--prefilter", "--kmer-size", "9"],
+            vec!["--prefilter", "--min-shared-kmers", "0"],
+            vec!["--prefilter", "--no-align"],
+        ] {
+            assert!(
+                super::Args::try_parse_from(std::iter::once("clinker-rs").chain(args)).is_err()
+            );
+        }
+    }
 
     #[test]
     fn validates_identity_range() {

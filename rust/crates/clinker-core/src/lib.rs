@@ -3,6 +3,7 @@
 //! native CLI and the browser/WASM frontend can use it.
 
 mod align;
+mod alignment;
 mod analyse;
 mod groups;
 mod hierarchy;
@@ -17,15 +18,16 @@ mod session;
 mod synteny;
 
 pub use align::ProteinMatch;
+pub use alignment::{
+    AlignmentCounts, PreparedAlignment, ProteinBatch, ProteinBatchAligner, ProteinBatchResult,
+};
 #[cfg(not(target_arch = "wasm32"))]
 pub use analyse::analyse_genbank_with_options_and_jobs;
 pub use analyse::{
-    Analysis, AnalysisError, AnalysisOptions, GeneRef, InputFile, Link, ProteinPair,
-    ProteinTileMatch, analyse_cluster_pair, analyse_genbank, analyse_genbank_with_options,
-    analyse_protein_pairs, analyse_protein_pairs_with_progress, analyse_protein_tile,
-    analyse_protein_tile_with_progress, can_reach_identity, parse_input_files,
-    parse_input_files_with_options, parse_input_files_with_options_and_progress,
-    parse_input_files_with_progress,
+    AlignmentStats, Analysis, AnalysisError, AnalysisOptions, GeneRef, InputFile, Link,
+    ProteinPair, ProteinTileMatch, analyse_genbank, analyse_genbank_with_options,
+    can_reach_identity, parse_input_files, parse_input_files_with_options,
+    parse_input_files_with_options_and_progress, parse_input_files_with_progress,
 };
 pub use groups::{GeneGroup, build_gene_groups, build_gene_groups_with_progress};
 pub use hierarchy::ClusterOrdering;

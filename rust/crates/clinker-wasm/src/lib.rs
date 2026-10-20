@@ -6,10 +6,10 @@
 use std::collections::BTreeMap;
 
 use clinker_core::{
-    Analysis, AnalysisSession, Cluster, ClusterPairSimilarity, GenBankOptions, Gene,
-    GeneGroupDefinition, GeneRef, InputFile, KmerPrefilter, Link, Locus, PlotData, ProteinPair,
-    SequenceRange, analyse_protein_pairs_with_progress, analyse_protein_tile_with_progress,
-    can_reach_identity, cluster_kmer_candidate_pairs_with_progress, parse_input_files_with_options,
+    AlignmentCounts, Analysis, AnalysisOptions, AnalysisSession, Cluster, ClusterPairSimilarity,
+    GenBankOptions, Gene, GeneGroupDefinition, GeneRef, InputFile, KmerPrefilter, Link, Locus,
+    PlotData, PreparedAlignment, ProteinBatch, ProteinBatchAligner, ProteinBatchResult,
+    ProteinPair, SequenceRange, parse_input_files_with_options,
 };
 use js_sys::Function;
 use serde::{Deserialize, Serialize};
@@ -30,21 +30,15 @@ struct BrowserProtein {
     translation: String,
 }
 
-/// Indices into `ParsedBrowserFiles.proteins`, not sequence copies.
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct BrowserProteinPair {
-    query_index: usize,
-    target_index: usize,
-}
-
 /// Metadata and alignment inputs produced by the one-time parsing stage.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ParsedBrowserFiles {
     layout: BrowserLayout,
     proteins: Vec<BrowserProtein>,
-    candidate_pairs: Option<Vec<BrowserProteinPair>>,
+    candidate_pairs: Option<Vec<ProteinPair>>,
+    alignment_batches: Vec<ProteinBatch>,
+    alignment_counts: AlignmentCounts,
 }
 
 /// Optional approximate candidate selection for browser alignment work.
@@ -243,6 +237,7 @@ struct TileLink {
 struct BrowserTileResult {
     links: Vec<TileLink>,
     alignment_count: usize,
+    pair_count: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -337,109 +332,75 @@ impl From<&BrowserProtein> for BrowserProteinRef {
     }
 }
 
-/// Align the Cartesian product of two compact protein blocks.
+/// Alignment buffers retained between batches in one browser worker.
 #[wasm_bindgen]
-pub fn analyse_tile(
-    query: JsValue,
-    target: JsValue,
-    identity_cutoff: f32,
-    progress: &Function,
-) -> Result<JsValue, JsValue> {
-    let query = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(query)
-        .map_err(|error| JsValue::from_str(&format!("invalid query proteins: {error}")))?;
-    let target = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(target)
-        .map_err(|error| JsValue::from_str(&format!("invalid target proteins: {error}")))?;
-    let query_sequences = query
-        .iter()
-        .map(|protein| protein.translation.as_bytes())
-        .collect::<Vec<_>>();
-    let target_sequences = target
-        .iter()
-        .map(|protein| protein.translation.as_bytes())
-        .collect::<Vec<_>>();
-    let alignment_count = query_sequences
-        .iter()
-        .flat_map(|query| {
-            target_sequences.iter().filter(move |target| {
-                can_reach_identity(query.len(), target.len(), identity_cutoff)
-            })
-        })
-        .count();
-    let links = analyse_protein_tile_with_progress(
-        &query_sequences,
-        &target_sequences,
-        identity_cutoff,
-        |processed| report_progress(progress, processed),
-    )
-    .into_iter()
-    .map(|alignment| TileLink {
-        query: (&query[alignment.query_index]).into(),
-        target: (&target[alignment.target_index]).into(),
-        identity: alignment.identity,
-        similarity: alignment.similarity,
-    })
-    .collect::<Vec<_>>();
-
-    serde_wasm_bindgen::to_value(&BrowserTileResult {
-        links,
-        alignment_count,
-    })
-    .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
+#[derive(Default)]
+pub struct AlignmentWorker {
+    aligner: ProteinBatchAligner,
 }
 
-/// Align selected pairs from one compact protein tile.
 #[wasm_bindgen]
-pub fn analyse_pairs(
-    proteins: JsValue,
-    pairs: JsValue,
-    identity_cutoff: f32,
-    progress: &Function,
-) -> Result<JsValue, JsValue> {
-    let proteins = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(proteins)
-        .map_err(|error| JsValue::from_str(&format!("invalid tile proteins: {error}")))?;
-    let pairs = serde_wasm_bindgen::from_value::<Vec<BrowserProteinPair>>(pairs)
-        .map_err(|error| JsValue::from_str(&format!("invalid tile pairs: {error}")))?;
-    let sequences = proteins
-        .iter()
-        .map(|protein| protein.translation.as_bytes())
-        .collect::<Vec<_>>();
-    let pairs = pairs
-        .iter()
-        .map(|pair| ProteinPair {
-            query_index: pair.query_index,
-            target_index: pair.target_index,
-        })
-        .collect::<Vec<_>>();
-    let alignment_count = pairs
-        .iter()
-        .filter(|pair| {
-            let (Some(query), Some(target)) = (
-                sequences.get(pair.query_index),
-                sequences.get(pair.target_index),
-            ) else {
-                return false;
-            };
-            can_reach_identity(query.len(), target.len(), identity_cutoff)
-        })
-        .count();
-    let links =
-        analyse_protein_pairs_with_progress(&sequences, &pairs, identity_cutoff, |processed| {
-            report_progress(progress, processed)
-        })
-        .into_iter()
-        .map(|alignment| TileLink {
-            query: (&proteins[alignment.query_index]).into(),
-            target: (&proteins[alignment.target_index]).into(),
-            identity: alignment.identity,
-            similarity: alignment.similarity,
-        })
-        .collect::<Vec<_>>();
+impl AlignmentWorker {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Self::default()
+    }
 
+    pub fn analyse_batch(
+        &mut self,
+        proteins: JsValue,
+        batch: JsValue,
+        pairs: JsValue,
+        identity_cutoff: f32,
+        progress: &Function,
+    ) -> Result<JsValue, JsValue> {
+        let proteins = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(proteins)
+            .map_err(|error| JsValue::from_str(&format!("invalid batch proteins: {error}")))?;
+        let batch = serde_wasm_bindgen::from_value::<ProteinBatch>(batch)
+            .map_err(|error| JsValue::from_str(&format!("invalid batch: {error}")))?;
+        let pairs = serde_wasm_bindgen::from_value::<Vec<ProteinPair>>(pairs)
+            .map_err(|error| JsValue::from_str(&format!("invalid batch pairs: {error}")))?;
+        if !batch.is_valid(proteins.len(), pairs.len()) {
+            return Err(JsValue::from_str(
+                "alignment batch indices are out of bounds",
+            ));
+        }
+        let sequences = proteins
+            .iter()
+            .map(|p| p.translation.as_bytes())
+            .collect::<Vec<_>>();
+        let result = self.aligner.analyse_pairs(
+            &sequences,
+            &sequences,
+            batch.pairs(&pairs),
+            identity_cutoff,
+            |processed| report_progress(progress, processed),
+        );
+        encode_batch(result, &proteins, batch.pair_count())
+    }
+}
+
+fn encode_batch(
+    result: ProteinBatchResult,
+    proteins: &[BrowserProtein],
+    pair_count: usize,
+) -> Result<JsValue, JsValue> {
+    let links = result
+        .matches
+        .into_iter()
+        .map(|matched| TileLink {
+            query: (&proteins[matched.query_index]).into(),
+            target: (&proteins[matched.target_index]).into(),
+            identity: matched.identity,
+            similarity: matched.similarity,
+        })
+        .collect();
     serde_wasm_bindgen::to_value(&BrowserTileResult {
         links,
-        alignment_count,
+        alignment_count: result.aligned_pairs,
+        pair_count,
     })
-    .map_err(|error| JsValue::from_str(&format!("could not encode tile links: {error}")))
+    .map_err(|error| JsValue::from_str(&format!("could not encode batch links: {error}")))
 }
 
 fn report_progress(progress: &Function, processed: usize) {
@@ -698,58 +659,36 @@ where
     F: FnMut(usize, usize),
 {
     let layout = layout_from_clusters(&clusters);
-    let proteins: Vec<BrowserProtein> = clusters
-        .iter()
-        .enumerate()
-        .flat_map(|(cluster_index, cluster)| {
-            cluster
-                .loci
-                .iter()
-                .enumerate()
-                .flat_map(move |(locus_index, locus)| {
-                    locus
-                        .genes
-                        .iter()
-                        .enumerate()
-                        .map(move |(gene_index, gene)| BrowserProtein {
-                            cluster: cluster_index,
-                            locus: locus_index,
-                            gene: gene_index,
-                            translation: gene.translation.clone(),
-                        })
-                })
-        })
-        .collect();
-    let candidate_pairs = prefilter.enabled.then(|| {
-        let sequences = proteins
-            .iter()
-            .map(|protein| protein.translation.as_bytes())
-            .collect::<Vec<_>>();
-        let clusters = proteins
-            .iter()
-            .map(|protein| protein.cluster)
-            .collect::<Vec<_>>();
-        cluster_kmer_candidate_pairs_with_progress(
-            &sequences,
-            &clusters,
-            prefilter.identity_cutoff,
-            KmerPrefilter {
+    let prepared = PreparedAlignment::new(
+        &clusters,
+        0,
+        AnalysisOptions {
+            identity_cutoff: prefilter.identity_cutoff,
+            prefilter: prefilter.enabled.then_some(KmerPrefilter {
                 kmer_size: prefilter.kmer_size,
                 min_shared_kmers: prefilter.min_shared_kmers,
-            },
-            &mut progress,
-        )
-        .into_iter()
-        .map(|pair| BrowserProteinPair {
-            query_index: pair.query_index,
-            target_index: pair.target_index,
+            }),
+        },
+        &mut progress,
+    );
+    let proteins = prepared
+        .references
+        .iter()
+        .map(|r| BrowserProtein {
+            cluster: r.cluster,
+            locus: r.locus,
+            gene: r.gene,
+            translation: clusters[r.cluster].loci[r.locus].genes[r.gene]
+                .translation
+                .clone(),
         })
-        .collect()
-    });
+        .collect();
     ParsedBrowserFiles {
         layout,
         proteins,
-        candidate_pairs,
+        candidate_pairs: prepared.candidates,
+        alignment_batches: prepared.batches,
+        alignment_counts: prepared.counts,
     }
 }
 
