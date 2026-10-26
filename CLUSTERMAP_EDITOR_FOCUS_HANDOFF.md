@@ -37,13 +37,8 @@ clicking and Space panning still work when the canvas has focus.
 
 ## Integration status
 
-An earlier attempt already created upstream branch `fix/preserve-editor-focus`
-at `c30feeaba3dfaac03e10a328218dd4b183db08dc`. It includes this source patch and
-rebuilt distribution files. It has not been merged into `refactor`; use either
-that commit or this patch, without applying both.
+Resolved upstream in refactor commit
+`f75cf112b7aee0c6315e1054c12645705578f6d9`. Clinker now pins that commit and
+uses its published browser/editor assets and native CLI bundle.
 
-Clinker's integration commit `21f5164` is reverted in the accompanying change,
-restoring its previous pin `4a957c772f2e8e062f8c85ab21fb22b22811c095` and vendored
-bundle. After the fix is integrated upstream, update Clinker's dependency and
-generated assets from the resulting refactor commit. Until then the Firefox
-focus regression remains unresolved in that pinned version.
+The patch above is retained for historical context; do not apply it again.
