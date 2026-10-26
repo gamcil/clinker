@@ -1,4 +1,4 @@
-const WORKER_URL = new URL("./worker.js?v=20261020-shared-preparation-v1", import.meta.url);
+const WORKER_URL = new URL("./worker.js", import.meta.url);
 
 function workerCount(taskCount, requestedWorkers) {
   if (requestedWorkers !== undefined) {

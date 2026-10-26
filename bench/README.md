@@ -24,7 +24,7 @@ Batches contain at most 1,600 pairs; Rayon and Web Workers handle dispatch on
 their respective platforms. Prefiltering changes candidate selection, and both
 modes reuse alignment buffers across batches. The CLI exposes the same settings with
 `--prefilter --kmer-size K --min-shared-kmers COUNT`.
-The browser imports `web/alignment.mjs`, shared with the app, and uses its
+The browser imports `web/src/alignment.mjs`, shared with the app, and uses its
 production tiling, workers and result collection with an explicit worker limit.
 No implementation substitutes a new alignment algorithm.
 

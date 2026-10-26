@@ -42,10 +42,12 @@ Tree appearance uses `editor.openAppearance({ section: "tree", focus: true })`.
 The public `clinker-editor-open` and `clinker-editor-close` events synchronise
 the toolbar button, including when selection editing opens the editor.
 
-Build/package scripts copy the core bundle, `editor.mjs` (renamed locally to
-`clustermap-editor.mjs`), `annotationOverlay.mjs`, and the entire `editor/` chunk
-directory. Preserve their relative module paths. The CLI's vendored core bundle
-must be updated alongside the browser dependency.
+The shared inventory in `scripts/assets.mjs` copies the renderer, `editor.mjs`,
+`annotationOverlay.mjs`, and the entire `editor/` chunk directory under
+`dist/vendor/clustermap/`. Preserve upstream relative module paths and chunk
+names. D3 is copied under `dist/vendor/d3/`. To update the CLI bundles and
+licence notices after changing dependencies, run `npm run sync:assets` in this
+directory and commit the result. CI runs `npm run check:assets`.
 
 Independent annotation tracks use the panel title as their single heading and
 hide redundant column labels. A multi-column heatmap retains column labels and
@@ -249,7 +251,7 @@ rustup target add wasm32-unknown-unknown
 cargo install wasm-pack
 cd web
 sh build.sh
-python3 -m http.server
+python3 -m http.server --directory dist
 ```
 
 `build.sh` finds Cargo-installed `wasm-pack` at `~/.cargo/bin/wasm-pack`, so
@@ -260,7 +262,37 @@ usable Apple Silicon binary in this setup. This changes file size, not analysis
 correctness.
 
 Open the reported local URL; do not open `index.html` directly because module
-workers and WASM modules require HTTP serving. Deploy the contents of this
-directory, including `pkg/`, to GitHub Pages or another static host.
-`sh package.sh /path/to/site` copies only runtime assets and examples, excluding
-test dependencies and sources. Pages and release archives use this same package.
+workers and WASM modules require HTTP serving. Serve or deploy `dist/`.
+`sh package.sh /path/to/site` exports the completed build. Pages and release
+archives use this same package.
+
+## Sources and build output
+
+- `src/`: authored HTML, CSS, modules and workers. Edit these files.
+- `scripts/`: build assembly, the shared dependency inventory, asset sync and packaging.
+- `.build/pkg/`: intermediate wasm-pack output, recreated by `build.sh`.
+- `dist/`: the complete static application. Every build replaces it with a fresh
+  tree containing app modules, `vendor/`, `pkg/`, examples and licence notices.
+- `tests/`: unit checks import `src/`; WASM and browser checks use `dist/`.
+
+`build.sh` installs the lockfile dependencies, compiles WASM, and runs
+`scripts/build.mjs`. The assembler derives a deterministic build ID from all
+runtime inputs, the lockfile and the build scripts. It adds this ID to authored
+module, stylesheet, worker and WASM URLs, replacing manual date-based versions.
+Upstream content-hashed chunks keep their original names and paths. No bundler
+or external styling dependency is added.
+
+`dist/build.json` records the build ID and file hashes. Packaging checks those
+hashes and copies exactly that inventory, so stale or extra files cannot leak
+into a release. An existing clinker package is replaced completely. A nonempty
+directory without a clinker build marker is refused; choose a new or empty
+output directory. Source directories are protected from replacement.
+
+```sh
+# From the repository root, after building:
+sh web/package.sh /tmp/clinker-site
+npm --prefix web run check:assets
+```
+
+Cargo builds remain independent of this process and use the CLI's committed
+bundles. The shared CLI/local viewer is a subsequent migration step.

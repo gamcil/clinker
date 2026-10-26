@@ -122,8 +122,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Check JavaScript syntax
         run: |
-          node --check web/app.js
-          node --check web/worker.js
+          node --check web/src/app.js
+          node --check web/src/worker.js
       - name: Test web workflows
         run: node --test web/tests/*.test.mjs
       - name: Install wasm-pack
@@ -144,9 +144,7 @@ jobs:
             CLINKER_TEST_BROWSER="$browser" npm --prefix web run test:browser
           done
       - name: Verify embedded CLI plot assets
-        run: |
-          cmp web/d3.min.js crates/clinker-cli/assets/d3.min.js
-          cmp web/clustermap.min.js crates/clinker-cli/assets/clustermap.min.js
+        run: npm --prefix web run check:assets
       - name: Package tested web release
         if: startsWith(github.ref, 'refs/tags/rust-v')
         run: |

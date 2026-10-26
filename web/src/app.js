@@ -1,13 +1,13 @@
-import { analyseTilesInWorkerPool } from "./alignment.mjs?v=20261020-shared-preparation-v1";
-import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261018-clustering-v2";
-import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261018-tree-v5";
-import { Workflow } from "./workflow.mjs?v=20261015-workflow-v1";
-import { mountTreeImport } from "./tree-import.mjs?v=20261026-scoped-ui-v1";
-import { mountAnnotationImport } from "./annotation-import.mjs?v=20261026-scoped-ui-v1";
-import { inputTreeClusters, bindInputTree, clusteringTree } from "./tree.mjs?v=20261018-annotations-v1";
+import { analyseTilesInWorkerPool } from "./alignment.mjs";
+import { similarityCsv, parseProject, downloadText } from "./project.mjs";
+import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs";
+import { Workflow } from "./workflow.mjs";
+import { mountTreeImport } from "./tree-import.mjs";
+import { mountAnnotationImport } from "./annotation-import.mjs";
+import { inputTreeClusters, bindInputTree, clusteringTree } from "./tree.mjs";
 import {
   mountPlotSelectionToolbar,
-} from "./clustermap-editor.mjs?v=20261026-clustermap-f75cf11-v1";
+} from "./vendor/clustermap/editor.mjs";
 
 const filesInput = document.querySelector("#files");
 const fileDropZone = document.querySelector("#file-drop-zone");
@@ -92,9 +92,7 @@ function bindChartTheme(target) {
   applyInterfaceTheme(themePreference);
 }
 let themePreference = readThemePreference();
-const WORKER_VERSION = "20261020-shared-preparation-v1";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
-WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
   link: { bestOnly: true },
   plot: { renderer: "webgpu" },

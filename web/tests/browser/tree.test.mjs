@@ -6,7 +6,7 @@ import { resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, firefox, webkit } from 'playwright';
 
-const root = resolve(process.env.CLINKER_WEB_ROOT || fileURLToPath(new URL('../../', import.meta.url)));
+const root = resolve(process.env.CLINKER_WEB_ROOT || fileURLToPath(new URL('../../dist/', import.meta.url)));
 const browserType = { chromium, firefox, webkit }[process.env.CLINKER_TEST_BROWSER || 'chromium'];
 
 test('tree import, matching, edits, renderers and project round-trips retain the working figure', { timeout: 120000 }, async t => {

@@ -3,11 +3,9 @@ import init, {
   BrowserFileParser,
   open_session,
   post_process,
-} from "./pkg/clinker_wasm.js?v=20261020-shared-preparation-v1";
+} from "./pkg/clinker_wasm.js";
 
-const WASM_VERSION = "20261020-shared-preparation-v1";
 const wasmUrl = new URL("./pkg/clinker_wasm_bg.wasm", import.meta.url);
-wasmUrl.searchParams.set("v", WASM_VERSION);
 let wasmModule = null;
 let wasm = null;
 let fileParser = null;

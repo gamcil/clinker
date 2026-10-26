@@ -47,7 +47,10 @@ Cargo.toml, Cargo.lock   shared Rust workspace
 crates/clinker-core/    parsing, alignment, grouping and plot data
 crates/clinker-cli/     native command line and bundled viewer assets
 crates/clinker-wasm/    browser bindings to the shared core
-web/                   browser app, workers and frontend checks
+web/src/               browser app and workers
+web/scripts/           build, package and asset synchronization
+web/dist/              generated static application (ignored)
+web/tests/             frontend checks
 examples/              example inputs
 bench/                 comparative analysis benchmarks
 docs/                  architecture, CLI and release documentation

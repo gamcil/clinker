@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { parseNewick, matchTreeLeaves, resolveTree, validateTree, inputTreeClusters, bindInputTree, clusteringTree } from '../tree.mjs';
-import { parseProject, displayedClusterOrder } from '../project.mjs';
+import { parseNewick, matchTreeLeaves, resolveTree, validateTree, inputTreeClusters, bindInputTree, clusteringTree } from '../src/tree.mjs';
+import { parseProject, displayedClusterOrder } from '../src/project.mjs';
 
 const clusters = [
   { uid: 'cluster-0', name: 'First cluster', source_file: 'sample_A.gbk', loci: [{ name: 'ABC.1' }] },

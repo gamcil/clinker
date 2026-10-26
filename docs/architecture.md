@@ -148,7 +148,8 @@ and `block-aligner` for SIMD-accelerated global protein alignment.
 
 ## Browser application
 
-`web/` contains the static upload UI and its Web Workers. Build instructions
+`web/src/` contains the static upload UI and its Web Workers.
+`web/dist/` is the generated static application, including vendor modules and WASM. Build instructions
 are in [web/README.md](../web/README.md). The application runs parsing, alignment,
 grouping, ordering, and layout locally through `clinker-core` compiled to WASM.
 

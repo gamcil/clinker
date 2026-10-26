@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { initSync, BrowserFileParser, AlignmentWorker, post_process, open_session } from '../../pkg/clinker_wasm.js';
+import { initSync, BrowserFileParser, AlignmentWorker, post_process, open_session } from '../../dist/pkg/clinker_wasm.js';
 
-initSync({ module: readFileSync(new URL('../../pkg/clinker_wasm_bg.wasm', import.meta.url)) });
+initSync({ module: readFileSync(new URL('../../dist/pkg/clinker_wasm_bg.wasm', import.meta.url)) });
 const fixture = name => readFileSync(new URL(`../../../crates/clinker-core/tests/fixtures/${name}`, import.meta.url));
 const settings = { enabled: false, kmerSize: 5, minSharedKmers: 8, identityCutoff: 0.3, genbank: { ranges: [], asSeparateClusters: false, setOrigin: true } };
 const genbank = (name, translation, record = 'TEST') => ({ name, bytes: new TextEncoder().encode(`LOCUS       ${record.padEnd(26)}42 bp    DNA     linear   UNA 01-JAN-2000\nFEATURES             Location/Qualifiers\n     CDS             1..42\n                     /locus_tag="gene"\n                     /translation="${translation}"\nORIGIN\n        1 atgatgatgatgatgatgatgatgatgatgatgatgatgatg\n//\n`) });

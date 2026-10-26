@@ -29,11 +29,11 @@ agent. The installed baseline when written is
 
 ## Current problems and relevant files
 
-- `web/style.css`: broad dark-mode descendant rules, forced text colours,
+- `web/src/style.css`: broad dark-mode descendant rules, forced text colours,
   duplicate palettes, component-specific repairs and selection toolbar overrides.
-- `web/index.html`: application markup and editor host; add explicit classes
+- `web/src/index.html`: application markup and editor host; add explicit classes
   where existing IDs or descendant selectors currently carry styling semantics.
-- `web/app.js`: System/Light/Dark preference, editor open state and Tree
+- `web/src/app.js`: System/Light/Dark preference, editor open state and Tree
   appearance shortcut. The shortcut currently traverses nested shadow roots.
 - `web/build.sh`, `web/package.sh`, package manifests and lockfile:
   integration points for a later upstream clustermap update and local assets.

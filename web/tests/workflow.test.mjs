@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Workflow } from "../workflow.mjs";
+import { Workflow } from "../src/workflow.mjs";
 
 test("cancellation interrupts preparation even if the underlying promise never settles", async () => {
   const workflow = new Workflow();

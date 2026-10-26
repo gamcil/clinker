@@ -6,7 +6,7 @@ import { resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, firefox, webkit } from 'playwright';
 
-const root = resolve(process.env.CLINKER_WEB_ROOT || fileURLToPath(new URL('../../', import.meta.url)));
+const root = resolve(process.env.CLINKER_WEB_ROOT || fileURLToPath(new URL('../../dist/', import.meta.url)));
 const browserType = { chromium, firefox, webkit }[process.env.CLINKER_TEST_BROWSER || 'chromium'];
 
 test('task menus support adding data, saving, editing and keyboard navigation at narrow widths', { timeout: 90000 }, async t => {

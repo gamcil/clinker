@@ -1,4 +1,4 @@
-import { validateTree } from './tree.mjs?v=20261018-clustering-v2';
+import { validateTree } from './tree.mjs';
 
 export function displayedClusterOrder({ data, state }) {
   if (data.tree !== undefined) return validateTree(data.tree, new Set(data.clusters.map(cluster => cluster.uid)));

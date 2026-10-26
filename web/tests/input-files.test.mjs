@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { inspectInputFiles } from "../input-files.mjs";
+import { inspectInputFiles } from "../src/input-files.mjs";
 
 const file = (name, text = "") => ({ name, text: async () => text });
 
