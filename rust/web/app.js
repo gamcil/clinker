@@ -7,7 +7,7 @@ import { mountAnnotationImport } from "./annotation-import.mjs?v=20261026-scoped
 import { inputTreeClusters, bindInputTree, clusteringTree } from "./tree.mjs?v=20261018-annotations-v1";
 import {
   mountPlotSelectionToolbar,
-} from "./clustermap-editor.mjs?v=20261026-clustermap-c30feea-v1";
+} from "./clustermap-editor.mjs?v=20261026-clustermap-4a957c7-v1";
 
 const filesInput = document.querySelector("#files");
 const fileDropZone = document.querySelector("#file-drop-zone");

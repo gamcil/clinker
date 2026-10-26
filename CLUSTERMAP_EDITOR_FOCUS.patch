@@ -1,0 +1,80 @@
+diff --git a/src/interaction/raster.mjs b/src/interaction/raster.mjs
+index c2474d9..5e04fae 100644
+--- a/src/interaction/raster.mjs
++++ b/src/interaction/raster.mjs
+@@ -133,7 +133,10 @@ export function createRasterInteraction({
+         activeSurface === surface || surface?.ownerDocument?.activeElement === surface;
+       const keydown = (event) => {
+         if (event.code !== "Space") return;
+-        if (event.target?.closest?.("input, textarea, select, button, [contenteditable='true']")) return;
++        // Window listeners see a shadow host as event.target. Respect the
++        // actual control so Space still toggles editor fields and menus.
++        const target = event.composedPath?.()[0] || event.target;
++        if (target?.closest?.("input, textarea, select, button, summary, a[href], [contenteditable='true']")) return;
+         spaceDown = true;
+         if (!isActive()) return;
+         panMode = true;
+@@ -151,7 +154,12 @@ export function createRasterInteraction({
+       selection
+         .on("pointerenter.canvasKeyboard", function () {
+           activeSurface = this;
+-          this.focus({ preventScroll: true });
++          const document = this.ownerDocument, focused = document?.activeElement;
++          // Closing a menu can expose the canvas beneath a stationary pointer.
++          // Hover must not steal focus from the editor or another UI control.
++          if (!focused || focused === this || focused === document.body || focused === document.documentElement) {
++            this.focus({ preventScroll: true });
++          }
+           if (spaceDown) {
+             panMode = true;
+             setCursor(this, "grab");
+@@ -174,6 +182,7 @@ export function createRasterInteraction({
+           panMode = false;
+         })
+         .on("pointerdown.canvasInteraction", function (event) {
++          if (!event.button) this.focus?.({ preventScroll: true });
+           if (panMode) { setHoverLocus(null); return; }
+           if (gesture || event.button) return;
+           const target = targetForEvent(this, event);
+diff --git a/tests/unit/raster-interaction.test.js b/tests/unit/raster-interaction.test.js
+index 1e9bde7..e62033f 100644
+--- a/tests/unit/raster-interaction.test.js
++++ b/tests/unit/raster-interaction.test.js
+@@ -2,6 +2,37 @@ import test from "node:test";
+ import assert from "node:assert/strict";
+ import { createRasterInteraction } from "../../src/interaction/raster.mjs";
+ 
++test("canvas hover preserves editor focus and direct interaction restores canvas focus", () => {
++  const handlers = new Map(), listeners = new Map();
++  const document = { body: {}, documentElement: {}, defaultView: {
++    addEventListener: (name, handler) => listeners.set(name, handler), removeEventListener() {},
++  } };
++  const surface = { ownerDocument: document, focus() { document.activeElement = this; } };
++  const selection = { node: () => surface, on(names, handler) {
++    for (const name of names.split(" ")) handlers.set(name, handler);
++    return this;
++  } };
++  const controller = createRasterInteraction({
++    targetForEvent: () => null, setHoverLocus: () => false, interactions: {}, actions: {},
++  });
++  controller.bind(selection);
++  const enter = () => handlers.get("pointerenter.canvasKeyboard").call(surface);
++  document.activeElement = document.body;
++  enter();
++  assert.equal(document.activeElement, surface, "the initially idle canvas can receive keyboard focus");
++  const editor = { closest: () => null };
++  document.activeElement = editor;
++  enter();
++  assert.equal(document.activeElement, editor, "hover leaves editor focus intact");
++  let prevented = false;
++  listeners.get("keydown")({ code: "Space", target: editor,
++    composedPath: () => [{ closest: () => ({}) }, editor],
++    preventDefault() { prevented = true; } });
++  assert.equal(prevented, false, "Space belongs to the focused control inside the editor shadow root");
++  handlers.get("pointerdown.canvasInteraction").call(surface, { button: 0 });
++  assert.equal(document.activeElement, surface, "an explicit canvas click transfers keyboard focus");
++});
++
+ for (const [action, kind, coordinate, edge] of [
+   ["move-cluster", "ClusterDrag", "y"],
+   ["move-locus", "LocusDrag", "x"],
