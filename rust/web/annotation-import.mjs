@@ -138,8 +138,9 @@ export function planAnnotationPanels({ table, columns, assignments, mode = "trac
       key = `${min} to ${max}`;
     } else key = "No non-missing values";
     return {
-      // Column labels identify tracks without repeating them as panel titles.
-      panel: { type, title: mode === "matrix" ? title.trim() : "", columns: group.map(column => column.name), values, scale },
+      // A track is one variable; a matrix has a title plus per-variable labels.
+      panel: { type, title: mode === "matrix" ? title.trim() : group[0].name,
+        showColumnLabels: mode === "matrix", columns: group.map(column => column.name), values, scale },
       label: mode === "matrix" ? title.trim() || "Heatmap matrix" : group[0].name,
       scaleLabel: scaleKind === "binary" ? "Presence / absence" : scale.type === "continuous" ? "Numeric" : "Categories",
       key,
@@ -349,7 +350,7 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
       const plan = makePlan(assignments);
       const existing = new Set((getChart().data().annotationPanels || []).map(panel => panel.uid));
       const nextUid = index => {
-        // Untitled tracks use their UID as the editor's selector label.
+        // Keep IDs readable, including untitled matrices in the editor selector.
         const base = plan[index].label;
         let uid = base, suffix = 2;
         while (existing.has(uid)) uid = `${base} (${suffix++})`;

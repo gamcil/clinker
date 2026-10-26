@@ -11,6 +11,8 @@ matching column automatically. Keep **Separate tracks** selected: the numeric
 columns start as separate bar charts, and categorical columns as separate
 heatmaps. Cluster length and gene count retain independent scales because they
 have different units. Review the scale beside each column before importing.
+Each track uses its column header as the panel title and hides the redundant
+column label. Renaming the panel in the editor changes its displayed heading.
 
 For a table of comparable measurements, such as expression values for several
 genes, choose **One heatmap** instead. Selected columns form one panel with a
