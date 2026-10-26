@@ -6,11 +6,8 @@ import { mountTreeImport } from "./tree-import.mjs?v=20261026-task-navigation-v1
 import { mountAnnotationImport } from "./annotation-import.mjs?v=20261026-annotation-compact-v2";
 import { inputTreeClusters, bindInputTree, clusteringTree } from "./tree.mjs?v=20261018-annotations-v1";
 import {
-  defineClinkerEditor,
   mountPlotSelectionToolbar,
-} from "./clustermap-editor.mjs?v=20261025-clustermap-a524445-v1";
-
-defineClinkerEditor();
+} from "./clustermap-editor.mjs?v=20261026-clustermap-f532521-v1";
 
 const filesInput = document.querySelector("#files");
 const fileDropZone = document.querySelector("#file-drop-zone");
@@ -91,21 +88,16 @@ function applyInterfaceTheme(mode) {
   }
 }
 function bindChartTheme(target) {
-  const sync = () => {
-    const mode = target.config().plot.theme || "auto";
-    applyInterfaceTheme(mode);
-    try { localStorage.setItem(themePreferenceKey, mode); } catch {}
-  };
-  sync();
-  target.on("change", change => { if (change.type === "config.change") sync(); });
+  target.uiAppearance(themePreference);
+  applyInterfaceTheme(themePreference);
 }
-const initialTheme = readThemePreference();
+let themePreference = readThemePreference();
 const WORKER_VERSION = "20261020-shared-preparation-v1";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
   link: { bestOnly: true },
-  plot: { renderer: "webgpu", theme: initialTheme },
+  plot: { renderer: "webgpu" },
   legend: { columns: 4, position: "bottom" },
 };
 function createChart(config = {}) {
@@ -760,17 +752,23 @@ cancelRunButton.addEventListener("click", () => {
 });
 
 function closePlotEditor() {
-  plotEditor.hidden = true;
-  editPlotButton.setAttribute("aria-expanded", "false");
-  editPlotButton.textContent = "Edit figure";
+  plotEditor.close();
 }
 
 function showPlotEditor() {
   if (!runPanel.hidden) closeRunPanel();
-  plotEditor.hidden = false;
-  editPlotButton.setAttribute("aria-expanded", "true");
-  editPlotButton.textContent = "Close editor";
+  plotEditor.open();
 }
+
+function syncEditorToggle() {
+  const open = !plotEditor.hidden;
+  if (open && !runPanel.hidden) closeRunPanel();
+  editPlotButton.setAttribute("aria-expanded", String(open));
+  editPlotButton.textContent = open ? "Close editor" : "Edit figure";
+}
+plotEditor.addEventListener("clinker-editor-open", syncEditorToggle);
+plotEditor.addEventListener("clinker-editor-close", syncEditorToggle);
+syncEditorToggle();
 
 editPlotButton.addEventListener("click", () => {
   const isOpen = !plotEditor.hidden;
@@ -928,10 +926,15 @@ function replaceChart(config = chart.config()) {
 }
 
 for (const button of themeModeButtons) {
-  button.addEventListener("click", () => chart.config({ plot: { theme: button.dataset.themeMode } }));
+  button.addEventListener("click", () => {
+    themePreference = button.dataset.themeMode;
+    chart.uiAppearance(themePreference);
+    applyInterfaceTheme(themePreference);
+    try { localStorage.setItem(themePreferenceKey, themePreference); } catch {}
+  });
 }
 systemDarkMode.addEventListener?.("change", () => {
-  if ((chart.config().plot.theme || "auto") === "auto") applyInterfaceTheme("auto");
+  if (themePreference === "auto") applyInterfaceTheme("auto");
 });
 
 function configureInitialMinimap({ keepEnabled = false } = {}) {
@@ -1293,20 +1296,7 @@ const treeImport = mountTreeImport({
     return { ready: validation.ready, clusters: inputTreeClusters(validation.filesWithRecords || [], separateRecordsInput.checked) };
   },
   onAppearance: () => {
-    showPlotEditor();
-    const editorRoot = plotEditor.shadowRoot;
-    editorRoot.querySelector('[data-editor-tabs]').value = 'appearance';
-    const appearanceRoot = editorRoot.querySelector('clinker-appearance-panel').shadowRoot;
-    const filter = appearanceRoot.querySelector('[data-appearance-filter]');
-    filter.value = '';
-    filter.dispatchEvent(new Event('input', { bubbles: true }));
-    const field = appearanceRoot.querySelector('[data-config="tree.show"]');
-    field.closest('fieldset').scrollIntoView({ block: 'nearest' });
-    requestAnimationFrame(() => {
-      if (!plotEditor.hidden && editorRoot.querySelector('[data-editor-tabs]').value === 'appearance') {
-        field.focus({ preventScroll: true });
-      }
-    });
+    return plotEditor.openAppearance({ section: "tree", focus: true });
   },
   onRunChange: ready => { analyseButton.disabled = analysisInProgress || !inputsReady || !ready; },
   onChange: message => {

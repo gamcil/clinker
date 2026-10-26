@@ -26,7 +26,6 @@ cp node_modules/d3/dist/d3.min.js .
 cp node_modules/clustermap.js/dist/clustermap.min.js .
 cp node_modules/clustermap.js/dist/editor.mjs clustermap-editor.mjs
 cp node_modules/clustermap.js/dist/annotationOverlay.mjs .
-cp node_modules/clustermap.js/dist/editor.css clustermap-editor.css
 rm -rf editor
 cp -R node_modules/clustermap.js/dist/editor .
 mkdir -p examples
