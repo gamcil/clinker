@@ -3,6 +3,7 @@ import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261
 import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261018-tree-v5";
 import { Workflow } from "./workflow.mjs?v=20261015-workflow-v1";
 import { mountTreeImport } from "./tree-import.mjs?v=20261019-bounds-v1";
+import { mountAnnotationImport } from "./annotation-import.mjs?v=20261026-task-navigation-v1";
 import { inputTreeClusters, bindInputTree, clusteringTree } from "./tree.mjs?v=20261018-annotations-v1";
 import {
   defineClinkerEditor,
@@ -44,6 +45,7 @@ const plotEditor = document.querySelector("#plot-editor");
 const helpButton = document.querySelector("#plot-help");
 const helpDialog = document.querySelector("#help-dialog");
 const editPlotButton = document.querySelector("#edit-plot");
+const annotationImportButton = document.querySelector("#import-annotations");
 const treeButton = document.querySelector("#manage-tree");
 const plotOrder = document.querySelector("#plot-order");
 const runPanel = document.querySelector("#run-panel");
@@ -154,6 +156,7 @@ function setAnalysisInputsDisabled(disabled) {
   openProjectStartButton.disabled = disabled;
   newRunButton.disabled = disabled;
   treeButton.disabled = disabled || !chart.data();
+  annotationImportButton.disabled = disabled || !chart.data();
   plotOrder.inert = disabled || !chart.data();
   if (disabled) plotOrder.open = false;
   document.querySelector("#run-tree-fields").disabled = disabled;
@@ -213,6 +216,7 @@ async function runWorkflow(task, failureMessage) {
     svgButton.disabled = !hasPlot;
     projectButton.disabled = !hasPlot || !latestAnalysisSession;
     editPlotButton.disabled = !hasPlot;
+    annotationImportButton.disabled = !hasPlot;
     if (completed) {
       closeRunPanel();
       editPlotButton.focus();
@@ -925,6 +929,7 @@ function mountImportedPlot(data, { config, state = null }) {
   svgButton.disabled = false;
   projectButton.disabled = true;
   editPlotButton.disabled = false;
+  annotationImportButton.disabled = false;
   closePlotEditor();
   treeButton.disabled = false;
   closeRunPanel();
@@ -1195,6 +1200,7 @@ async function analyseFiles(files, workflow) {
   svgButton.disabled = false;
   projectButton.disabled = false;
   editPlotButton.disabled = false;
+  annotationImportButton.disabled = false;
   setPlotStatus(summary);
   treeButton.disabled = false;
   return true;
@@ -1261,4 +1267,10 @@ const treeImport = mountTreeImport({
     plotEditor.chart = chart;
     setPlotStatus(message);
   },
+});
+
+mountAnnotationImport({
+  button: annotationImportButton,
+  getChart: () => chart,
+  onImported: message => setPlotStatus(message),
 });

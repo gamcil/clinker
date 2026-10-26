@@ -253,6 +253,29 @@ h1 {
 .tree-dialog .tree-matching-scroll { max-height: 15rem; }
 .tree-dialog #tree-import-note { margin-bottom: 0; }
 .tree-dialog .tree-file-picker span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.annotation-dialog { width: min(760px, calc(100vw - 32px)); max-height: min(88vh, 900px); }
+.annotation-dialog .help-heading { padding: 14px 18px; }
+.annotation-dialog .help-heading h2 { margin: 0; }
+.annotation-dialog .help-body { padding: 16px 18px; overflow: auto; }
+.annotation-dialog .tree-import-actions { padding: 12px 18px; }
+.annotation-file-picker { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 10px; }
+.annotation-inline-label { color: #63728a; }
+.annotation-file-picker #annotation-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #63728a; }
+.annotation-file-picker #choose-annotation-file { min-height: 30px; padding: 4px 10px; }
+.annotation-import-options { display: flex; flex-wrap: wrap; gap: 14px 24px; margin-top: 16px; }
+.annotation-import-options label { display: grid; gap: 5px; color: #63728a; }
+.annotation-match-summary { margin: 14px 0 0; }
+.annotation-match-review, .annotation-column-settings { margin-top: 18px; }
+.annotation-match-review > p { margin: 0 0 10px; color: #63728a; }
+.annotation-column-settings h3 { margin: 0 0 4px; font-size: 1rem; }
+.annotation-column-note { margin: 0 0 10px; color: #63728a; font-size: .9rem; }
+.annotation-table-scroll { max-height: 17rem; overflow: auto; }
+.annotation-table-scroll table { width: 100%; border-collapse: collapse; }
+.annotation-table-scroll th, .annotation-table-scroll td { padding: 7px 9px; text-align: left; }
+.annotation-table-scroll th { position: sticky; top: 0; background: #f5f7fa; color: #63728a; font-size: .85rem; font-weight: 600; }
+.annotation-table-scroll select { width: 100%; min-width: 10rem; border: 0; border-radius: 4px; background: #f5f7fa; }
+.annotation-table-scroll select:focus-visible { outline: 2px solid #286ab3; outline-offset: 1px; }
+.annotation-match-key, .annotation-column-name { overflow-wrap: anywhere; }
 .tree-file-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .tree-file-picker span { min-width: 0; overflow-wrap: anywhere; color: #63728a; }
 .tree-options { margin-top: 20px; border-top: 1px solid #e5eaf0; padding-top: 16px; }
@@ -317,6 +340,8 @@ h1 {
 .tree-import-actions form { margin-left: auto; }
 .tree-import-actions #apply-tree { background: #286ab3; color: #fff; border-color: #286ab3; }
 .tree-import-actions #apply-tree:disabled { opacity: .5; }
+.tree-import-actions #apply-annotations { background: #286ab3; color: #fff; border-color: #286ab3; }
+.tree-import-actions #apply-annotations:disabled { opacity: .5; }
 
 .help-heading {
   flex: none;
@@ -1474,8 +1499,9 @@ h1 {
 :root[data-theme="dark"] .menu-popover button,
 :root[data-theme="dark"] .app-bar button,
 :root[data-theme="dark"] .run-card button:not(.primary-action),
-:root[data-theme="dark"] .tree-import-actions button:not(#apply-tree),
+:root[data-theme="dark"] .tree-import-actions button:not(#apply-tree):not(#apply-annotations),
 :root[data-theme="dark"] .tree-file-picker button,
+:root[data-theme="dark"] .annotation-file-picker button,
 :root[data-theme="dark"] .menu summary,
 :root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
 :root[data-theme="dark"] select,
@@ -1490,6 +1516,7 @@ h1 {
 :root[data-theme="dark"] .app-bar button:hover:not(:disabled),
 :root[data-theme="dark"] .run-card button:hover:not(:disabled),
 :root[data-theme="dark"] .tree-file-picker button:hover:not(:disabled),
+:root[data-theme="dark"] .annotation-file-picker button:hover:not(:disabled),
 :root[data-theme="dark"] .menu summary:hover,
 :root[data-theme="dark"] .advanced-check:hover,
 :root[data-theme="dark"] .compact-file-button:hover:not(:has(input:disabled)),
@@ -1533,6 +1560,7 @@ h1 {
 
 :root[data-theme="dark"] .tree-matching-table,
 :root[data-theme="dark"] .tree-matching-table th,
+:root[data-theme="dark"] .annotation-table-scroll th,
 :root[data-theme="dark"] .sequence-region-header,
 :root[data-theme="dark"] .sequence-regions thead th,
 :root[data-theme="dark"] .run-feedback,
@@ -1543,6 +1571,10 @@ h1 {
   background-color: var(--dark-subtle);
 }
 
+:root[data-theme="dark"] .annotation-table-scroll select {
+  border-color: transparent;
+  background-color: var(--dark-subtle);
+}
 
 :root[data-theme="dark"] .plot-status[data-tone="error"],
 :root[data-theme="dark"] .run-feedback p[data-tone="error"] {
@@ -1565,6 +1597,9 @@ h1 {
   color: #fff !important;
 }
 
+:root[data-theme="dark"] .tree-import-actions #apply-annotations {
+  color: #fff !important;
+}
 
 :root[data-theme="dark"] .action-divider { background: var(--dark-border); }
 

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261026-interface-theme-v1">
+    <link rel="stylesheet" href="style.css?v=20261026-annotation-import-v1">
     <link rel="stylesheet" href="clustermap-editor.css?v=20261025-clustermap-a524445-v1">
     <script src="d3.min.js"></script>
     <script src="clustermap.min.js?v=20261025-clustermap-a524445-v1"></script>
@@ -38,6 +38,7 @@
             </div>
           </details>
           <span class="action-divider" aria-hidden="true"></span>
+          <button id="import-annotations" type="button" aria-haspopup="dialog" aria-controls="annotation-dialog" disabled>Import annotations…</button>
           <button id="edit-plot" type="button" disabled aria-controls="plot-editor" aria-expanded="false">Edit plot</button>
         </nav>
         <div class="about-help">
@@ -313,6 +314,7 @@
           <section aria-labelledby="help-save">
             <h3 id="help-save">Save your work</h3>
             <dl>
+              <div><dt>Import annotations</dt><dd>Load a TSV or CSV with one row per cluster and a header row. Choose the column that identifies clusters; unmatched rows can be assigned or skipped. Numeric and categorical heatmap columns are grouped by type; each bar chart gets its own panel. Identifier and high-cardinality columns start skipped. Imported panels are saved with the project.</dd></div>
               <div><dt>Export → Project</dt><dd>Save the analysis, appearance and edits. Use Open project to continue later; work is not saved automatically.</dd></div>
               <div><dt>Export → SVG</dt><dd>Download the figure for publication or further editing.</dd></div>
               <div><dt>Export → Similarity CSV</dt><dd>Download analysis scores with current cluster names and plot order. Visual edits do not recompute scores.</dd></div>
@@ -342,6 +344,35 @@
         <button id="apply-tree" class="primary" type="button" disabled>Apply tree</button>
       </footer>
     </dialog>
+    <dialog id="annotation-dialog" class="help-dialog annotation-dialog" aria-labelledby="annotation-title">
+      <header class="help-heading">
+        <div class="help-heading-row">
+          <h2 id="annotation-title">Import annotations</h2>
+          <form method="dialog"><button class="help-close" aria-label="Close annotation import">×</button></form>
+        </div>
+      </header>
+      <div class="help-body annotation-import-body">
+        <div class="annotation-file-picker"><span class="annotation-inline-label">TSV or CSV table</span><button id="choose-annotation-file" type="button">Choose table…</button><span id="annotation-file-name">No table selected</span><input id="annotation-file" class="visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
+        <div class="annotation-import-options">
+          <label>Delimiter<select id="annotation-delimiter"><option value="auto">Automatic</option><option value=",">Comma</option><option value="&#9;">Tab</option></select></label>
+          <label>Match rows using<select id="annotation-key-column" disabled></select></label>
+        </div>
+        <p id="annotation-match-summary" class="annotation-match-summary" role="status">Choose a TSV or CSV file to begin.</p>
+        <div id="annotation-match-review" class="annotation-match-review" hidden>
+          <p>Choose a plotted cluster for unmatched or ambiguous rows, or skip them.</p>
+          <div class="annotation-table-scroll"><table><thead><tr><th>Table key</th><th>Plotted cluster</th></tr></thead><tbody id="annotation-match-rows"></tbody></table></div>
+        </div>
+        <div id="annotation-column-settings" class="annotation-column-settings" hidden>
+          <h3>Annotation columns</h3>
+          <p class="annotation-column-note">Heatmap columns of the same type are grouped together. Bar chart columns each get their own panel.</p>
+          <div class="annotation-table-scroll"><table><thead><tr><th>Column</th><th>Values</th><th>Display</th></tr></thead><tbody id="annotation-columns"></tbody></table></div>
+        </div>
+      </div>
+      <footer class="tree-import-actions">
+        <form method="dialog"><button type="submit">Cancel</button></form>
+        <button id="apply-annotations" class="primary" type="button" disabled>Import panels</button>
+      </footer>
+    </dialog>
     <template id="tree-input-template">
         <div class="tree-file-picker">
           <span class="tree-inline-label">Tree <span>(optional)</span></span>
@@ -369,6 +400,6 @@
           </div>
         </details>
     </template>
-    <script type="module" src="app.js?v=20261026-interface-theme-v1"></script>
+    <script type="module" src="app.js?v=20261026-annotation-import-v1"></script>
   </body>
 </html>
