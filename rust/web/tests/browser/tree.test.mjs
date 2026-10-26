@@ -234,7 +234,7 @@ test('tree import, matching, edits, renderers and project round-trips retain the
   await page.locator('#tree-appearance').click();
   assert.equal(await page.locator('#plot-editor').isVisible(), true);
   assert.equal(await page.locator('#plot-editor').getByRole('tab', { name: 'Appearance' }).getAttribute('aria-selected'), 'true');
-  assert.equal(await page.locator('#plot-editor [data-config="tree.show"]').evaluate(element => element === document.activeElement), true);
+  assert.equal(await page.locator('#plot-editor [data-config="tree.show"]').evaluate(element => element === element.getRootNode().activeElement), true);
   await page.locator('#plot-editor').getByLabel('Branch stroke width', { exact: true }).fill('2');
   await page.locator('#plot-editor').getByLabel('Branch stroke width', { exact: true }).press('Enter');
   await page.locator('#plot-editor').getByLabel('Show dashed leaf guides', { exact: true }).check();

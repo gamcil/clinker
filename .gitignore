@@ -10,6 +10,7 @@
 /rust/web/clustermap.min.js
 /rust/web/clustermap-editor.mjs
 /rust/web/clustermap-editor.css
+/rust/web/editor/
 
 # macOS Finder metadata
 .DS_Store

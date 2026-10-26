@@ -7,7 +7,7 @@ import { inputTreeClusters, bindInputTree, clusteringTree } from "./tree.mjs?v=2
 import {
   defineClinkerEditor,
   mountPlotSelectionToolbar,
-} from "./clustermap-editor.mjs?v=20261019-clustermap-0410ce0-v1";
+} from "./clustermap-editor.mjs?v=20261025-clustermap-a524445-v1";
 
 defineClinkerEditor();
 
@@ -1200,10 +1200,19 @@ const treeImport = mountTreeImport({
   },
   onAppearance: () => {
     showPlotEditor();
-    plotEditor.querySelector('[data-tab="appearance"]').click();
-    const field = plotEditor.querySelector('[data-config="tree.show"]');
-    field?.scrollIntoView({ block: 'nearest' });
-    field?.focus({ preventScroll: true });
+    const editorRoot = plotEditor.shadowRoot;
+    editorRoot.querySelector('[data-editor-tabs]').value = 'appearance';
+    const appearanceRoot = editorRoot.querySelector('clinker-appearance-panel').shadowRoot;
+    const filter = appearanceRoot.querySelector('[data-appearance-filter]');
+    filter.value = '';
+    filter.dispatchEvent(new Event('input', { bubbles: true }));
+    const field = appearanceRoot.querySelector('[data-config="tree.show"]');
+    field.closest('fieldset').scrollIntoView({ block: 'nearest' });
+    requestAnimationFrame(() => {
+      if (!plotEditor.hidden && editorRoot.querySelector('[data-editor-tabs]').value === 'appearance') {
+        field.focus({ preventScroll: true });
+      }
+    });
   },
   onRunChange: ready => { analyseButton.disabled = analysisInProgress || !inputsReady || !ready; },
   onChange: message => {
