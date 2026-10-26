@@ -300,9 +300,18 @@ h1 {
 .annotation-match-review > p { margin: 0 0 10px; color: #63728a; }
 .annotation-column-settings h3 { margin: 0 0 4px; font-size: 1rem; }
 .annotation-preview { margin-top: 18px; }
-.annotation-preview h3 { margin: 0 0 4px; font-size: 1rem; }
-.annotation-preview p { margin: 0 0 10px; }
+.annotation-preview p { margin: 0; font-size: .9rem; color: #63728a; }
 .annotation-preview p[data-tone="error"] { color: #a33636; }
+.annotation-import-advanced { margin-top: 12px; }
+.annotation-import-advanced summary { cursor: pointer; color: #63728a; font-size: .9rem; }
+.annotation-layout-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 14px; }
+.annotation-layout-choice label { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+.annotation-layout-choice .annotation-column-note { margin: 0; }
+.annotation-layout-choice select { font-weight: 400; }
+.annotation-dialog .annotation-table-scroll { max-height: none; overflow-x: auto; }
+.annotation-dialog .annotation-table-scroll th:first-child { width: 43%; }
+.annotation-column-scale { font-size: .85rem; color: #63728a; }
+.annotation-dialog #annotation-matrix-options { margin-bottom: 14px; }
 .annotation-column-note { margin: 0 0 10px; color: #63728a; font-size: .9rem; }
 .annotation-table-scroll { max-height: 17rem; overflow: auto; }
 .annotation-table-scroll table { width: 100%; border-collapse: collapse; }
@@ -338,6 +347,8 @@ h1 {
   font: inherit;
 }
 .tree-root-option { display: flex; align-items: center; gap: 8px; }
+.import-dialog.annotation-dialog select { padding: 5px 8px; }
+.import-dialog.annotation-dialog .annotation-layout-choice select { width: auto; }
 .tree-import-note { color: #63728a; font-size: .9rem; }
 .tree-match-error,
 .tree-import-status[data-tone="error"] { color: #a33636; }

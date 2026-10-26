@@ -123,10 +123,11 @@ export function planAnnotationPanels({ table, columns, assignments, mode = "trac
     })]));
     const type = mode === "matrix" ? "heatmap" : group[0].kind;
     const present = Object.values(values).flat().filter(value => value !== null);
-    let key;
+    let key, scaleSummary;
     if (scale.type === "categorical") {
       const categories = scale.domain || [...new Set(present)];
       key = scaleKind === "binary" ? "0 = absent; 1 = present" : categories.length ? `${categories.slice(0, 5).join(", ")}${categories.length > 5 ? ` … (${categories.length} categories)` : ""}` : "No matched values";
+      scaleSummary = scaleKind === "binary" ? "0 / 1" : `${categories.length} categor${categories.length === 1 ? "y" : "ies"}`;
     } else if (present.length) {
       let min = type === "bar" ? 0 : Infinity, max = type === "bar" ? 0 : -Infinity;
       for (const value of present) { min = Math.min(min, value); max = Math.max(max, value); }
@@ -142,6 +143,7 @@ export function planAnnotationPanels({ table, columns, assignments, mode = "trac
       label: mode === "matrix" ? title.trim() || "Heatmap matrix" : group[0].name,
       scaleLabel: scaleKind === "binary" ? "Presence / absence" : scale.type === "continuous" ? "Numeric" : "Categories",
       key,
+      scaleSummary: scaleSummary || key,
     };
   });
 }
@@ -165,7 +167,7 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
   const columnNote = dialog.querySelector("#annotation-column-note");
   const preview = dialog.querySelector("#annotation-preview");
   const previewSummary = dialog.querySelector("#annotation-preview-summary");
-  const previewBody = dialog.querySelector("#annotation-preview-rows");
+  const parsingOptions = dialog.querySelector("#annotation-parsing-options");
   const apply = dialog.querySelector("#apply-annotations");
   let table = null, clusters = [], matchEntries = [], file = null;
   let readVersion = 0;
@@ -197,33 +199,35 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
     const skipped = matchEntries.filter(entry => entry.choice === SKIP).length;
     const matched = assignments.size - duplicateTargets.size;
     const missing = clusters.length - matched;
-    summary.textContent = `${matched} of ${matchEntries.length} table rows matched; ${missing} plotted clusters will have missing values; ${skipped} table rows skipped.`;
+    summary.textContent = `${matched} of ${matchEntries.length} rows matched.`;
+    if (missing) summary.textContent += ` ${missing} clusters missing.`;
+    if (skipped) summary.textContent += ` ${skipped} rows skipped.`;
     if (unresolved || duplicateTargets.size) {
       summary.textContent += unresolved ? ` Resolve or skip ${unresolved} unmatched/ambiguous row${unresolved === 1 ? "" : "s"}.` : " A cluster is assigned more than once; change or skip duplicate rows.";
     }
     preview.hidden = !table;
-    previewBody.replaceChildren();
+    const scaleCells = new Map([...columnsBody.querySelectorAll("tr")].map(row => [table?.headers[Number(row.dataset.index)], row.querySelector(".annotation-column-scale")]));
+    for (const cell of scaleCells.values()) { cell.textContent = "—"; cell.removeAttribute("title"); }
     let plan = [], invalidPlan = false;
     if (table) {
       try {
         plan = makePlan(assignments);
         previewSummary.textContent = plan.length
-          ? modeInput.value === "matrix" ? `Creates 1 heatmap panel with ${plan[0].panel.columns.length} columns and a shared scale. Values are not normalised.`
-            : `Creates ${plan.length} independent annotation track${plan.length === 1 ? "" : "s"}, each with its own scale or legend.`
+          ? modeInput.value === "matrix" ? `${plan[0].panel.columns.length} columns · Shared ${plan[0].scaleLabel.toLowerCase()} scale: ${plan[0].scaleSummary}. No normalisation.`
+            : `${plan.length} track${plan.length === 1 ? "" : "s"} with independent scales.`
           : "Select at least one column to import.";
         for (const item of plan) {
-          const row = element(document, "tr");
-          row.append(element(document, "td", "annotation-column-name", item.label),
-            element(document, "td", "annotation-column-name", item.panel.columns.join(", ")),
-            element(document, "td", "", `${item.scaleLabel}: ${item.key}`));
-          previewBody.append(row);
+          for (const name of item.panel.columns) {
+            const cell = scaleCells.get(name);
+            cell.textContent = modeInput.value === "matrix" ? "Shared" : item.scaleSummary;
+            cell.title = `${item.scaleLabel}: ${item.key}`;
+          }
         }
-        if (missing) previewSummary.textContent += ` ${missing} clusters will have missing values.`;
-        if (unresolved || duplicateTargets.size) previewSummary.textContent += " Resolve row matching before importing; this preview uses currently matched rows.";
+        if (unresolved || duplicateTargets.size) previewSummary.textContent += " Resolve row matching to import.";
       } catch (error) { invalidPlan = true; previewSummary.textContent = error.message; }
     }
     previewSummary.dataset.tone = invalidPlan ? "error" : "info";
-    apply.textContent = modeInput.value === "matrix" ? "Import heatmap" : "Import tracks";
+    apply.textContent = modeInput.value === "matrix" ? "Import heatmap" : plan.length ? `Import ${plan.length} track${plan.length === 1 ? "" : "s"}` : "Import tracks";
     apply.disabled = !table || !plan.length || !assignments.size || invalidPlan || unresolved > 0 || duplicateTargets.size > 0;
     return { assignments, unresolved, duplicateTargets };
   };
@@ -256,7 +260,6 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
       const row = element(document, "tr");
       row.dataset.index = String(index);
       row.append(element(document, "td", "annotation-column-name", table.headers[index]));
-      row.append(element(document, "td", "", kind === "continuous" ? "Numeric" : "Categorical"));
       const cell = element(document, "td");
       const select = element(document, "select", "annotation-column-kind");
       select.dataset.kind = kind;
@@ -272,7 +275,7 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
         columnChoices[modeInput.value].set(index, select.value);
         updateSummary();
       });
-      cell.append(select); row.append(cell); columnsBody.append(row);
+      cell.append(select); row.append(cell, element(document, "td", "annotation-column-scale", "—")); columnsBody.append(row);
     }
     columnsWrap.hidden = false;
     updateSummary();
@@ -305,6 +308,7 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
       const preferred = table.headers.findIndex(header => /^(cluster(_?id)?|cluster name|file(name)?|source_file|record(_?id)?|id)$/i.test(header));
       keyInput.value = String(preferred < 0 ? 0 : preferred);
       matchEntries = matchRows(table.records, Number(keyInput.value), clusters);
+      parsingOptions.open = matchEntries.some(entry => !entry.cluster);
       renderMatches(); renderColumns();
     } catch (error) {
       if (version !== readVersion) return;
@@ -326,8 +330,8 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
   modeInput.addEventListener("change", () => {
     matrixOptions.hidden = modeInput.value !== "matrix";
     columnNote.textContent = modeInput.value === "matrix"
-      ? "Selected columns share one colour scale. Include comparable measurements; numeric columns start selected. Blank cells remain missing."
-      : "Each selected column gets its own scale or category legend. Numeric columns start as bar charts; categorical columns as heatmaps.";
+      ? "Use columns with comparable units. One shared colour scale."
+      : "Each column has its own scale.";
     if (table) renderColumns();
   });
   matrixScale.addEventListener("change", updateSummary);
@@ -373,11 +377,11 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
     columnsBody.replaceChildren();
     columnsWrap.hidden = true;
     preview.hidden = true;
-    previewBody.replaceChildren();
     modeInput.value = "tracks"; matrixOptions.hidden = true;
+    matrixOptions.open = false; parsingOptions.open = false;
     matrixScale.value = "auto"; matrixTitle.value = "";
     columnChoices.tracks.clear(); columnChoices.matrix.clear();
-    columnNote.textContent = "Each selected column gets its own scale or category legend. Numeric columns start as bar charts; categorical columns as heatmaps.";
+    columnNote.textContent = "Each column has its own scale.";
     reviewBody.replaceChildren();
     reviewWrap.hidden = true;
     summary.textContent = "Choose a TSV or CSV file to begin.";
