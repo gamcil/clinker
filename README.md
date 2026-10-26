@@ -1,5 +1,10 @@
 # clinker
 
+> This branch maintains the Python implementation, starting from `v0.0.32`.
+> Future Python fixes and PyPI releases belong here. Rust development continues
+> on `rust-port`. See [Python maintenance releases](docs/python-maintenance.md)
+> for the `python-v*` publishing procedure.
+
 >Both cblaster and clinker can now be used without installation on the [CAGECAT webserver](http://cagecat.bioinformatics.nl/).
 
 Gene cluster comparison figure generator

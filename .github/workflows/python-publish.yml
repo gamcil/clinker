@@ -1,31 +1,75 @@
-# This workflows will upload a Python Package using Twine when a release is created
-# For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
-
-name: Upload Python Package
+name: Publish Python maintenance release
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - "python-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-pypi-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-
+  publish:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.x'
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install build wheel twine
-    - name: Build and publish
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-      run: |
-        python -m build
-        twine upload dist/*
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require a tag from Python maintenance history
+        shell: bash
+        run: |
+          git fetch --no-tags origin refs/heads/python-maintenance:refs/remotes/origin/python-maintenance
+          release_commit=$(git rev-parse "${GITHUB_REF}^{commit}")
+          if ! git merge-base --is-ancestor "$release_commit" refs/remotes/origin/python-maintenance; then
+            echo "::error::Python releases must be tagged from python-maintenance."
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Require the tag to match the package version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import ast
+          import os
+          from pathlib import Path
+
+          source = ast.parse(Path("clinker/__init__.py").read_text())
+          versions = [
+              ast.literal_eval(node.value)
+              for node in source.body
+              if isinstance(node, ast.Assign)
+              and any(isinstance(target, ast.Name) and target.id == "__version__" for target in node.targets)
+          ]
+          if len(versions) != 1 or not isinstance(versions[0], str) or not versions[0]:
+              raise SystemExit("Expected one non-empty __version__ string in clinker/__init__.py")
+          expected = f"python-v{versions[0]}"
+          if os.environ["RELEASE_TAG"] != expected:
+              raise SystemExit(f"Release tag must be {expected}")
+          print(f"Publishing clinker {versions[0]} from Python maintenance history")
+          PY
+
+      - name: Install packaging tools
+        run: python -m pip install --upgrade pip build twine
+
+      - name: Build and check distributions
+        run: |
+          python -m build
+          python -m twine check --strict dist/*
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: python -m twine upload --non-interactive dist/*
