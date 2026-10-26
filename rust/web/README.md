@@ -31,7 +31,7 @@ rules limited to host placement and dimensions; avoid selectors for its internal
 buttons, borders or text. Do not query editor shadow roots for navigation.
 
 The dependency is pinned to refactor commit
-`f532521cebf919222d9b7865b54a1c3c5af6b0d7`. Clinker sets the application's saved
+`4a957c772f2e8e062f8c85ab21fb22b22811c095`. Clinker sets the application's saved
 System/Light/Dark preference with `chart.uiAppearance(...)`; loading a project
 or editing figure settings does not change that preference. Interface appearance
 does not modify figure colours, annotation scales, undo history or exported SVG.
@@ -46,9 +46,10 @@ must be updated alongside the browser dependency.
 
 Independent annotation tracks use the panel title as their single heading and
 hide redundant column labels. A multi-column heatmap retains column labels and
-can have an optional overall title. Automatic spacing of wide legends remains
-an upstream issue documented in `CLUSTERMAP_ANNOTATION_LAYOUT_HANDOFF.md` at the
-repository root; the UI-boundary update does not correct that layout algorithm.
+can have an optional overall title. Automatic panel spacing now reserves the
+complete measured footprint of headings, legends and data marks, including
+left/right overhang. The upstream fix also aligns hover regions and figure
+bounds with those footprints and refreshes measurements when fonts load.
 
 ## Analysis workflow
 

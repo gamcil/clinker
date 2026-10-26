@@ -1,5 +1,14 @@
 # Clustermap agent: annotation legends overlap neighbouring panels
 
+## Resolution
+
+Implemented upstream in `8771037325631866d46316bd3379233677283c31` and imported
+into Clinker through refactor commit `4a957c772f2e8e062f8c85ab21fb22b22811c095`.
+The layout now reserves complete measured footprints on both sides, uses those
+bounds for hover/figure geometry, and invalidates cached font measurements.
+The original reproduction and requested acceptance scenarios below are retained
+as historical context. Browser verification in Clinker has not yet been run.
+
 ## Reproduction
 
 Clinker is pinned to `a524445f5f656b684cf7fcd22c2286ad9d691bcd`.
