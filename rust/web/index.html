@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261026-shared-imports-v1">
+    <link rel="stylesheet" href="style.css?v=20261026-annotation-modes-v1">
     <link rel="stylesheet" href="clustermap-editor.css?v=20261025-clustermap-a524445-v1">
     <script src="d3.min.js"></script>
     <script src="clustermap.min.js?v=20261025-clustermap-a524445-v1"></script>
@@ -320,7 +320,7 @@
           <section aria-labelledby="help-save">
             <h3 id="help-save">Save your work</h3>
             <dl>
-              <div><dt>Add data → Import annotations</dt><dd>Load a TSV or CSV with one row per cluster and a header row. Choose the column that identifies clusters; unmatched rows can be assigned or skipped. Numeric and categorical heatmap columns are grouped by type; each bar chart gets its own panel. Identifier and high-cardinality columns start skipped. Imported panels are saved with the project.</dd></div>
+              <div><dt>Add data → Import annotations</dt><dd>Load a TSV or CSV with one row per cluster and a header row. Choose the column that identifies clusters; unmatched rows can be assigned or skipped. Annotation tracks gives each selected column its own scale or legend. Heatmap matrix combines selected columns into one panel with a shared scale, for comparable measurements such as gene expression or 0/1 presence and absence. Values are not normalised. Review the panel and scale preview before importing. Identifier and high-cardinality columns start skipped. Imported panels are saved with the project.</dd></div>
               <div><dt>File → Save project</dt><dd>Save the analysis, appearance and edits. Use File → Open project to continue later; work is not saved automatically.</dd></div>
               <div><dt>File → Export figure (SVG)</dt><dd>Download the figure for publication or further editing.</dd></div>
               <div><dt>File → Export similarity table (CSV)</dt><dd>Download analysis scores with current cluster names and plot order. Visual edits do not recompute scores.</dd></div>
@@ -369,14 +369,26 @@
           <div class="annotation-table-scroll"><table><thead><tr><th>Table key</th><th>Plotted cluster</th></tr></thead><tbody id="annotation-match-rows"></tbody></table></div>
         </div>
         <div id="annotation-column-settings" class="annotation-column-settings" hidden>
+          <div class="import-options">
+            <label>Import as<select id="annotation-mode" aria-describedby="annotation-column-note"><option value="tracks">Annotation tracks</option><option value="matrix">Heatmap matrix</option></select></label>
+          </div>
+          <div id="annotation-matrix-options" class="import-options" hidden>
+            <label>Colour scale<select id="annotation-matrix-scale"><option value="auto">Automatic</option><option value="continuous">Numeric (continuous)</option><option value="binary">Presence / absence (0 / 1)</option><option value="categorical">Categories</option></select></label>
+            <label>Panel title (optional)<input id="annotation-matrix-title" type="text" placeholder="e.g. Gene expression"></label>
+          </div>
           <h3>Annotation columns</h3>
-          <p class="annotation-column-note">Heatmap columns of the same type are grouped together. Bar chart columns each get their own panel.</p>
+          <p id="annotation-column-note" class="annotation-column-note">Each selected column gets its own scale or category legend. Numeric columns start as bar charts; categorical columns as heatmaps.</p>
           <div class="annotation-table-scroll"><table><thead><tr><th>Column</th><th>Values</th><th>Display</th></tr></thead><tbody id="annotation-columns"></tbody></table></div>
         </div>
+        <section id="annotation-preview" class="annotation-preview" aria-labelledby="annotation-preview-title" hidden>
+          <h3 id="annotation-preview-title">Import preview</h3>
+          <p id="annotation-preview-summary" role="status"></p>
+          <div class="annotation-table-scroll"><table><thead><tr><th>Panel</th><th>Columns</th><th>Scale / legend</th></tr></thead><tbody id="annotation-preview-rows"></tbody></table></div>
+        </section>
       </div>
       <footer class="tree-import-actions">
         <form method="dialog"><button type="submit">Cancel</button></form>
-        <button id="apply-annotations" class="primary" type="button" disabled>Import panels</button>
+        <button id="apply-annotations" class="primary" type="button" disabled>Import tracks</button>
       </footer>
     </dialog>
     <template id="tree-input-template">
@@ -406,6 +418,6 @@
           </div>
         </details>
     </template>
-    <script type="module" src="app.js?v=20261026-shared-imports-v1"></script>
+    <script type="module" src="app.js?v=20261026-annotation-modes-v1"></script>
   </body>
 </html>

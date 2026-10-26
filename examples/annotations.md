@@ -7,5 +7,16 @@ values are illustrative only; they are not measurements from the example files.
 
 Open the five example GenBank files in clinker, select **Add data → Import annotations**,
 and choose `annotations.tsv`. The importer should identify `source_file` as the
-matching column automatically. Choose a heatmap or bar chart for the numeric
-columns and heatmaps for the categorical columns.
+matching column automatically. Keep **Annotation tracks** selected: the numeric
+columns start as separate bar charts, and categorical columns as separate
+heatmaps. Cluster length and gene count retain independent scales because they
+have different units. Review the panel and scale preview before importing.
+
+For a table of comparable measurements, such as expression values for several
+genes, choose **Heatmap matrix** instead. Selected columns form one panel with a
+shared scale. Numeric columns start selected; text columns start skipped.
+Automatic scaling recognises numeric 0/1 values as discrete presence/absence;
+other numeric values use a continuous scale. Categories can be selected
+explicitly to share a category legend. Blank cells stay missing, and values are
+never normalised automatically. This mixed metadata example is intended for
+tracks, rather than a single shared-scale matrix.

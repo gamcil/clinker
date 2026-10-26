@@ -299,6 +299,10 @@ h1 {
 .annotation-match-review, .annotation-column-settings { margin-top: 18px; }
 .annotation-match-review > p { margin: 0 0 10px; color: #63728a; }
 .annotation-column-settings h3 { margin: 0 0 4px; font-size: 1rem; }
+.annotation-preview { margin-top: 18px; }
+.annotation-preview h3 { margin: 0 0 4px; font-size: 1rem; }
+.annotation-preview p { margin: 0 0 10px; }
+.annotation-preview p[data-tone="error"] { color: #a33636; }
 .annotation-column-note { margin: 0 0 10px; color: #63728a; font-size: .9rem; }
 .annotation-table-scroll { max-height: 17rem; overflow: auto; }
 .annotation-table-scroll table { width: 100%; border-collapse: collapse; }
@@ -322,6 +326,7 @@ h1 {
 #appearance-menu button[aria-pressed="true"]::after { content: "✓"; float: right; margin-left: 16px; color: #286ab3; }
 .tree-import-options { margin-top: 20px; }
 .import-dialog select,
+.import-options input[type="text"],
 .run-tree-fields select {
   width: 100%;
   min-width: 0;
@@ -1614,6 +1619,7 @@ h1 {
 }
 
 :root[data-theme="dark"] .plot-status[data-tone="error"],
+:root[data-theme="dark"] .annotation-preview p[data-tone="error"],
 :root[data-theme="dark"] .run-feedback p[data-tone="error"] {
   border-color: #754b50;
   background: #42292e;
