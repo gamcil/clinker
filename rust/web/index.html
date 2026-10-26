@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261026-annotation-import-v1">
+    <link rel="stylesheet" href="style.css?v=20261026-task-navigation-v4">
     <link rel="stylesheet" href="clustermap-editor.css?v=20261025-clustermap-a524445-v1">
     <script src="d3.min.js"></script>
     <script src="clustermap.min.js?v=20261025-clustermap-a524445-v1"></script>
@@ -14,34 +14,40 @@
       <header class="app-bar">
         <h1>clinker</h1>
         <button id="new-run" type="button" aria-controls="run-panel" aria-expanded="false" hidden>New run</button>
+        <details id="file-menu" class="menu file-menu">
+          <summary>File</summary>
+          <div class="menu-popover">
+            <button id="load-clinker-file" type="button">Open project…</button>
+            <span class="menu-section-divider" aria-hidden="true"></span>
+            <button id="download-project" type="button" disabled>Save project</button>
+            <span class="menu-section-divider" aria-hidden="true"></span>
+            <button id="download-svg" type="button" disabled>Export figure (SVG)</button>
+            <button id="download-matrix" type="button" disabled>Export similarity table (CSV)</button>
+          </div>
+        </details>
         <nav id="plot-actions" class="app-actions" aria-label="Plot actions" hidden>
-          <button id="load-clinker-file" type="button">Open project</button>
-          <details id="plot-order" class="menu menu-end">
-            <summary id="plot-order-label">Order: Computed</summary>
+          <details id="add-data-menu" class="menu">
+            <summary>Add data</summary>
             <div class="menu-popover">
-              <button type="button" data-order="computed" aria-pressed="true">Computed</button>
-              <button type="button" data-order="clustering" aria-pressed="false" hidden>Show clustering dendrogram</button>
+              <button id="manage-tree" type="button" aria-haspopup="dialog" aria-controls="tree-dialog" disabled>Import tree (Newick)…</button>
+              <button id="import-annotations" type="button" aria-haspopup="dialog" aria-controls="annotation-dialog" disabled>Import annotations (TSV / CSV)…</button>
+            </div>
+          </details>
+          <details id="plot-order" class="menu">
+            <summary><span>Row order<span class="order-colon">:</span></span> <span id="plot-order-label" class="menu-current-value">Default</span></summary>
+            <div class="menu-popover">
+              <button type="button" data-order="computed" aria-pressed="true">Default order</button>
+              <button type="button" data-order="clustering" aria-pressed="false" hidden>Similarity dendrogram</button>
+              <button type="button" data-order="tree" aria-pressed="false" hidden>Imported tree</button>
               <label id="clustering-scale-control" class="menu-checkbox" hidden><input id="clustering-scaled" type="checkbox" checked>Scale by merge height</label>
-              <button type="button" data-order="tree" aria-pressed="false" hidden>Tree</button>
-              <span class="menu-section-divider" aria-hidden="true"></span>
-              <button id="manage-tree" type="button" aria-haspopup="dialog" aria-controls="tree-dialog" disabled>Import tree…</button>
+              <span id="tree-controls-divider" class="menu-section-divider" aria-hidden="true" hidden></span>
               <button id="tree-appearance" type="button" hidden>Tree appearance…</button>
               <button id="remove-tree" type="button" hidden>Remove tree</button>
             </div>
           </details>
-          <details class="menu menu-end">
-            <summary>Export</summary>
-            <div class="menu-popover">
-              <button id="download-svg" type="button" disabled>SVG</button>
-              <button id="download-project" type="button" disabled>Project</button>
-              <button id="download-matrix" type="button" disabled>Similarity CSV</button>
-            </div>
-          </details>
-          <span class="action-divider" aria-hidden="true"></span>
-          <button id="import-annotations" type="button" aria-haspopup="dialog" aria-controls="annotation-dialog" disabled>Import annotations…</button>
-          <button id="edit-plot" type="button" disabled aria-controls="plot-editor" aria-expanded="false">Edit plot</button>
         </nav>
         <div class="about-help">
+          <button id="edit-plot" class="edit-figure-action" type="button" disabled hidden aria-controls="plot-editor" aria-expanded="false">Edit figure</button>
           <details id="appearance-menu" class="menu menu-end">
             <summary id="appearance-label" title="Interface theme: System">Theme</summary>
             <div class="menu-popover" role="group" aria-label="Interface appearance">
@@ -248,7 +254,7 @@
         <div class="help-heading-row">
           <div>
             <h2 id="help-title">Plot help</h2>
-            <p id="help-intro">Select, arrange and edit your figure directly in the plot. Choose System, Light or Dark from the Theme menu; System follows your device.</p>
+              <p id="help-intro">Add trees and annotation tables with Add data, arrange cluster rows with Row order, and open Edit figure for data and appearance settings. File contains project saving and figure exports. Theme changes the interface appearance; System follows your device.</p>
           </div>
           <form method="dialog"><button class="help-close" aria-label="Close help" autofocus>×</button></form>
         </div>
@@ -286,7 +292,7 @@
             <h3 id="help-arrange">Arrange and trim</h3>
             <dl>
               <div><dt>Drag a cluster label</dt><dd>Reorder rows vertically. Dragging a selected cluster moves the selected rows as a block. An attached tree limits movement to orders that keep each clade together.</dd></div>
-              <div><dt>Tree</dt><dd>Choose a Newick tree with a new run or attach one using Order → Import tree. Click an internal node to rotate its children. Use Order to switch between the computed default, an imported tree and the clustering dendrogram. The dendrogram shows gene-cluster similarity, not evolutionary ancestry. Right-click an internal node to style branches or clades and add text annotations. Edit plot contains tree appearance and dendrogram clade-colouring settings; hiding a tree retains its ordering constraints.</dd></div>
+              <div><dt>Tree</dt><dd>Choose a Newick tree with a new comparison or attach one using Add data → Import tree. Click an internal node to rotate its children. Use Row order to switch between the default order, an imported tree and the similarity dendrogram. The dendrogram shows gene-cluster similarity, not evolutionary ancestry. Right-click an internal node to style branches or clades and add text annotations. Edit figure contains tree appearance and dendrogram clade-colouring settings; hiding a tree retains its ordering constraints.</dd></div>
               <div><dt>Drag a locus track</dt><dd>Move it horizontally. Dragging a selected locus moves all selected loci together.</dd></div>
               <div><dt>Double-click a locus</dt><dd>Flip its orientation.</dd></div>
               <div><dt>Drag the end handles</dt><dd>Hover over a locus to reveal handles, then drag an end to adjust its displayed bounds.</dd></div>
@@ -305,7 +311,7 @@
           <section aria-labelledby="help-editor">
             <h3 id="help-editor">Batch editing</h3>
             <dl>
-              <div><dt>Edit plot</dt><dd>Open the bottom panel to edit genes, groups, links and appearance settings.</dd></div>
+              <div><dt>Edit figure</dt><dd>Open the bottom panel to edit genes, groups, links, annotation panels and appearance settings. Choose Close editor to return to the full figure.</dd></div>
               <div><dt>Select rows or checkboxes</dt><dd>Apply actions to multiple records. In the Genes tree, a cluster or locus checkbox selects its genes; <kbd>Shift</kbd>-click selects a range of rows.</dd></div>
               <div><dt>Group actions</dt><dd>Assign genes to groups, create or merge groups, and set shared labels, colours or visibility. Drag a group’s reorder grip, or focus it and use <kbd>↑</kbd> / <kbd>↓</kbd>, to reorder the legend.</dd></div>
               <div><dt>Undo / Redo</dt><dd>Use the buttons at the top of the editor to reverse or reapply figure edits. <kbd>Enter</kbd> commits an inline field; <kbd>Esc</kbd> cancels it.</dd></div>
@@ -314,10 +320,10 @@
           <section aria-labelledby="help-save">
             <h3 id="help-save">Save your work</h3>
             <dl>
-              <div><dt>Import annotations</dt><dd>Load a TSV or CSV with one row per cluster and a header row. Choose the column that identifies clusters; unmatched rows can be assigned or skipped. Numeric and categorical heatmap columns are grouped by type; each bar chart gets its own panel. Identifier and high-cardinality columns start skipped. Imported panels are saved with the project.</dd></div>
-              <div><dt>Export → Project</dt><dd>Save the analysis, appearance and edits. Use Open project to continue later; work is not saved automatically.</dd></div>
-              <div><dt>Export → SVG</dt><dd>Download the figure for publication or further editing.</dd></div>
-              <div><dt>Export → Similarity CSV</dt><dd>Download analysis scores with current cluster names and plot order. Visual edits do not recompute scores.</dd></div>
+              <div><dt>Add data → Import annotations</dt><dd>Load a TSV or CSV with one row per cluster and a header row. Choose the column that identifies clusters; unmatched rows can be assigned or skipped. Numeric and categorical heatmap columns are grouped by type; each bar chart gets its own panel. Identifier and high-cardinality columns start skipped. Imported panels are saved with the project.</dd></div>
+              <div><dt>File → Save project</dt><dd>Save the analysis, appearance and edits. Use File → Open project to continue later; work is not saved automatically.</dd></div>
+              <div><dt>File → Export figure (SVG)</dt><dd>Download the figure for publication or further editing.</dd></div>
+              <div><dt>File → Export similarity table (CSV)</dt><dd>Download analysis scores with current cluster names and plot order. Visual edits do not recompute scores.</dd></div>
             </dl>
           </section>
         </div>
@@ -400,6 +406,6 @@
           </div>
         </details>
     </template>
-    <script type="module" src="app.js?v=20261026-annotation-import-v1"></script>
+    <script type="module" src="app.js?v=20261026-task-navigation-v4"></script>
   </body>
 </html>

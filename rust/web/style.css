@@ -68,11 +68,8 @@ h1 {
 .app-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
-}
-
-.app-actions {
-  margin-left: auto;
+  gap: 10px;
+  margin-left: 0;
 }
 
 .app-bar button,
@@ -153,14 +150,21 @@ h1 {
   display: none;
 }
 
-.menu summary::after {
-  color: #6c7888;
-  content: "▾";
-  font-size: .72em;
+.menu > summary::after {
+  content: "";
+  box-sizing: border-box;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  margin-top: -2px;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
 }
 
-.menu[open] summary::after {
-  transform: rotate(180deg);
+.menu[open] > summary::after {
+  margin-top: 2px;
+  transform: rotate(225deg);
 }
 
 .menu-popover {
@@ -170,6 +174,7 @@ h1 {
   left: 0;
   display: grid;
   min-width: 170px;
+  max-width: calc(100vw - 24px);
   gap: 2px;
   padding: 5px;
   border: 1px solid #d7dce3;
@@ -193,11 +198,47 @@ h1 {
   border-color: transparent;
 }
 
-.action-divider {
-  width: 1px;
-  height: 22px;
-  margin: 0 2px;
-  background: #dfe4ea;
+.app-bar .menu > summary {
+  min-height: 32px;
+  border: 0;
+  padding: 6px 9px;
+  background: transparent;
+}
+
+.app-bar .menu > summary:hover,
+.app-bar .menu[open] > summary {
+  background: #edf2f8;
+}
+
+.app-bar .menu-popover button {
+  min-height: 34px;
+  border: 0;
+  padding: 7px 10px;
+  background: transparent;
+}
+
+.app-bar .menu-popover button:hover:not(:disabled) {
+  background: #edf2f8;
+}
+
+.app-bar .menu-popover button:disabled {
+  background: transparent;
+  opacity: .45;
+}
+
+.file-menu .menu-popover { min-width: 250px; }
+#add-data-menu .menu-popover { min-width: 260px; }
+#plot-order .menu-popover { min-width: 245px; }
+.menu-current-value { opacity: .75; }
+.menu-caption { padding: 5px 10px 3px; font-size: .8rem; opacity: .65; }
+
+.app-bar .edit-figure-action {
+  margin-left: 0;
+  border-color: #b8cdeb;
+  padding: 6px 12px;
+  background: #e8f0fc;
+  color: #205c9b;
+  font-weight: 600;
 }
 
 .about-help {
@@ -205,9 +246,6 @@ h1 {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-}
-
-.app-bar:has(.app-actions[hidden]) .about-help {
   margin-left: auto;
 }
 
@@ -218,6 +256,8 @@ h1 {
   min-height: 28px;
   place-items: center;
   border-radius: 50%;
+  border: 0;
+  background: transparent;
   padding: 0;
   color: #526178;
   font-weight: 700;
@@ -288,7 +328,6 @@ h1 {
 .menu-section-divider { border-top: 1px solid #e5eaf0; margin: 4px 0; }
 #plot-order button[aria-pressed="true"]::after { content: "✓"; float: right; margin-left: 16px; color: #286ab3; }
 #appearance-menu button[aria-pressed="true"]::after { content: "✓"; float: right; margin-left: 16px; color: #286ab3; }
-.menu-caption { padding: 5px 10px 3px; font-size: .8rem; opacity: .65; }
 .tree-import-options { display: flex; flex-wrap: wrap; gap: 14px; margin: 20px 0 14px; }
 .tree-import-options label { display: grid; flex: 1; gap: 6px; min-width: 180px; }
 .tree-import-body select,
@@ -1536,6 +1575,15 @@ h1 {
   background-color: var(--dark-hover);
 }
 
+:root[data-theme="dark"] .app-bar .menu > summary {
+  background: transparent;
+}
+
+:root[data-theme="dark"] .app-bar .menu > summary:hover,
+:root[data-theme="dark"] .app-bar .menu[open] > summary,
+:root[data-theme="dark"] .app-bar .edit-figure-action {
+  background: var(--dark-hover);
+}
 
 :root[data-theme="dark"] .app-bar .menu button[aria-pressed="true"]::after {
   color: #85b7ff;
@@ -1601,8 +1649,6 @@ h1 {
   color: #fff !important;
 }
 
-:root[data-theme="dark"] .action-divider { background: var(--dark-border); }
-
 @media (max-width: 1120px) {
   .app-bar {
     flex-wrap: wrap;
@@ -1611,27 +1657,50 @@ h1 {
 
 @media (max-width: 760px) {
   .app-bar {
-    gap: 7px;
+    display: grid;
+    grid-template-columns: auto auto 1fr auto auto;
+    gap: 6px 4px;
     padding: 7px 8px;
   }
 
-  h1 {
-    width: 100%;
-  }
-
-  .app-bar:has(.app-actions[hidden]) h1 {
-    width: auto;
-  }
+  .app-bar h1 { grid-column: 1; grid-row: 1; margin-right: 0; font-size: 1.3rem; }
+  #new-run { grid-column: 2; grid-row: 1; }
+  #file-menu { grid-column: 3; grid-row: 1; justify-self: start; }
+  #appearance-menu { grid-column: 4; grid-row: 1; }
+  #plot-help { grid-column: 5; grid-row: 1; }
+  .app-bar:has(#new-run[hidden]) #file-menu { grid-column: 2 / 4; }
 
   .app-actions {
+    grid-column: 1 / 4;
+    grid-row: 2;
     width: 100%;
     margin-left: 0;
     flex-wrap: wrap;
   }
 
-  .app-actions .menu-end .menu-popover {
-    right: auto;
-    left: 0;
+  .app-actions .menu > summary {
+    gap: 5px;
+    padding-inline: 6px;
+  }
+
+  .about-help { display: contents; }
+  .app-bar .edit-figure-action { grid-column: 4 / 6; grid-row: 2; justify-self: end; }
+
+  #plot-order .menu-current-value,
+  .order-colon {
+    display: none;
+  }
+
+  .app-bar .menu,
+  .about-help {
+    position: static;
+  }
+
+  .app-bar .menu-popover {
+    top: calc(100% + 4px);
+    right: 8px;
+    left: 8px;
+    max-width: none;
   }
 
   #plot-editor {

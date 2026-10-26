@@ -151,7 +151,7 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   assert.deepEqual(afterRedo.state.clusterOrder, expected.state.clusterOrder);
   await page.locator('#edit-plot').click();
   async function download(id) {
-    await page.getByText('Export', { exact: true }).click();
+    await page.locator('#file-menu > summary').click();
     const downloading = page.waitForEvent('download');
     await page.locator(id).click();
     return readFile(await (await downloading).path(), 'utf8');

@@ -73,15 +73,17 @@ export function mountTreeImport({ button, getChart, getRunInputs, onRunChange, o
     scaled.checked = chart.config().tree.useBranchLengths !== false;
     scaled.disabled = !data.tree || !data.tree.nodes.filter(node => node.uid !== data.tree.root).every(node => Number.isFinite(node.branchLength));
     scaleControl.title = scaled.disabled ? 'Run a new analysis to obtain merge heights for this dendrogram.' : 'Use Ward linkage distances for horizontal spacing';
-    document.querySelector('#plot-order-label').textContent = `Order: ${selected[0].toUpperCase() + selected.slice(1)}`;
+    const labels = { computed: 'Default', clustering: 'Similarity', tree: 'Tree', manual: 'Manual' };
+    document.querySelector('#plot-order-label').textContent = labels[selected];
     for (const item of order.querySelectorAll('[data-order]')) item.setAttribute('aria-pressed', String(item.dataset.order === selected));
     const hasTree = (!!data.tree && activeSource !== 'clustering') || !!inactive;
     order.querySelector('[data-order="clustering"]').hidden = !dendrogram;
     order.querySelector('[data-order="tree"]').hidden = !hasTree;
-    button.textContent = hasTree ? 'Replace tree…' : 'Import tree…';
+    button.textContent = hasTree ? 'Replace tree (Newick)…' : 'Import tree (Newick)…';
     appearance.hidden = !data.tree && !inactive && !dendrogram;
     remove.hidden = !hasTree;
-    remove.textContent = activeSource === 'clustering' && data.tree ? 'Remove imported tree' : 'Remove tree';
+    remove.textContent = 'Remove imported tree';
+    document.querySelector('#tree-controls-divider').hidden = appearance.hidden && remove.hidden;
   };
   const bind = () => {
     if (boundChart !== getChart()) {
@@ -189,7 +191,8 @@ export function mountTreeImport({ button, getChart, getRunInputs, onRunChange, o
   dialog.addEventListener('close', () => {
     if (continuation) { const waiting = continuation; continuation = null; waiting.workflow.cancel(); }
     plotInput.reset();
-    order.querySelector('summary').focus();
+    const trigger = button.closest('details');
+    if (!trigger?.closest('[inert]')) trigger?.querySelector('summary').focus();
   });
   runInput.reset();
   bind();

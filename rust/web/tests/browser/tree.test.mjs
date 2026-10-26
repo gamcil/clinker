@@ -31,7 +31,7 @@ test('tree import, matching, edits, renderers and project round-trips retain the
     await orderMenu();
     await page.locator(`#plot-order button[data-order="${value}"]`).click();
   };
-  const importTree = async () => { await orderMenu(); await page.locator('#manage-tree').click(); };
+  const importTree = async () => { await page.locator('#add-data-menu > summary').click(); await page.locator('#manage-tree').click(); };
   const treeText = await readFile(resolve(root, 'examples', 'bundled-clusters.nwk'), 'utf8');
   const loadTree = async text => page.locator('#tree-file').setInputFiles({ name: 'phylogeny.nwk', mimeType: 'text/plain', buffer: Buffer.from(text) });
   const loadRunTree = async text => page.locator('#run-tree-file').setInputFiles({ name: 'phylogeny.nwk', mimeType: 'text/plain', buffer: Buffer.from(text) });
@@ -98,7 +98,7 @@ test('tree import, matching, edits, renderers and project round-trips retain the
   assert.notDeepEqual(await branchPaths(), scaledPaths);
   assert.deepEqual(await page.evaluate(() => document.querySelector('#plot-editor').chart.state().clusterOrder), dendrogram.state.clusterOrder);
   const dendrogramDownload = page.waitForEvent('download');
-  await page.getByText('Export', { exact: true }).click();
+  await page.locator('#file-menu > summary').click();
   await page.locator('#download-project').click();
   const dendrogramBytes = await readFile(await (await dendrogramDownload).path());
   const dendrogramProject = JSON.parse(dendrogramBytes);
@@ -255,7 +255,7 @@ test('tree import, matching, edits, renderers and project round-trips retain the
 
   const savedFigure = await snapshot();
   const download = page.waitForEvent('download');
-  await page.getByText('Export', { exact: true }).click();
+  await page.locator('#file-menu > summary').click();
   await page.locator('#download-project').click();
   const bytes = await readFile(await (await download).path());
   const saved = JSON.parse(bytes);
@@ -264,7 +264,7 @@ test('tree import, matching, edits, renderers and project round-trips retain the
   await chooseOrder('computed');
   assert.deepEqual((await snapshot()).state.clusterOrder, []);
   const pausedDownload = page.waitForEvent('download');
-  await page.getByText('Export', { exact: true }).click();
+  await page.locator('#file-menu > summary').click();
   await page.locator('#download-project').click();
   const pausedBytes = await readFile(await (await pausedDownload).path());
   assert.deepEqual(JSON.parse(pausedBytes).inactiveTree, savedFigure.data.tree);

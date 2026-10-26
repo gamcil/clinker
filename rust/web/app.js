@@ -2,7 +2,7 @@ import { analyseTilesInWorkerPool } from "./alignment.mjs?v=20261020-shared-prep
 import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261018-clustering-v2";
 import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261018-tree-v5";
 import { Workflow } from "./workflow.mjs?v=20261015-workflow-v1";
-import { mountTreeImport } from "./tree-import.mjs?v=20261019-bounds-v1";
+import { mountTreeImport } from "./tree-import.mjs?v=20261026-task-navigation-v1";
 import { mountAnnotationImport } from "./annotation-import.mjs?v=20261026-task-navigation-v1";
 import { inputTreeClusters, bindInputTree, clusteringTree } from "./tree.mjs?v=20261018-annotations-v1";
 import {
@@ -46,6 +46,7 @@ const helpButton = document.querySelector("#plot-help");
 const helpDialog = document.querySelector("#help-dialog");
 const editPlotButton = document.querySelector("#edit-plot");
 const annotationImportButton = document.querySelector("#import-annotations");
+const addDataMenu = document.querySelector("#add-data-menu");
 const treeButton = document.querySelector("#manage-tree");
 const plotOrder = document.querySelector("#plot-order");
 const runPanel = document.querySelector("#run-panel");
@@ -157,6 +158,8 @@ function setAnalysisInputsDisabled(disabled) {
   newRunButton.disabled = disabled;
   treeButton.disabled = disabled || !chart.data();
   annotationImportButton.disabled = disabled || !chart.data();
+  plotActions.inert = disabled;
+  if (disabled) addDataMenu.open = false;
   plotOrder.inert = disabled || !chart.data();
   if (disabled) plotOrder.open = false;
   document.querySelector("#run-tree-fields").disabled = disabled;
@@ -660,7 +663,33 @@ for (const menu of toolbarMenus) {
     });
   });
   menu.addEventListener("click", event => {
-    if (event.target.closest("button:not(:disabled)")) menu.open = false;
+    if (!event.target.closest("button:not(:disabled)")) return;
+    menu.open = false;
+    queueMicrotask(() => {
+      if (menu.contains(document.activeElement)) menu.querySelector("summary").focus();
+    });
+  });
+  menu.addEventListener("keydown", event => {
+    if (event.key === "Tab") {
+      setTimeout(() => {
+        if (!menu.contains(document.activeElement)) menu.open = false;
+      }, 0);
+      return;
+    }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const summary = menu.querySelector("summary");
+    if (!menu.open && event.target !== summary) return;
+    if (!menu.open && ["Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    menu.open = true;
+    const items = [...menu.querySelectorAll("button:not(:disabled), input:not(:disabled)")]
+      .filter(item => item.getClientRects().length);
+    if (!items.length) return;
+    const index = items.indexOf(document.activeElement);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+      : event.key === "ArrowDown" ? (index + 1) % items.length
+        : index < 0 ? items.length - 1 : (index - 1 + items.length) % items.length;
+    items[next].focus();
   });
 }
 
@@ -691,7 +720,14 @@ helpDialog.addEventListener("click", event => {
 
 document.addEventListener("keydown", event => {
   if (event.key !== "Escape") return;
-  toolbarMenus.forEach(menu => { menu.open = false; });
+  const openMenu = toolbarMenus.find(menu => menu.open);
+  if (openMenu) {
+    event.preventDefault();
+    openMenu.open = false;
+    openMenu.querySelector("summary").focus();
+    return;
+  }
+  if (document.querySelector("dialog[open]")) return;
   if (!analysisInProgress && !runPanel.hidden && chart.data()) closeRunPanel();
 });
 
@@ -699,6 +735,7 @@ function closeRunPanel() {
   if (analysisInProgress || !chart.data()) return;
   runPanel.hidden = true;
   plotActions.hidden = false;
+  editPlotButton.hidden = false;
   newRunButton.hidden = false;
   newRunButton.setAttribute("aria-expanded", "false");
   cancelRunButton.hidden = true;
@@ -714,8 +751,8 @@ function openRunPanel() {
 }
 
 newRunButton.addEventListener("click", () => {
-  if (runPanel.hidden) openRunPanel();
-  else closeRunPanel();
+  openRunPanel();
+  filesInput.focus();
 });
 cancelRunButton.addEventListener("click", () => {
   if (activeWorkflow) activeWorkflow.cancel();
@@ -725,12 +762,14 @@ cancelRunButton.addEventListener("click", () => {
 function closePlotEditor() {
   plotEditor.hidden = true;
   editPlotButton.setAttribute("aria-expanded", "false");
+  editPlotButton.textContent = "Edit figure";
 }
 
 function showPlotEditor() {
   if (!runPanel.hidden) closeRunPanel();
   plotEditor.hidden = false;
   editPlotButton.setAttribute("aria-expanded", "true");
+  editPlotButton.textContent = "Close editor";
 }
 
 editPlotButton.addEventListener("click", () => {
