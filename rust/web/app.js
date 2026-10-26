@@ -778,6 +778,13 @@ editPlotButton.addEventListener("click", () => {
   else showPlotEditor();
 });
 
+plot.node().addEventListener("clustermap:edit-annotation", event => {
+  if (event.detail?.chart !== chart || typeof plotEditor.editAnnotations !== "function") return;
+  showPlotEditor();
+  plotEditor.editAnnotations(event.detail.panelUid);
+  event.preventDefault();
+});
+
 function parseInputFiles(
   files,
   prefilter,
