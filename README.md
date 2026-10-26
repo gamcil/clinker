@@ -9,6 +9,10 @@ See the [Rust documentation](rust/README.md) and
 [release preparation notes](rust/RELEASING.md). The installation and usage
 instructions below describe the original Python package.
 
+Future Python fixes and PyPI releases belong on `python-maintenance`, based on
+`v0.0.32`. See [Python maintenance releases](docs/python-maintenance.md) for the
+separate `python-v*` tag workflow.
+
 ## What is it?
 clinker is a pipeline for easily generating publication-quality gene cluster
 comparison figures.

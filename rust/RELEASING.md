@@ -30,6 +30,13 @@ native tests, lint, WASM tests, and packaged browser tests pass. It does not
 deploy Pages. The release contains three native archives, `clinker-web.tar.gz`,
 and `SHA256SUMS`. Rust releases are excluded from Python package publishing.
 
+Python maintenance is isolated on `python-maintenance`, starting from the
+Python `v0.0.32` release. Its publishing workflow accepts only pushed
+`python-v*` tags from that branch's history, with a matching Python package
+version. It does not subscribe to GitHub release events. See
+[Python maintenance releases](../docs/python-maintenance.md). Keep the existing
+`rust-v*` tag convention until the later Rust-first release cutover.
+
 Download the artifacts, verify their checksums, and check that the static web
 archive works when served over HTTP. GitHub execution, cross-platform archive
 extraction and the actual public Pages deployment must be confirmed on GitHub;
