@@ -1,4 +1,4 @@
-import { mountTreeInput } from './tree-input.mjs?v=20261018-clustering-v2';
+import { mountTreeInput } from './tree-input.mjs?v=20261026-scoped-ui-v1';
 import { matchTreeLeaves, resolveTree, validateTree, identifyInputClusters } from './tree.mjs?v=20261018-annotations-v1';
 
 function frameTree(chart) {

@@ -2,8 +2,8 @@ import { analyseTilesInWorkerPool } from "./alignment.mjs?v=20261020-shared-prep
 import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261018-clustering-v2";
 import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261018-tree-v5";
 import { Workflow } from "./workflow.mjs?v=20261015-workflow-v1";
-import { mountTreeImport } from "./tree-import.mjs?v=20261026-task-navigation-v1";
-import { mountAnnotationImport } from "./annotation-import.mjs?v=20261026-annotation-compact-v2";
+import { mountTreeImport } from "./tree-import.mjs?v=20261026-scoped-ui-v1";
+import { mountAnnotationImport } from "./annotation-import.mjs?v=20261026-scoped-ui-v1";
 import { inputTreeClusters, bindInputTree, clusteringTree } from "./tree.mjs?v=20261018-annotations-v1";
 import {
   mountPlotSelectionToolbar,
@@ -325,7 +325,7 @@ function renderInputValidation(validation) {
     state.textContent = row.detail;
     const remove = document.createElement("button");
     remove.type = "button";
-    remove.className = "remove-input-file quiet-action";
+    remove.className = "app-button remove-input-file quiet-action";
     remove.textContent = "Remove";
     remove.setAttribute("aria-label", `Remove ${row.name}`);
     remove.disabled = analysisInProgress;
@@ -363,6 +363,7 @@ function recordCoordinate(kind, value, minimum, maximum, description) {
   const wrapper = document.createElement("label");
   wrapper.className = "record-coordinate";
   const input = document.createElement("input");
+  input.className = "app-field";
   input.type = "number";
   input.min = String(minimum);
   input.max = String(maximum);

@@ -4,62 +4,62 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261026-annotation-compact-v2">
+    <link rel="stylesheet" href="style.css?v=20261026-scoped-ui-v1">
     <script src="d3.min.js"></script>
     <script src="clustermap.min.js?v=20261026-clustermap-f532521-v1"></script>
   </head>
-  <body>
-    <main>
+  <body class="clinker-app">
+    <main class="app-main">
       <header class="app-bar">
-        <h1>clinker</h1>
-        <button id="new-run" type="button" aria-controls="run-panel" aria-expanded="false" hidden>New run</button>
+        <h1 class="app-logo">clinker</h1>
+        <button id="new-run" type="button" aria-controls="run-panel" aria-expanded="false" hidden class="app-button">New run</button>
         <details id="file-menu" class="menu file-menu">
-          <summary>File</summary>
+          <summary class="app-disclosure">File</summary>
           <div class="menu-popover">
-            <button id="load-clinker-file" type="button">Open project…</button>
+            <button id="load-clinker-file" type="button" class="app-button">Open project…</button>
             <span class="menu-section-divider" aria-hidden="true"></span>
-            <button id="download-project" type="button" disabled>Save project</button>
+            <button id="download-project" type="button" disabled class="app-button">Save project</button>
             <span class="menu-section-divider" aria-hidden="true"></span>
-            <button id="download-svg" type="button" disabled>Export figure (SVG)</button>
-            <button id="download-matrix" type="button" disabled>Export similarity table (CSV)</button>
+            <button id="download-svg" type="button" disabled class="app-button">Export figure (SVG)</button>
+            <button id="download-matrix" type="button" disabled class="app-button">Export similarity table (CSV)</button>
           </div>
         </details>
         <nav id="plot-actions" class="app-actions" aria-label="Plot actions" hidden>
           <details id="add-data-menu" class="menu">
-            <summary>Add data</summary>
+            <summary class="app-disclosure">Add data</summary>
             <div class="menu-popover">
-              <button id="manage-tree" type="button" aria-haspopup="dialog" aria-controls="tree-dialog" disabled>Import tree (Newick)…</button>
-              <button id="import-annotations" type="button" aria-haspopup="dialog" aria-controls="annotation-dialog" disabled>Import annotations (TSV / CSV)…</button>
+              <button id="manage-tree" type="button" aria-haspopup="dialog" aria-controls="tree-dialog" disabled class="app-button">Import tree (Newick)…</button>
+              <button id="import-annotations" type="button" aria-haspopup="dialog" aria-controls="annotation-dialog" disabled class="app-button">Import annotations (TSV / CSV)…</button>
             </div>
           </details>
           <details id="plot-order" class="menu">
-            <summary><span>Row order<span class="order-colon">:</span></span> <span id="plot-order-label" class="menu-current-value">Default</span></summary>
+            <summary class="app-disclosure"><span>Row order<span class="order-colon">:</span></span> <span id="plot-order-label" class="menu-current-value">Default</span></summary>
             <div class="menu-popover">
-              <button type="button" data-order="computed" aria-pressed="true">Default order</button>
-              <button type="button" data-order="clustering" aria-pressed="false" hidden>Similarity dendrogram</button>
-              <button type="button" data-order="tree" aria-pressed="false" hidden>Imported tree</button>
-              <label id="clustering-scale-control" class="menu-checkbox" hidden><input id="clustering-scaled" type="checkbox" checked>Scale by merge height</label>
+              <button type="button" data-order="computed" aria-pressed="true" class="app-button">Default order</button>
+              <button type="button" data-order="clustering" aria-pressed="false" hidden class="app-button">Similarity dendrogram</button>
+              <button type="button" data-order="tree" aria-pressed="false" hidden class="app-button">Imported tree</button>
+              <label id="clustering-scale-control" class="menu-checkbox" hidden><input id="clustering-scaled" type="checkbox" checked class="app-field">Scale by merge height</label>
               <span id="tree-controls-divider" class="menu-section-divider" aria-hidden="true" hidden></span>
-              <button id="tree-appearance" type="button" hidden>Tree appearance…</button>
-              <button id="remove-tree" type="button" hidden>Remove tree</button>
+              <button id="tree-appearance" type="button" hidden class="app-button">Tree appearance…</button>
+              <button id="remove-tree" type="button" hidden class="app-button">Remove tree</button>
             </div>
           </details>
         </nav>
         <div class="about-help">
-          <button id="edit-plot" class="edit-figure-action" type="button" disabled hidden aria-controls="plot-editor" aria-expanded="false">Edit figure</button>
+          <button id="edit-plot" class="app-button edit-figure-action" type="button" disabled hidden aria-controls="plot-editor" aria-expanded="false">Edit figure</button>
           <details id="appearance-menu" class="menu menu-end">
-            <summary id="appearance-label" title="Interface theme: System">Theme</summary>
+            <summary id="appearance-label" title="Interface theme: System" class="app-disclosure">Theme</summary>
             <div class="menu-popover" role="group" aria-label="Interface appearance">
               <span class="menu-caption">Interface theme</span>
-              <button type="button" data-theme-mode="auto" aria-pressed="true">System</button>
-              <button type="button" data-theme-mode="light" aria-pressed="false">Light</button>
-              <button type="button" data-theme-mode="dark" aria-pressed="false">Dark</button>
+              <button type="button" data-theme-mode="auto" aria-pressed="true" class="app-button">System</button>
+              <button type="button" data-theme-mode="light" aria-pressed="false" class="app-button">Light</button>
+              <button type="button" data-theme-mode="dark" aria-pressed="false" class="app-button">Dark</button>
             </div>
           </details>
-          <button id="plot-help" class="about-button" type="button" aria-label="Plot help" aria-haspopup="dialog" aria-controls="help-dialog" title="Plot help">?</button>
+          <button id="plot-help" class="app-button about-button" type="button" aria-label="Plot help" aria-haspopup="dialog" aria-controls="help-dialog" title="Plot help">?</button>
         </div>
       </header>
-      <div class="plot-stage">
+      <div class="plot-stage clinker-plot-workspace">
         <div id="plot"></div>
         <p id="plot-status" class="plot-status" role="status" hidden></p>
         <section id="run-panel" class="run-panel" aria-labelledby="run-panel-title">
@@ -68,19 +68,19 @@
               <div>
                 <h2 id="run-panel-title">Compare gene clusters</h2>
               </div>
-              <button id="cancel-run" type="button" hidden>Cancel</button>
+              <button id="cancel-run" type="button" hidden class="app-button">Cancel</button>
             </div>
             <label id="file-drop-zone" class="file-drop-zone">
               <span class="file-drop-icon" aria-hidden="true">↑</span>
               <span class="file-drop-title">Drop GenBank or GFF3 + FASTA files</span>
               <span class="file-drop-action"><span>Choose files</span></span>
               <span id="file-summary" class="file-summary" hidden></span>
-              <input id="files" class="visually-hidden" type="file" accept=".gb,.gbk,.genbank,.gbf,.gbff,.gff,.gff3,.fa,.fsa,.fna,.fasta,.faa" multiple>
+              <input id="files" class="app-field visually-hidden" type="file" accept=".gb,.gbk,.genbank,.gbf,.gbff,.gff,.gff3,.fa,.fsa,.fna,.fasta,.faa" multiple>
             </label>
             <div id="file-input-status" class="file-input-status" role="status" aria-live="polite" hidden>
               <div class="file-input-status-heading">
                 <strong id="file-input-status-summary">Selected inputs</strong>
-                <button id="clear-input-files" class="quiet-action" type="button">Clear</button>
+                <button id="clear-input-files" class="app-button quiet-action" type="button">Clear</button>
               </div>
               <ul id="file-input-status-list"></ul>
             </div>
@@ -89,20 +89,20 @@
               <label class="basic-number-row">
                 <span>Minimum protein identity</span>
                 <span class="percentage-control">
-                  <input id="identity" class="run-control" type="number" min="0" max="100" step="1" value="30" aria-label="Minimum protein identity (%)">
+                  <input id="identity" class="app-field run-control" type="number" min="0" max="100" step="1" value="30" aria-label="Minimum protein identity (%)">
                   <span aria-hidden="true">%</span>
                 </span>
               </label>
               <div class="prefilter-option">
                 <label class="prefilter-toggle">
-                  <input id="prefilter" type="checkbox" aria-describedby="prefilter-help" checked>
+                  <input id="prefilter" type="checkbox" aria-describedby="prefilter-help" checked class="app-field">
                   <span>Use k-mer prefilter</span>
                 </label>
                 <p id="prefilter-help" class="prefilter-help">Speeds up comparisons; may miss distant homologues.</p>
               </div>
             </div>
             <details class="run-advanced">
-              <summary>Advanced settings</summary>
+              <summary class="app-disclosure">Advanced settings</summary>
               <div class="advanced-options">
                 <section class="advanced-section alignment-settings" aria-labelledby="alignment-settings-label">
                   <div class="advanced-section-heading">
@@ -110,17 +110,17 @@
                   </div>
                   <div class="settings-card">
                     <label class="advanced-check">
-                      <input id="no-align" type="checkbox">
+                      <input id="no-align" type="checkbox" class="app-field">
                       <span>Plot annotations without protein alignment</span>
                     </label>
                     <p class="settings-subheading">Prefilter settings</p>
                     <label class="advanced-number-row">
                       <span>k-mer size</span>
-                      <input id="kmer-size" class="run-control" type="number" min="1" max="8" step="1" value="3">
+                      <input id="kmer-size" class="app-field run-control" type="number" min="1" max="8" step="1" value="3">
                     </label>
                     <label class="advanced-number-row">
                       <span>Minimum shared k-mers</span>
-                      <input id="min-shared-kmers" class="run-control" type="number" min="1" step="1" value="3">
+                      <input id="min-shared-kmers" class="app-field run-control" type="number" min="1" step="1" value="3">
                     </label>
                   </div>
                 </section>
@@ -145,7 +145,7 @@
                       </span>
                       <label class="compact-file-button">
                         <span>Choose CSV</span>
-                        <input id="gene-functions" class="visually-hidden" type="file" accept=".csv,text/csv">
+                        <input id="gene-functions" class="app-field visually-hidden" type="file" accept=".csv,text/csv">
                       </label>
                       <span id="gene-functions-summary" class="compact-file-summary">None selected</span>
                     </div>
@@ -156,7 +156,7 @@
                       </span>
                       <label class="compact-file-button">
                         <span>Choose CSV</span>
-                        <input id="colour-map" class="visually-hidden" type="file" accept=".csv,text/csv" disabled>
+                        <input id="colour-map" class="app-field visually-hidden" type="file" accept=".csv,text/csv" disabled>
                       </label>
                       <span id="colour-map-summary" class="compact-file-summary">Add functions first</span>
                     </div>
@@ -168,15 +168,15 @@
                   </div>
                   <div class="settings-card">
                     <label class="advanced-check">
-                      <input id="file-order" type="checkbox">
+                      <input id="file-order" type="checkbox" class="app-field">
                       <span>Keep input file order</span>
                     </label>
                     <label class="advanced-check">
-                      <input id="separate-records" type="checkbox">
+                      <input id="separate-records" type="checkbox" class="app-field">
                       <span>Plot each GenBank record as a separate cluster</span>
                     </label>
                     <label class="advanced-check">
-                      <input id="keep-origin" type="checkbox">
+                      <input id="keep-origin" type="checkbox" class="app-field">
                       <span>Keep the original origin of circular records</span>
                     </label>
                   </div>
@@ -184,11 +184,11 @@
               </div>
             </details>
             <div class="run-actions">
-              <button id="analyse" class="primary-action" type="button" disabled>Analyse</button>
-              <button id="load-example" type="button">Try example</button>
-              <button id="open-project-start" type="button">Open project</button>
+              <button id="analyse" class="app-button primary-action" type="button" disabled>Analyse</button>
+              <button id="load-example" type="button" class="app-button">Try example</button>
+              <button id="open-project-start" type="button" class="app-button">Open project</button>
             </div>
-            <input id="clinker-file" type="file" accept="application/json,.json" hidden>
+            <input id="clinker-file" type="file" accept="application/json,.json" hidden class="app-field">
             <div id="run-feedback" class="run-feedback" aria-live="polite" hidden>
               <ol id="run-steps" class="run-steps" hidden>
                 <li data-run-step="parse" data-state="waiting">
@@ -248,23 +248,23 @@
         <clinker-editor id="plot-editor" resizable hidden></clinker-editor>
       </div>
     </main>
-    <dialog id="help-dialog" class="help-dialog" aria-labelledby="help-title" aria-describedby="help-intro">
+    <dialog id="help-dialog" class="app-dialog help-dialog" aria-labelledby="help-title" aria-describedby="help-intro">
       <header class="help-heading">
         <div class="help-heading-row">
           <div>
             <h2 id="help-title">Plot help</h2>
               <p id="help-intro">Add trees and annotation tables with Add data, arrange cluster rows with Row order, and open Edit figure for data and appearance settings. File contains project saving and figure exports. Theme changes the interface appearance; System follows your device.</p>
           </div>
-          <form method="dialog"><button class="help-close" aria-label="Close help" autofocus>×</button></form>
+          <form method="dialog"><button class="app-button help-close" aria-label="Close help" autofocus>×</button></form>
         </div>
         <nav class="help-topics" aria-label="Help topics">
-          <button type="button" data-help-section="help-navigate">Move around</button>
-          <button type="button" data-help-section="help-selection">Select loci</button>
-          <button type="button" data-help-section="help-arrange">Arrange and trim</button>
-          <button type="button" data-help-section="help-genes">Genes and legend</button>
-          <button type="button" data-help-section="help-editor">Batch editing</button>
-          <button type="button" data-help-section="help-save">Save your work</button>
-          <button type="button" data-help-section="help-about">About clinker</button>
+          <button type="button" data-help-section="help-navigate" class="app-button">Move around</button>
+          <button type="button" data-help-section="help-selection" class="app-button">Select loci</button>
+          <button type="button" data-help-section="help-arrange" class="app-button">Arrange and trim</button>
+          <button type="button" data-help-section="help-genes" class="app-button">Genes and legend</button>
+          <button type="button" data-help-section="help-editor" class="app-button">Batch editing</button>
+          <button type="button" data-help-section="help-save" class="app-button">Save your work</button>
+          <button type="button" data-help-section="help-about" class="app-button">About clinker</button>
         </nav>
       </header>
       <div class="help-body" tabindex="0" role="region" aria-label="Plot controls and shortcuts">
@@ -333,11 +333,11 @@
         </section>
       </div>
     </dialog>
-    <dialog id="tree-dialog" class="help-dialog import-dialog tree-dialog" aria-labelledby="tree-title">
+    <dialog id="tree-dialog" class="app-dialog help-dialog import-dialog tree-dialog" aria-labelledby="tree-title">
       <header class="help-heading">
         <div class="help-heading-row">
           <h2 id="tree-title">Import tree</h2>
-          <form method="dialog"><button class="help-close" aria-label="Close tree import">×</button></form>
+          <form method="dialog"><button class="app-button help-close" aria-label="Close tree import">×</button></form>
         </div>
       </header>
       <div class="help-body tree-import-body">
@@ -345,24 +345,24 @@
         <p id="tree-import-note" class="tree-import-note" hidden>Importing a tree clears undo history.</p>
       </div>
       <footer class="tree-import-actions">
-        <form method="dialog"><button type="submit">Cancel</button></form>
-        <button id="apply-tree" class="primary" type="button" disabled>Apply tree</button>
+        <form method="dialog"><button type="submit" class="app-button">Cancel</button></form>
+        <button id="apply-tree" class="app-button primary" type="button" disabled>Apply tree</button>
       </footer>
     </dialog>
-    <dialog id="annotation-dialog" class="help-dialog import-dialog annotation-dialog" aria-labelledby="annotation-title">
+    <dialog id="annotation-dialog" class="app-dialog help-dialog import-dialog annotation-dialog" aria-labelledby="annotation-title">
       <header class="help-heading">
         <div class="help-heading-row">
           <h2 id="annotation-title">Import annotations</h2>
-          <form method="dialog"><button class="help-close" aria-label="Close annotation import">×</button></form>
+          <form method="dialog"><button class="app-button help-close" aria-label="Close annotation import">×</button></form>
         </div>
       </header>
       <div class="help-body annotation-import-body">
-        <div class="import-file-picker"><button id="choose-annotation-file" type="button">Choose TSV / CSV file</button><span id="annotation-file-name">None selected</span><input id="annotation-file" class="visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
+        <div class="import-file-picker"><button id="choose-annotation-file" type="button" class="app-button">Choose TSV / CSV file</button><span id="annotation-file-name">None selected</span><input id="annotation-file" class="app-field visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
         <details id="annotation-parsing-options" class="annotation-import-advanced">
-          <summary>File and matching options</summary>
+          <summary class="app-disclosure">File and matching options</summary>
           <div class="import-options">
-          <label>Delimiter<select id="annotation-delimiter"><option value="auto">Automatic</option><option value=",">Comma</option><option value="&#9;">Tab</option></select></label>
-          <label>Match rows using<select id="annotation-key-column" disabled></select></label>
+          <label>Delimiter<select id="annotation-delimiter" class="app-field"><option value="auto">Automatic</option><option value=",">Comma</option><option value="&#9;">Tab</option></select></label>
+          <label>Match rows using<select id="annotation-key-column" disabled class="app-field"></select></label>
           </div>
         </details>
         <p id="annotation-match-summary" class="annotation-match-summary" role="status">Choose a TSV or CSV file to begin.</p>
@@ -372,14 +372,14 @@
         </div>
         <div id="annotation-column-settings" class="annotation-column-settings" hidden>
           <div class="annotation-layout-choice">
-            <label>Display<select id="annotation-mode" aria-describedby="annotation-column-note"><option value="tracks">Separate tracks</option><option value="matrix">One heatmap</option></select></label>
+            <label>Display<select id="annotation-mode" aria-describedby="annotation-column-note" class="app-field"><option value="tracks">Separate tracks</option><option value="matrix">One heatmap</option></select></label>
             <p id="annotation-column-note" class="annotation-column-note">Each column has its own scale.</p>
           </div>
           <details id="annotation-matrix-options" class="annotation-import-advanced" hidden>
-            <summary>Heatmap options</summary>
+            <summary class="app-disclosure">Heatmap options</summary>
             <div class="import-options">
-            <label>Colour scale<select id="annotation-matrix-scale"><option value="auto">Automatic</option><option value="continuous">Numeric (continuous)</option><option value="binary">Presence / absence (0 / 1)</option><option value="categorical">Categories</option></select></label>
-            <label>Panel title (optional)<input id="annotation-matrix-title" type="text" placeholder="e.g. Gene expression"></label>
+            <label>Colour scale<select id="annotation-matrix-scale" class="app-field"><option value="auto">Automatic</option><option value="continuous">Numeric (continuous)</option><option value="binary">Presence / absence (0 / 1)</option><option value="categorical">Categories</option></select></label>
+            <label>Panel title (optional)<input id="annotation-matrix-title" type="text" placeholder="e.g. Gene expression" class="app-field"></label>
             </div>
           </details>
           <div class="annotation-table-scroll"><table><thead><tr><th>Column</th><th>Display</th><th>Scale</th></tr></thead><tbody id="annotation-columns"></tbody></table></div>
@@ -389,37 +389,37 @@
         </div>
       </div>
       <footer class="tree-import-actions">
-        <form method="dialog"><button type="submit">Cancel</button></form>
-        <button id="apply-annotations" class="primary" type="button" disabled>Import tracks</button>
+        <form method="dialog"><button type="submit" class="app-button">Cancel</button></form>
+        <button id="apply-annotations" class="app-button primary" type="button" disabled>Import tracks</button>
       </footer>
     </dialog>
     <template id="tree-input-template">
         <div class="import-file-picker tree-file-picker">
           <span class="tree-inline-label">Tree <span>(optional)</span></span>
-          <button id="choose-tree-file" type="button" autofocus>Choose Newick file</button>
+          <button id="choose-tree-file" type="button" autofocus class="app-button">Choose Newick file</button>
           <span id="tree-file-name">None selected</span>
-          <button id="tree-clear" class="quiet-action" type="button" hidden>Remove</button>
-          <input id="tree-file" class="visually-hidden" tabindex="-1" type="file" accept=".nwk,.newick,.tree,.tre,.txt" aria-label="Newick file">
+          <button id="tree-clear" class="app-button quiet-action" type="button" hidden>Remove</button>
+          <input id="tree-file" class="app-field visually-hidden" tabindex="-1" type="file" accept=".nwk,.newick,.tree,.tre,.txt" aria-label="Newick file">
         </div>
         <p id="tree-import-status" class="tree-import-status" role="status" hidden></p>
         <details id="tree-matching" class="tree-matching" hidden>
-          <summary>Leaf matching</summary>
+          <summary class="app-disclosure">Leaf matching</summary>
           <p class="tree-import-note">Exact cluster names, sequence IDs and input filenames are matched automatically. Choose a different cluster to resolve a mismatch.</p>
           <div class="tree-matching-table"><table><thead><tr><th>Tree leaf</th><th>Plotted cluster</th></tr></thead></table><div class="tree-matching-scroll"><table><tbody id="tree-matching-rows"></tbody></table></div></div>
           <p id="tree-missing" class="tree-match-error"></p>
         </details>
         <section id="tree-root-metadata" class="tree-root-metadata" hidden>
           <p>This tree has a root branch length or support value, which cannot be displayed.</p>
-          <label class="tree-root-option"><input id="tree-ignore-root" type="checkbox">Discard root branch length and support</label>
+          <label class="tree-root-option"><input id="tree-ignore-root" type="checkbox" class="app-field">Discard root branch length and support</label>
         </section>
         <details id="tree-options" class="tree-options">
-          <summary>Import options</summary>
+          <summary class="app-disclosure">Import options</summary>
           <div class="import-options tree-import-options">
-            <label>Numeric node labels<select id="tree-internal-labels"><option value="support">Support values</option><option value="names">Node names</option></select></label>
-            <label>Support scale<select id="tree-support-scale"><option value="unspecified">Unspecified</option><option value="percent">Percent (0–100)</option><option value="proportion">Proportion (0–1)</option></select></label>
+            <label>Numeric node labels<select id="tree-internal-labels" class="app-field"><option value="support">Support values</option><option value="names">Node names</option></select></label>
+            <label>Support scale<select id="tree-support-scale" class="app-field"><option value="unspecified">Unspecified</option><option value="percent">Percent (0–100)</option><option value="proportion">Proportion (0–1)</option></select></label>
           </div>
         </details>
     </template>
-    <script type="module" src="app.js?v=20261026-clustermap-f532521-v1"></script>
+    <script type="module" src="app.js?v=20261026-scoped-ui-v1"></script>
   </body>
 </html>

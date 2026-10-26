@@ -9,9 +9,48 @@ cluster metadata and drawn by the existing `clustermap.js` assets. No file
 contents are uploaded.
 
 The plot's data and appearance controls use clustermap.js's optional
-`<clinker-editor>` Web Component. The build copies its ESM entry point and
-default stylesheet alongside the main renderer, so the editor remains fully
-offline-capable on static hosting.
+`<clinker-editor>` Web Component. The build copies its ESM entry point, optional
+annotation overlay and shared module chunks alongside the main renderer. Styles
+are embedded in those modules, so the editor remains fully offline-capable on
+static hosting. No registration call or separate editor stylesheet is needed.
+
+## Application and editor styling
+
+Clinker owns its application controls, dialogs and import workflows. App markup
+is scoped under `.clinker-app`; ordinary controls use `.app-button`, `.app-field`
+and `.app-disclosure`, including controls created dynamically. `style.css` defines
+semantic `--app-*` values for both palettes and shares component rules between
+light and dark modes. Primary/status actions have explicit foreground/background
+pairs. Keep new app styles inside this scope and use these variables instead of
+adding another block of dark-mode component overrides.
+
+Clustermap owns editor internals, selection actions and floating plot controls.
+The `.clinker-plot-workspace` adapter maps app tokens to its public `--cm-*`
+properties for the chart, editor and selection toolbar. Keep library-specific
+rules limited to host placement and dimensions; avoid selectors for its internal
+buttons, borders or text. Do not query editor shadow roots for navigation.
+
+The dependency is pinned to refactor commit
+`f532521cebf919222d9b7865b54a1c3c5af6b0d7`. Clinker sets the application's saved
+System/Light/Dark preference with `chart.uiAppearance(...)`; loading a project
+or editing figure settings does not change that preference. Interface appearance
+does not modify figure colours, annotation scales, undo history or exported SVG.
+Tree appearance uses `editor.openAppearance({ section: "tree", focus: true })`.
+The public `clinker-editor-open` and `clinker-editor-close` events synchronise
+the toolbar button, including when selection editing opens the editor.
+
+Build/package scripts copy the core bundle, `editor.mjs` (renamed locally to
+`clustermap-editor.mjs`), `annotationOverlay.mjs`, and the entire `editor/` chunk
+directory. Preserve their relative module paths. The CLI's vendored core bundle
+must be updated alongside the browser dependency.
+
+Independent annotation tracks use the panel title as their single heading and
+hide redundant column labels. A multi-column heatmap retains column labels and
+can have an optional overall title. Automatic spacing of wide legends remains
+an upstream issue documented in `CLUSTERMAP_ANNOTATION_LAYOUT_HANDOFF.md` at the
+repository root; the UI-boundary update does not correct that layout algorithm.
+
+## Analysis workflow
 
 During a tile, WASM reports progress every 100 processed pairs. The page sums
 those counters across workers, so the analysis breadcrumb reports protein

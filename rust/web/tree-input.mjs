@@ -50,6 +50,7 @@ export function mountTreeInput(container, { inline = false, onChange = () => {},
       leaf.textContent = row.label;
       const choice = document.createElement('td');
       const select = document.createElement('select');
+      select.className = 'app-field';
       select.setAttribute('aria-label', `Cluster for tree leaf ${row.label}`);
       select.dataset.node = row.uid;
       select.append(new Option('Choose cluster…', ''));
