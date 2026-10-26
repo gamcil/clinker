@@ -1,0 +1,6 @@
+source_file	organism	biosynthetic_class	cluster_length_kb	gene_count	reported_bua_homologue
+A. burnettii MST-FP2249.gbk	Aspergillus burnettii	Polyketide	28.4	18	Yes
+A. alliaceus CBS 536.65.gbk	Aspergillus alliaceus	Polyketide	26.1	17	Yes
+A. mulundensis DSM 5745.gbk	Aspergillus mulundensis	Polyketide	25.7	16	Yes
+A. versicolor CBS 583.65.gbk	Aspergillus versicolor	Polyketide	29.2	19	Yes
+P. vexata CBS 129021.gbk	Penicillium vexata	Polyketide	24.8	16	Yes
