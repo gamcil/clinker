@@ -203,6 +203,8 @@ h1 {
 .about-help {
   position: relative;
   display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .app-bar:has(.app-actions[hidden]) .about-help {
@@ -262,6 +264,8 @@ h1 {
 .menu-checkbox { display: flex; align-items: center; gap: 7px; padding: 5px 8px; white-space: nowrap; }
 .menu-section-divider { border-top: 1px solid #e5eaf0; margin: 4px 0; }
 #plot-order button[aria-pressed="true"]::after { content: "✓"; float: right; margin-left: 16px; color: #286ab3; }
+#appearance-menu button[aria-pressed="true"]::after { content: "✓"; float: right; margin-left: 16px; color: #286ab3; }
+.menu-caption { padding: 5px 10px 3px; font-size: .8rem; opacity: .65; }
 .tree-import-options { display: flex; flex-wrap: wrap; gap: 14px; margin: 20px 0 14px; }
 .tree-import-options label { display: grid; flex: 1; gap: 6px; min-width: 180px; }
 .tree-import-body select,
@@ -1372,6 +1376,197 @@ h1 {
   max-height: calc(100% - 3.5rem);
   box-shadow: 0 10px 35px rgba(23, 36, 54, .18);
 }
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  color: #e5eaf1;
+  background: #171b22;
+  --dark-surface: #232a35;
+  --dark-subtle: #293241;
+  --dark-hover: #354660;
+  --dark-border: #465365;
+}
+
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] main,
+:root[data-theme="dark"] .plot-stage,
+:root[data-theme="dark"] #plot {
+  background-color: #171b22;
+}
+
+:root[data-theme="dark"] body :not(#plot):not(#plot *):not(.cm-data-ui):not(.cm-data-ui *) {
+  color: #e5eaf1 !important;
+}
+
+:root[data-theme="dark"] body :not(#plot):not(#plot *):not(.menu-popover button) {
+  border-color: var(--dark-border);
+}
+
+:root[data-theme="dark"] .app-bar,
+:root[data-theme="dark"] .menu-popover,
+:root[data-theme="dark"] .help-dialog,
+:root[data-theme="dark"] .run-card,
+:root[data-theme="dark"] .file-input-status,
+:root[data-theme="dark"] .record-range-list,
+:root[data-theme="dark"] .run-tree-fields,
+:root[data-theme="dark"] .tree-matching-table,
+:root[data-theme="dark"] .run-feedback,
+:root[data-theme="dark"] .settings-card {
+  background: var(--dark-surface);
+}
+
+:root[data-theme="dark"] .run-panel {
+  background: rgba(17, 21, 28, .92);
+}
+
+:root[data-theme="dark"] .plot-stage {
+  --cm-surface: #232a35;
+  --cm-subtle: #293241;
+  --cm-row-background: #232a35;
+  --cm-hover: #354660;
+  --cm-border: #465365;
+  --cm-foreground: #e5eaf1;
+  --cm-muted: #a8b3c2;
+  --cm-accent: #85b7ff;
+}
+
+:root[data-theme="dark"] .plot-stage > .cm-plot-selection-toolbar {
+  --cm-surface: #232a35;
+  --cm-hover: #354660;
+  --cm-border: #465365;
+  --cm-foreground: #e5eaf1;
+  --cm-muted: #a8b3c2;
+  --cm-accent: #85b7ff;
+  background: var(--cm-surface);
+  color: var(--cm-foreground);
+}
+
+:root[data-theme="dark"] .plot-stage > .cm-plot-selection-toolbar strong {
+  background: var(--cm-hover);
+  color: var(--cm-accent);
+}
+
+:root[data-theme="dark"] .plot-stage > .cm-plot-selection-toolbar button {
+  border-color: var(--cm-border);
+  background: var(--cm-surface);
+  color: var(--cm-foreground);
+  opacity: 1;
+}
+
+:root[data-theme="dark"] .plot-stage > .cm-plot-selection-toolbar button:hover:not(:disabled) {
+  border-color: var(--cm-accent);
+  background: var(--cm-hover);
+}
+
+:root[data-theme="dark"] .app-bar,
+:root[data-theme="dark"] .help-heading,
+:root[data-theme="dark"] .tree-import-actions,
+:root[data-theme="dark"] .file-input-status-heading,
+:root[data-theme="dark"] .file-input-status li,
+:root[data-theme="dark"] .run-advanced,
+:root[data-theme="dark"] .run-actions,
+:root[data-theme="dark"] .run-privacy,
+:root[data-theme="dark"] .tree-options,
+:root[data-theme="dark"] .run-tree-fields .tree-matching {
+  border-color: var(--dark-border);
+}
+
+:root[data-theme="dark"] .menu-popover button,
+:root[data-theme="dark"] .app-bar button,
+:root[data-theme="dark"] .run-card button:not(.primary-action),
+:root[data-theme="dark"] .tree-import-actions button:not(#apply-tree),
+:root[data-theme="dark"] .tree-file-picker button,
+:root[data-theme="dark"] .menu summary,
+:root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea,
+:root[data-theme="dark"] .help-close,
+:root[data-theme="dark"] .record-coordinate input {
+  border-color: var(--dark-border);
+  background-color: var(--dark-surface);
+}
+
+:root[data-theme="dark"] .menu-popover button:hover:not(:disabled),
+:root[data-theme="dark"] .app-bar button:hover:not(:disabled),
+:root[data-theme="dark"] .run-card button:hover:not(:disabled),
+:root[data-theme="dark"] .tree-file-picker button:hover:not(:disabled),
+:root[data-theme="dark"] .menu summary:hover,
+:root[data-theme="dark"] .advanced-check:hover,
+:root[data-theme="dark"] .compact-file-button:hover:not(:has(input:disabled)),
+:root[data-theme="dark"] .help-close:hover {
+  border-color: #85b7ff;
+  background-color: var(--dark-hover);
+}
+
+:root[data-theme="dark"] .menu-popover button {
+  border-color: transparent;
+  background-color: transparent;
+}
+
+:root[data-theme="dark"] .menu-popover button:hover:not(:disabled),
+:root[data-theme="dark"] .menu-popover button:focus-visible {
+  border-color: transparent;
+  background-color: var(--dark-hover);
+}
+
+
+:root[data-theme="dark"] .app-bar .menu button[aria-pressed="true"]::after {
+  color: #85b7ff;
+}
+
+:root[data-theme="dark"] .menu[open] > summary,
+:root[data-theme="dark"] .app-bar button[aria-expanded="true"] {
+  border-color: #85b7ff;
+  background-color: var(--dark-hover);
+}
+
+:root[data-theme="dark"] .file-drop-zone {
+  border-color: var(--dark-border);
+  background: var(--dark-subtle);
+}
+
+:root[data-theme="dark"] .file-drop-zone:hover,
+:root[data-theme="dark"] .file-drop-zone.is-dragging {
+  border-color: #85b7ff;
+  background: var(--dark-hover);
+}
+
+:root[data-theme="dark"] .tree-matching-table,
+:root[data-theme="dark"] .tree-matching-table th,
+:root[data-theme="dark"] .sequence-region-header,
+:root[data-theme="dark"] .sequence-regions thead th,
+:root[data-theme="dark"] .run-feedback,
+:root[data-theme="dark"] .step-marker,
+:root[data-theme="dark"] .run-steps li[data-state="cancelled"] .step-marker,
+:root[data-theme="dark"] .tree-root-metadata,
+:root[data-theme="dark"] .plot-status {
+  background-color: var(--dark-subtle);
+}
+
+
+:root[data-theme="dark"] .plot-status[data-tone="error"],
+:root[data-theme="dark"] .run-feedback p[data-tone="error"] {
+  border-color: #754b50;
+  background: #42292e;
+  color: #ffaaa3 !important;
+}
+
+:root[data-theme="dark"] .file-input-status li[data-state="error"] .file-input-state,
+:root[data-theme="dark"] .file-input-reason {
+  color: #ffaaa3 !important;
+}
+
+:root[data-theme="dark"] .file-input-state {
+  color: #8ad0a6 !important;
+}
+
+:root[data-theme="dark"] .primary-action,
+:root[data-theme="dark"] .tree-import-actions #apply-tree {
+  color: #fff !important;
+}
+
+
+:root[data-theme="dark"] .action-divider { background: var(--dark-border); }
 
 @media (max-width: 1120px) {
   .app-bar {

@@ -64,12 +64,45 @@ const plotStatus = document.querySelector("#plot-status");
 const plot = d3.select("#plot");
 const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
+const appearanceLabel = document.querySelector("#appearance-label");
+const themeModeButtons = [...document.querySelectorAll("[data-theme-mode]")];
+const themePreferenceKey = "clinker-interface-theme";
+const systemDarkMode = matchMedia("(prefers-color-scheme: dark)");
+function readThemePreference() {
+  try {
+    const saved = localStorage.getItem(themePreferenceKey);
+    return ["auto", "light", "dark"].includes(saved) ? saved : "auto";
+  } catch { return "auto"; }
+}
+function resolvedTheme(mode) {
+  return mode === "auto" ? (systemDarkMode.matches ? "dark" : "light") : mode;
+}
+function applyInterfaceTheme(mode) {
+  const resolved = resolvedTheme(mode);
+  document.documentElement.dataset.theme = resolved;
+  const label = mode === "auto" ? "System" : mode[0].toLocaleUpperCase() + mode.slice(1);
+  appearanceLabel.title = `Interface theme: ${label}`;
+  appearanceLabel.setAttribute("aria-label", `Interface theme: ${label}`);
+  for (const button of themeModeButtons) {
+    button.setAttribute("aria-pressed", String(button.dataset.themeMode === mode));
+  }
+}
+function bindChartTheme(target) {
+  const sync = () => {
+    const mode = target.config().plot.theme || "auto";
+    applyInterfaceTheme(mode);
+    try { localStorage.setItem(themePreferenceKey, mode); } catch {}
+  };
+  sync();
+  target.on("change", change => { if (change.type === "config.change") sync(); });
+}
+const initialTheme = readThemePreference();
 const WORKER_VERSION = "20261020-shared-preparation-v1";
 const WORKER_URL = new URL("./worker.js", import.meta.url);
 WORKER_URL.searchParams.set("v", WORKER_VERSION);
 const BASE_CHART_CONFIG = {
   link: { bestOnly: true },
-  plot: { renderer: "webgpu" },
+  plot: { renderer: "webgpu", theme: initialTheme },
   legend: { columns: 4, position: "bottom" },
 };
 function createChart(config = {}) {
@@ -80,6 +113,7 @@ function createChart(config = {}) {
 // is a new dataset, so give it a fresh instance rather than carrying state
 // between positional IDs such as `cluster-0` and `locus-0-0`.
 let chart = createChart();
+bindChartTheme(chart);
 plotEditor.chart = chart;
 let disposeSelectionToolbar = null;
 let latestSimilarity = null;
@@ -839,8 +873,16 @@ function replaceChart(config = chart.config()) {
   disposeSelectionToolbar?.();
   disposeSelectionToolbar = null;
   chart = createChart(config);
+  bindChartTheme(chart);
   previousChart.destroy();
 }
+
+for (const button of themeModeButtons) {
+  button.addEventListener("click", () => chart.config({ plot: { theme: button.dataset.themeMode } }));
+}
+systemDarkMode.addEventListener?.("change", () => {
+  if ((chart.config().plot.theme || "auto") === "auto") applyInterfaceTheme("auto");
+});
 
 function configureInitialMinimap({ keepEnabled = false } = {}) {
   const config = chart.config().plot;

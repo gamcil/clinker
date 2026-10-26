@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261018-clustering-v2">
+    <link rel="stylesheet" href="style.css?v=20261026-interface-theme-v1">
     <link rel="stylesheet" href="clustermap-editor.css?v=20261025-clustermap-a524445-v1">
     <script src="d3.min.js"></script>
     <script src="clustermap.min.js?v=20261025-clustermap-a524445-v1"></script>
@@ -40,9 +40,18 @@
           <span class="action-divider" aria-hidden="true"></span>
           <button id="edit-plot" type="button" disabled aria-controls="plot-editor" aria-expanded="false">Edit plot</button>
         </nav>
-        <span class="about-help">
+        <div class="about-help">
+          <details id="appearance-menu" class="menu menu-end">
+            <summary id="appearance-label" title="Interface theme: System">Theme</summary>
+            <div class="menu-popover" role="group" aria-label="Interface appearance">
+              <span class="menu-caption">Interface theme</span>
+              <button type="button" data-theme-mode="auto" aria-pressed="true">System</button>
+              <button type="button" data-theme-mode="light" aria-pressed="false">Light</button>
+              <button type="button" data-theme-mode="dark" aria-pressed="false">Dark</button>
+            </div>
+          </details>
           <button id="plot-help" class="about-button" type="button" aria-label="Plot help" aria-haspopup="dialog" aria-controls="help-dialog" title="Plot help">?</button>
-        </span>
+        </div>
       </header>
       <div class="plot-stage">
         <div id="plot"></div>
@@ -238,7 +247,7 @@
         <div class="help-heading-row">
           <div>
             <h2 id="help-title">Plot help</h2>
-            <p id="help-intro">Select, arrange and edit your figure directly in the plot.</p>
+            <p id="help-intro">Select, arrange and edit your figure directly in the plot. Choose System, Light or Dark from the Theme menu; System follows your device.</p>
           </div>
           <form method="dialog"><button class="help-close" aria-label="Close help" autofocus>×</button></form>
         </div>
@@ -360,6 +369,6 @@
           </div>
         </details>
     </template>
-    <script type="module" src="app.js?v=20261026-clustermap-refactor-v1"></script>
+    <script type="module" src="app.js?v=20261026-interface-theme-v1"></script>
   </body>
 </html>
