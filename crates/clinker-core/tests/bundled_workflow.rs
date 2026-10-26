@@ -7,11 +7,11 @@ fn bundled_genbank_files_complete_the_analysis_and_plot_data_workflow() {
     let files = [
         InputFile {
             name: "A. versicolor CBS 583.65.gbk",
-            bytes: include_bytes!("../../../../examples/A. versicolor CBS 583.65.gbk"),
+            bytes: include_bytes!("../../../examples/A. versicolor CBS 583.65.gbk"),
         },
         InputFile {
             name: "A. burnettii MST-FP2249.gbk",
-            bytes: include_bytes!("../../../../examples/A. burnettii MST-FP2249.gbk"),
+            bytes: include_bytes!("../../../examples/A. burnettii MST-FP2249.gbk"),
         },
     ];
 

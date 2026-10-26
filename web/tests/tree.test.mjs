@@ -11,7 +11,7 @@ const clusters = [
 ];
 
 test('the bundled illustrative tree is fully bifurcating', () => {
-  const tree = parseNewick(readFileSync(new URL('../../../examples/bundled-clusters.nwk', import.meta.url), 'utf8'));
+  const tree = parseNewick(readFileSync(new URL('../../examples/bundled-clusters.nwk', import.meta.url), 'utf8'));
   assert.equal(tree.nodes.filter(node => !node.children).length, 5);
   assert.ok(tree.nodes.filter(node => node.children).every(node => node.children.length === 2));
 });

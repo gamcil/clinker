@@ -24,7 +24,7 @@ Batches contain at most 1,600 pairs; Rayon and Web Workers handle dispatch on
 their respective platforms. Prefiltering changes candidate selection, and both
 modes reuse alignment buffers across batches. The CLI exposes the same settings with
 `--prefilter --kmer-size K --min-shared-kmers COUNT`.
-The browser imports `rust/web/alignment.mjs`, shared with the app, and uses its
+The browser imports `web/alignment.mjs`, shared with the app, and uses its
 production tiling, workers and result collection with an explicit worker limit.
 No implementation substitutes a new alignment algorithm.
 
@@ -45,9 +45,9 @@ binary hash and WASM hash are recorded. For publication, use committed source
 revisions and retain the recorded Python package versions.
 
 ```sh
-cargo build --manifest-path rust/Cargo.toml --locked --release -p clinker-core --example benchmark
-sh rust/web/build.sh
-cd rust/web && npx playwright install chromium && cd ../..
+cargo build --manifest-path Cargo.toml --locked --release -p clinker-core --example benchmark
+sh web/build.sh
+cd web && npx playwright install chromium && cd ..
 ```
 
 Node and the web build's WASM prerequisites are required. Run on macOS/Linux
@@ -173,6 +173,6 @@ cache; processing uses fresh analysis state/pools each time. Use the same machin
 and power settings, close unrelated jobs, keep all runs, and report variation
 across repetitions. The harness cannot eliminate all OS background activity.
 
-For implementation verification, run the smoke command, `npm --prefix rust/web
+For implementation verification, run the smoke command, `npm --prefix web
 test`, the normal browser workflows, and `cargo clippy --manifest-path
-rust/Cargo.toml --locked -p clinker-core --example benchmark -- -D warnings`.
+Cargo.toml --locked -p clinker-core --example benchmark -- -D warnings`.

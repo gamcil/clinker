@@ -9,7 +9,7 @@ use clinker_core::AnalysisSession;
 
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../examples")
+        .join("../../examples")
         .join(name)
 }
 

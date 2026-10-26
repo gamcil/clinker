@@ -16,7 +16,7 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-NATIVE = ROOT / "rust/target/release/examples/benchmark"
+NATIVE = ROOT / "target/release/examples/benchmark"
 FIELDS = ["dataset", "configuration", "iteration", "workers", "identity", "status",
           "kmer_size", "min_shared_kmers",
           "parse_ms", "prepare_ms", "prefilter_ms", "alignment_ms", "total_ms",
@@ -132,7 +132,7 @@ def main():
         parser.error("configurations must be unique")
     if args.smoke:
         args.repeats = 1
-    if not NATIVE.is_file() or not (ROOT / "rust/web/pkg/clinker_wasm_bg.wasm").is_file():
+    if not NATIVE.is_file() or not (ROOT / "web/pkg/clinker_wasm_bg.wasm").is_file():
         parser.error("build the native example and web WASM first; see bench/README.md")
     output = (args.output or ROOT / "benchmark-results" / time.strftime("%Y%m%d-%H%M%S")).resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -177,11 +177,11 @@ def main():
                     "python_packages": version([args.python, "-m", "pip", "freeze"]),
                     "rustc": version(["rustc", "-Vv"]),
                     "native_sha256": sha(NATIVE.read_bytes()),
-                    "wasm_sha256": sha((ROOT / "rust/web/pkg/clinker_wasm_bg.wasm").read_bytes()),
+                    "wasm_sha256": sha((ROOT / "web/pkg/clinker_wasm_bg.wasm").read_bytes()),
                     "adapter_sha256": {p: sha((ROOT / p).read_bytes()) for p in
                         ["bench/run.py", "bench/python_v1.py", "bench/browser.mjs", "bench/wasm.mjs",
-                         "bench/prepare_inputs.py", "rust/crates/clinker-core/examples/benchmark.rs",
-                         "rust/web/alignment.mjs", "rust/web/worker.js", "rust/Cargo.lock"]},
+                         "bench/prepare_inputs.py", "crates/clinker-core/examples/benchmark.rs",
+                         "web/alignment.mjs", "web/worker.js", "Cargo.lock"]},
                     "legacy_source_sha256": {p: sha((ROOT / p).read_bytes()) for p in
                         ["clinker/align.py", "clinker/classes.py", "clinker/formatters.py"]},
                     "cache_policy": "warm filesystem; fresh analysis and alignment pool each run",

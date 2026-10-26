@@ -6,10 +6,10 @@ archives for tags matching `rust-v*`.
 
 ## Before tagging
 
-- Set the workspace version in `Cargo.toml` and the `clinker-core` dependency
+- Set the workspace version in the root `Cargo.toml` and the `clinker-core` dependency
   version in `crates/clinker-cli/Cargo.toml`; refresh `Cargo.lock` if needed.
-- Review [FEATURES.md](FEATURES.md), [RELEASE_NOTES.md](RELEASE_NOTES.md), and installation
-  instructions in [CLI.md](CLI.md) and [web/DEPLOYMENT.md](web/DEPLOYMENT.md).
+- Review [features.md](features.md), [release-notes.md](release-notes.md), and installation
+  instructions in [cli.md](cli.md) and [web/DEPLOYMENT.md](../web/DEPLOYMENT.md).
 - Confirm the checks and hosted Pages build succeed for the intended commit.
 - Manually check the hosted app in current Safari. Automated upload, analysis,
   cancellation, editing, project reopening and export checks run in Chromium,
@@ -34,7 +34,7 @@ Python maintenance is isolated on `python-maintenance`, starting from the
 Python `v0.0.32` release. Its publishing workflow accepts only pushed
 `python-v*` tags from that branch's history, with a matching Python package
 version. It does not subscribe to GitHub release events. See
-[Python maintenance releases](../docs/python-maintenance.md). Keep the existing
+[Python maintenance releases](python-maintenance.md). Keep the existing
 `rust-v*` tag convention until the later Rust-first release cutover.
 
 Download the artifacts, verify their checksums, and check that the static web

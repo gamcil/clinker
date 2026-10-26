@@ -1,4 +1,4 @@
-import { chromium } from '../rust/web/node_modules/playwright/index.mjs';
+import { chromium } from '../web/node_modules/playwright/index.mjs';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
@@ -19,7 +19,7 @@ const server = createServer(async (req, res) => {
     if (/^\/input\/\d+$/.test(url.pathname)) path = inputs[Number(url.pathname.split('/').pop())];
     else {
       path = resolve(root, '.' + decodeURIComponent(url.pathname));
-      if (!path.startsWith(root + sep) || !['/bench/', '/rust/web/'].some(prefix => url.pathname.startsWith(prefix))) {
+      if (!path.startsWith(root + sep) || !['/bench/', '/web/'].some(prefix => url.pathname.startsWith(prefix))) {
         res.writeHead(403).end(); return;
       }
     }

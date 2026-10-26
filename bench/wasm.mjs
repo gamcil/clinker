@@ -1,8 +1,8 @@
-import { Workflow } from '/rust/web/workflow.mjs';
-import { analyseTilesInWorkerPool } from '/rust/web/alignment.mjs';
+import { Workflow } from '/web/workflow.mjs';
+import { analyseTilesInWorkerPool } from '/web/alignment.mjs';
 
-const workerUrl = '/rust/web/worker.js';
-const compiled = await WebAssembly.compileStreaming(fetch('/rust/web/pkg/clinker_wasm_bg.wasm'));
+const workerUrl = '/web/worker.js';
+const compiled = await WebAssembly.compileStreaming(fetch('/web/pkg/clinker_wasm_bg.wasm'));
 
 function request(worker, message, expected, transfer = []) {
   return new Promise((resolve, reject) => {

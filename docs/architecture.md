@@ -1,6 +1,6 @@
-# Rust workspace
+# Architecture and development
 
-This directory contains the Rust implementation of clinker. It is a
+The repository root contains the clinker Rust implementation. It is a
 [Cargo workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html):
 one repository containing several related Rust packages which share one lock
 file, build directory, and dependency resolution.
@@ -21,7 +21,7 @@ local builds and release builds use the same dependency graph.
 
 ## Commands
 
-Run all tests from this directory:
+Run all commands below from the repository root. To run all tests:
 
 ```bash
 cargo test --workspace
@@ -30,7 +30,7 @@ cargo test --workspace
 Run the CLI against an existing fixture:
 
 ```bash
-cargo run -p clinker-cli -- ../examples/'A. versicolor CBS 583.65.gbk'
+cargo run -p clinker-cli -- examples/'A. versicolor CBS 583.65.gbk'
 ```
 
 GFF3 inputs may contain an embedded `##FASTA` section or use a companion FASTA
@@ -45,7 +45,7 @@ cargo run -p clinker-cli -- annotations/
 By default, this writes the retained protein-link tables to standard output.
 Use `--output links.txt` to save that summary instead.
 
-Native protein comparisons run in parallel. As in the Python CLI, `--jobs 0`
+Native protein comparisons run in parallel. `--jobs 0`
 (the default) uses the available CPU threads; pass `--jobs 1` for serial
 alignment or another positive value to set the size of the local thread pool.
 
@@ -149,12 +149,12 @@ and `block-aligner` for SIMD-accelerated global protein alignment.
 ## Browser application
 
 `web/` contains the static upload UI and its Web Workers. Build instructions
-are in [web/README.md](web/README.md). The application runs parsing, alignment,
+are in [web/README.md](../web/README.md). The application runs parsing, alignment,
 grouping, ordering, and layout locally through `clinker-core` compiled to WASM.
 
 ## Features and releases
 
-[FEATURES.md](FEATURES.md) records implemented user workflows and the features
+[features.md](features.md) records implemented user workflows and the features
 still needed before the Rust application can replace the Python package. CI
 tests native builds on Linux, macOS, and Windows and assembles the WASM web
 application. The combined validation and Pages workflow runs on pushes and pull
@@ -163,4 +163,4 @@ GitHub Pages. Tags of the form `rust-vX.Y.Z` run the same checks and publish
 native CLI archives and the tested static web archive only after every check
 passes. The tag version must match the Cargo workspace version.
 
-Release instructions and remaining manual checks are in [RELEASING.md](RELEASING.md).
+Release instructions and remaining manual checks are in [releasing.md](releasing.md).

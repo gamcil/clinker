@@ -29,13 +29,13 @@ agent. The installed baseline when written is
 
 ## Current problems and relevant files
 
-- `rust/web/style.css`: broad dark-mode descendant rules, forced text colours,
+- `web/style.css`: broad dark-mode descendant rules, forced text colours,
   duplicate palettes, component-specific repairs and selection toolbar overrides.
-- `rust/web/index.html`: application markup and editor host; add explicit classes
+- `web/index.html`: application markup and editor host; add explicit classes
   where existing IDs or descendant selectors currently carry styling semantics.
-- `rust/web/app.js`: System/Light/Dark preference, editor open state and Tree
+- `web/app.js`: System/Light/Dark preference, editor open state and Tree
   appearance shortcut. The shortcut currently traverses nested shadow roots.
-- `rust/web/build.sh`, `rust/web/package.sh`, package manifests and lockfile:
+- `web/build.sh`, `web/package.sh`, package manifests and lockfile:
   integration points for a later upstream clustermap update and local assets.
 
 Inspect additional modules that create HTML dynamically. A static-markup-only

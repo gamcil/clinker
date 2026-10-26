@@ -5,13 +5,21 @@ on:
     branches: ["**"]
     tags: ["rust-v*"]
     paths:
-      - "rust/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "web/**"
+      - "docs/**"
       - "examples/**"
       - ".github/workflows/deploy-pages.yml"
       - "LICENSE"
   pull_request:
     paths:
-      - "rust/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "web/**"
+      - "docs/**"
       - "examples/**"
       - ".github/workflows/deploy-pages.yml"
       - "LICENSE"
@@ -42,7 +50,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     defaults:
       run:
-        working-directory: rust
+        working-directory: .
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -57,8 +65,6 @@ jobs:
           workspace_version=$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[0].version')
           test "$tag_version" = "$workspace_version"
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
       - name: Check formatting
         if: runner.os == 'Linux'
         run: cargo fmt --check
@@ -76,9 +82,9 @@ jobs:
         working-directory: .
         run: |
           mkdir -p release/clinker
-          cp rust/target/${{ matrix.target }}/release/clinker-rs release/clinker/
-          cp LICENSE rust/crates/clinker-cli/assets/LICENSE.* release/clinker/
-          cp rust/CLI.md release/clinker/README.md
+          cp target/${{ matrix.target }}/release/clinker-rs release/clinker/
+          cp LICENSE crates/clinker-cli/assets/LICENSE.* release/clinker/
+          cp docs/cli.md release/clinker/README.md
           tar -C release -czf release/${{ matrix.archive }} clinker
       - name: Package CLI (Windows)
         if: startsWith(github.ref, 'refs/tags/rust-v') && runner.os == 'Windows'
@@ -86,10 +92,10 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force release/clinker | Out-Null
-          Copy-Item rust/target/${{ matrix.target }}/release/clinker-rs.exe release/clinker/
+          Copy-Item target/${{ matrix.target }}/release/clinker-rs.exe release/clinker/
           Copy-Item LICENSE release/clinker/
-          Copy-Item rust/CLI.md release/clinker/README.md
-          Copy-Item rust/crates/clinker-cli/assets/LICENSE.* release/clinker/
+          Copy-Item docs/cli.md release/clinker/README.md
+          Copy-Item crates/clinker-cli/assets/LICENSE.* release/clinker/
           Compress-Archive -Path release/clinker -DestinationPath release/${{ matrix.archive }}
       - uses: actions/upload-artifact@v7
         if: startsWith(github.ref, 'refs/tags/rust-v')
@@ -102,20 +108,18 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: rust
+        working-directory: .
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: rust/web/package-lock.json
+          cache-dependency-path: web/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rust
       - name: Check JavaScript syntax
         run: |
           node --check web/app.js
@@ -146,8 +150,8 @@ jobs:
       - name: Package tested web release
         if: startsWith(github.ref, 'refs/tags/rust-v')
         run: |
-          mkdir -p ../release
-          tar -C "$RUNNER_TEMP" -czf ../release/clinker-web.tar.gz clinker-web
+          mkdir -p release
+          tar -C "$RUNNER_TEMP" -czf release/clinker-web.tar.gz clinker-web
       - uses: actions/upload-artifact@v7
         if: startsWith(github.ref, 'refs/tags/rust-v')
         with:
@@ -202,4 +206,4 @@ jobs:
         run: |
           cd release
           sha256sum -- ./*.tar.gz ./*.zip > SHA256SUMS
-          gh release create "$GITHUB_REF_NAME" ./* --notes-file ../rust/RELEASE_NOTES.md --generate-notes --verify-tag
+          gh release create "$GITHUB_REF_NAME" ./* --notes-file ../docs/release-notes.md --generate-notes --verify-tag

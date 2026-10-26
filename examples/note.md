@@ -23,8 +23,7 @@ They preserve the records, gene labels, and protein translations from these
 GenBank files. To test the Rust parser against all five converted inputs:
 
 ```
-cd rust
-cargo run -p clinker-cli -- ../examples/gff3 --no-align --plot gff3-examples.html
+cargo run -p clinker-cli -- examples/gff3 --no-align --plot gff3-examples.html
 ```
 
 In the web application, select one or more matching `.gff3` and `.fna` pairs

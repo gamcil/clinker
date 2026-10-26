@@ -1,6 +1,6 @@
-# Static web prototype
+# Web application
 
-This is a deliberately small static frontend. It accepts GenBank files and
+This is the static browser frontend. It accepts GenBank files and
 GFF3 annotations with a same-stem companion FASTA or embedded `##FASTA` section. The browser sends uploaded files
 to `worker.js` once for parsing. It then sends small protein-block tiles to a
 pool of `worker.js` instances; the workers perform up to 1,600 gene comparisons
@@ -108,8 +108,8 @@ gene-function and function-colour CSV files seed labelled, coloured groups;
 retained homology links extend those groups when alignment is enabled.
 
 Repository test examples are available in
-[`gene-functions.csv`](../../examples/gene-functions.csv) and
-[`function-colours.csv`](../../examples/function-colours.csv) files. They seed
+[`gene-functions.csv`](../examples/gene-functions.csv) and
+[`function-colours.csv`](../examples/function-colours.csv) files. They seed
 three illustrative groups using protein IDs in the bundled *A. versicolor*
 cluster and work with either its GenBank or GFF3 input, including **Try example**.
 These are demonstration labels, not biological function annotations. CSV files
@@ -179,7 +179,7 @@ analyses that perform similarity ordering; keeping input order or skipping
 alignment does not generate a dendrogram. Older projects without a saved
 hierarchy continue to open normally.
 
-The [bundled example tree](../../examples/bundled-clusters.nwk) matches **Try
+The [bundled example tree](../examples/bundled-clusters.nwk) matches **Try
 example** and is fully bifurcating. Its topology, branch lengths and support values are illustrative,
 not an inferred phylogeny.
 
@@ -247,7 +247,7 @@ target is installed.
 ```bash
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack
-cd rust/web
+cd web
 sh build.sh
 python3 -m http.server
 ```

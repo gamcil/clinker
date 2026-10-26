@@ -1,184 +1,65 @@
 # clinker
 
->Both cblaster and clinker can now be used without installation on the [CAGECAT webserver](http://cagecat.bioinformatics.nl/).
+Generate interactive gene cluster comparison figures from GenBank or GFF3/FASTA
+files, inspect homology links, and export figures as SVG.
 
-Gene cluster comparison figure generator
+<img src="images/figure.png" alt="bua cluster and homologues" width="700">
 
-This branch also contains the Rust implementation and browser application.
-See the [Rust documentation](rust/README.md) and
-[release preparation notes](rust/RELEASING.md). The installation and usage
-instructions below describe the original Python package.
+## Applications
 
-Future Python fixes and PyPI releases belong on `python-maintenance`, based on
-`v0.0.32`. See [Python maintenance releases](docs/python-maintenance.md) for the
-separate `python-v*` tag workflow.
+- **Web app:** load files, compare clusters, add trees and annotations, and edit
+  figures locally in your browser. Input file contents are not uploaded.
+- **Native CLI:** run the same Rust analysis core from the command line and
+  generate plot data or a portable HTML figure. See [CLI usage](docs/cli.md).
 
-## What is it?
-clinker is a pipeline for easily generating publication-quality gene cluster
-comparison figures.
+This branch contains the Rust implementation. The original Python package and
+its PyPI releases are maintained on
+[`python-maintenance`](https://github.com/gamcil/clinker/tree/python-maintenance).
+See [Python maintenance releases](docs/python-maintenance.md) for that process.
 
-<img src="images/figure.png" alt="bua cluster and homologues" width=700>
+## Build from source
 
-Given a set of GenBank files, clinker will automatically extract protein translations,
-perform global alignments between sequences in each cluster, determine the
-optimal display order based on cluster similarity, and generate an interactive
-visualisation (using [clustermap.js](https://github.com/gamcil/clustermap.js))
-that can be extensively tweaked before being exported as an SVG file.
+Run from the repository root:
 
-### A note on scope:
-clinker was designed primarily as a simple way to visualise groups of homologous
-biosynthetic gene clusters, which are typically small genomic regions with not many genes
-(as in the example GIF). It performs pairwise alignments of all genes in all input files using
-the [aligner built into BioPython](https://biopython.org/docs/1.76/api/Bio.Align.html#Bio.Align.PairwiseAligner),
-then generates an interactive SVG document in the browser.
-The alignment stage will scale very poorly to multiple genomes with many genes, and the resulting
-visualisation will also be very slow given how many SVG elements it will contain.
-If you are looking to align entire genomes, you will likely be better served using 
-tools built for that purpose (e.g. [Cactus](https://github.com/ComparativeGenomicsToolkit/cactus)).
-
-![clinker visualisation demo](images/demo.gif)
-
-## Installation
-clinker can be installed directly through pip:
-
-`pip install clinker`
-
-By cloning the source code from GitHub:
-
-```
-git clone https://github.com/gamcil/clinker.git
-cd clinker
-pip install .
+```sh
+cargo build --locked --release -p clinker-cli
+./target/release/clinker-rs examples/*.gbk --plot figure.html
 ```
 
-Or, through conda:
+The executable is currently named `clinker-rs`. Cargo builds use the committed
+viewer assets and do not require Node.js, npm, or a web build.
 
+For the browser application, install Node.js/npm, Rust with the
+`wasm32-unknown-unknown` target, and `wasm-pack`, then run:
+
+```sh
+sh web/build.sh
+sh web/package.sh /tmp/clinker-web
 ```
-conda create -n clinker -c conda-forge -c bioconda clinker-py
-conda activate clinker
+
+Serve the packaged directory over HTTP. See [web development](web/README.md)
+and [deployment](web/DEPLOYMENT.md) for details.
+
+## Repository layout
+
+```text
+Cargo.toml, Cargo.lock   shared Rust workspace
+crates/clinker-core/    parsing, alignment, grouping and plot data
+crates/clinker-cli/     native command line and bundled viewer assets
+crates/clinker-wasm/    browser bindings to the shared core
+web/                   browser app, workers and frontend checks
+examples/              example inputs
+bench/                 comparative analysis benchmarks
+docs/                  architecture, CLI and release documentation
 ```
+
+See [architecture and development](docs/architecture.md),
+[feature status](docs/features.md), and [release procedure](docs/releasing.md).
+The shared local viewer and Cargo release packaging are subsequent migration
+steps; the current CLI still generates its existing portable HTML viewer.
 
 ## Citation
-If you found clinker useful, please cite:
-```
-clinker & clustermap.js: Automatic generation of gene cluster comparison figures.
-Gilchrist, C.L.M., Chooi, Y.-H., 2020.
-Bioinformatics. doi: https://doi.org/10.1093/bioinformatics/btab007
-```
 
-## Usage
-Running clinker can be as simple as:
-
-`clinker clusters/*.gbk`
-
-This will read in all GenBank files inside the folder, align them, and print
-the alignments to the terminal. To generate the visualisation, use the `-p/--plot`
-argument: 
-
-`clinker clusters/*.gbk -p <optional: file name to save static HTML>`
-
-clinker can also parse GFF3 files:
-
-`clinker cluster1.gff3 cluster2.gff3 -p`
-
-Note: a corresponding FASTA file of the same name (extensions ".fa", ".fsa", ".fna", ".fasta" or ".faa") must
-be found in the same directory as the GFF3, i.e. `cluster1.fa` and `cluster2.fa`.
-
-See `-h/--help` for more information:
-
-```
-usage: clinker [-h] [--version] [-r RANGES [RANGES ...]] [-gf GENE_FUNCTIONS] [-na] [-i IDENTITY] [-j JOBS] [-s SESSION] [-ji JSON_INDENT] [-f] [-o OUTPUT] [-p [PLOT]] [-dl DELIMITER] [-dc DECIMALS] [-hl] [-ha] [-mo MATRIX_OUT] [-ufo] [files ...]
-
-clinker: Automatic creation of publication-ready gene cluster comparison figures.
-
-clinker generates gene cluster comparison figures from GenBank files. It performs pairwise local or global alignments between every sequence in every unique pair of clusters and generates interactive, to-scale comparison figures using the clustermap.js library.
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --version             show program's version number and exit
-
-Input options:
-  files                 Gene cluster GenBank files
-  -r RANGES [RANGES ...], --ranges RANGES [RANGES ...]
-                        Scaffold extraction ranges. If a range is specified, only features within the range will be extracted from the scaffold. Ranges should be formatted like: scaffold:start-end (e.g. scaffold_1:15000-40000)
-  -gf GENE_FUNCTIONS, --gene_functions GENE_FUNCTIONS
-                        2-column CSV file containing gene functions, used to build gene groups from same function instead of sequence similarity (e.g. GENE_001,PKS-NRPS).
-
-Alignment options:
-  -na, --no_align       Do not align clusters
-  -i IDENTITY, --identity IDENTITY
-                        Minimum alignment sequence identity [default: 0.3]
-  -j JOBS, --jobs JOBS  Number of alignments to run in parallel (0 to use the number of CPUs) [default: 0]
-
-Output options:
-  -s SESSION, --session SESSION
-                        Path to clinker session
-  -ji JSON_INDENT, --json_indent JSON_INDENT
-                        Number of spaces to indent JSON [default: none]
-  -f, --force           Overwrite previous output file
-  -o OUTPUT, --output OUTPUT
-                        Save alignments to file
-  -p [PLOT], --plot [PLOT]
-                        Plot cluster alignments using clustermap.js. If a path is given, clinker will generate a portable HTML file at that path. Otherwise, the plot will be served dynamically using Python's HTTP server.
-  -dl DELIMITER, --delimiter DELIMITER
-                        Character to delimit output by [default: human readable]
-  -dc DECIMALS, --decimals DECIMALS
-                        Number of decimal places in output [default: 2]
-  -hl, --hide_link_headers
-                        Hide alignment column headers
-  -ha, --hide_aln_headers
-                        Hide alignment cluster name headers
-  -mo MATRIX_OUT, --matrix_out MATRIX_OUT
-                        Save cluster similarity matrix to file
-
-Visualisation options:
-  -ufo, --use_file_order
-                        Display clusters in order of input files
-
-Example usage
--------------
-Align clusters, plot results and print scores to screen:
-  $ clinker files/*.gbk
-
-Only save gene-gene links when identity is over 50%:
-  $ clinker files/*.gbk -i 0.5
-
-Save an alignment session for later:
-  $ clinker files/*.gbk -s session.json
-
-Save alignments to file, in comma-delimited format, with 4 decimal places:
-  $ clinker files/*.gbk -o alignments.csv -dl "," -dc 4
-
-Generate visualisation:
-  $ clinker files/*.gbk -p
-
-Save visualisation as a static HTML document:
-  $ clinker files/*.gbk -p plot.html
-
-Cameron Gilchrist, 2020
-```
-
-## Defining gene groups by function
-
-By default, clinker automatically assigns a name and colour for each group of homologous genes.
-You can instead pre-assign names (i.e. functions) using the `-gf/--gene_functions` argument, which
-takes a 2-column comma-separated file like:
-
-```
-GENE_001,Cytochrome P450 
-GENE_002,Cytochrome P450 
-GENE_003,Methyltransferase
-GENE_004,Methyltransferase
-```
-
-This will generate two groups, Cytochrome P450 (GENE_001 and 002), and Methyltransferase (GENE_003, GENE_004).
-If there any other homologous genes are identified, they will automatically be added to these groups.
-
-As of clinker v0.0.28, you can now specify colours for genes defined by the
-`-gf/--gene_functions` argument. To do this, use the `-cm/--colour_map` argument which
-also takes a 2-column CSV file containing the group name and hexadecimal colour code like:
-
-```
-Cytochrome P450,#FF0000
-Methyltransferase,#0000FF
-```
+Gilchrist, C.L.M. and Chooi, Y.-H. (2021). *clinker & clustermap.js: Automatic
+generation of gene cluster comparison figures.* Bioinformatics.
+[doi:10.1093/bioinformatics/btab007](https://doi.org/10.1093/bioinformatics/btab007).
