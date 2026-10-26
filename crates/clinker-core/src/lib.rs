@@ -13,6 +13,7 @@ mod parse_genbank;
 mod parse_gff;
 mod plot_data;
 mod prefilter;
+mod project;
 mod protein;
 mod session;
 mod synteny;
@@ -38,6 +39,7 @@ pub use parse_genbank::{
 };
 pub use parse_gff::{GffError, parse_gff3};
 pub use plot_data::{GeneGroupDefinition, PlotCluster, PlotData, PlotGroup, build_plot_groups};
+pub use project::{ClinkerProject, PROJECT_FORMAT, PROJECT_VERSION, ProjectError};
 pub use session::{
     ANALYSIS_SESSION_FORMAT, ANALYSIS_SESSION_VERSION, AnalysisSession, SessionError,
 };

@@ -34,7 +34,7 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 | Similarity/distance matrix export | Yes | CSV | CSV | Matrix tests and CLI smoke test |
 | clustermap.js plot-data output | Yes | JSON | In project | Plot-data tests |
 | Portable interactive figure | Yes | HTML | Static application | CLI and browser smoke tests |
-| Save and reopen complete analysis state | Yes | Session | Project | Core round-trip, CLI append workflow, and browser smoke test |
+| Save and reopen complete analysis state | Yes | Session; project export | Project | Core session round-trip, CLI append workflow, and browser smoke test; new CLI project export needs regression coverage |
 | Add new files to a saved session | Yes | Yes | Future enhancement | Core and CLI workflow tests |
 | SVG export and interactive plot editing | Plot contract | Not applicable | Yes | Browser integration coverage |
 | Import a Newick tree or display the Ward clustering dendrogram, preserving interactive tree edits | Not applicable | Not exposed | Yes | Parser/matching fixtures and browser project/export tests |

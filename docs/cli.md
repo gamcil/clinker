@@ -14,13 +14,16 @@ to support it. Intel macOS and Linux ARM binaries are not currently provided.
 ./clinker-rs cluster.gff3 --plot figure.html
 ./clinker-rs input-a.gbk input-b.gbk --session analysis.json
 ./clinker-rs --session analysis.json --plot figure.html
+./clinker-rs input-a.gbk input-b.gbk --project comparison.json
 ```
 
 GFF3 files need embedded FASTA or a same-stem companion FASTA in the same
 directory. `--plot` requires an output filename; HTML figures bundle their
 rendering assets and can be opened directly in a browser.
 
-CLI analysis sessions and browser projects are different formats. Use a browser
-project to retain interactive edits in the hosted application.
+`--project comparison.json` writes a complete version 2 project that opens in the
+browser app through **File → Open project**. It retains the analysis data needed
+for future exports. `--session` remains the native analysis continuation format;
+it does not store interactive figure edits. See [project formats](project-format.md).
 
 The archive includes the clinker, clustermap.js and D3 licence notices.

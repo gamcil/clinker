@@ -7,8 +7,8 @@ use std::{
 
 use clap::Parser;
 use clinker_core::{
-    Analysis, AnalysisOptions, AnalysisSession, GeneGroupDefinition, InputFile, KmerPrefilter,
-    ParseOptions, SequenceRange, analyse_genbank_with_options_and_jobs,
+    Analysis, AnalysisOptions, AnalysisSession, ClinkerProject, GeneGroupDefinition, InputFile,
+    KmerPrefilter, ParseOptions, SequenceRange, analyse_genbank_with_options_and_jobs,
     parse_input_files_with_options,
 };
 
@@ -70,6 +70,10 @@ struct Args {
     /// Write portable HTML (.html) or clustermap.js data (.json).
     #[arg(short, long, value_name = "PATH")]
     plot: Option<PathBuf>,
+
+    /// Write a complete editable project for the web or local viewer.
+    #[arg(long, value_name = "PATH")]
+    project: Option<PathBuf>,
 
     /// Write the retained-link summary to a file instead of standard output.
     #[arg(short, long, value_name = "PATH")]
@@ -227,7 +231,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{summary}");
     }
 
-    if let Some(path) = args.plot.as_ref() {
+    if args.plot.is_some() || args.project.is_some() {
         let order = if args.use_file_order || args.no_align {
             (0..analysis.clusters.len()).collect()
         } else {
@@ -235,24 +239,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let data =
             analysis.to_auto_arranged_plot_data_with_group_definitions(&order, group_definitions);
-        let json = serde_json::to_string_pretty(&data)?;
-        let output = match path
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .map(str::to_ascii_lowercase)
-            .as_deref()
-        {
-            Some("json") => json,
-            Some("html") | Some("htm") => portable_html(&json),
-            _ => {
-                return Err(io::Error::new(
-                    ErrorKind::InvalidInput,
-                    "--plot output must end in .json, .html, or .htm",
-                )
-                .into());
-            }
-        };
-        write_output(path, output.as_bytes(), args.force)?;
+        if let Some(path) = args.plot.as_ref() {
+            let json = serde_json::to_string_pretty(&data)?;
+            let output = match path
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .map(str::to_ascii_lowercase)
+                .as_deref()
+            {
+                Some("json") => json,
+                Some("html") | Some("htm") => portable_html(&json),
+                _ => {
+                    return Err(io::Error::new(
+                        ErrorKind::InvalidInput,
+                        "--plot output must end in .json, .html, or .htm",
+                    )
+                    .into());
+                }
+            };
+            write_output(path, output.as_bytes(), args.force)?;
+        }
+        if let Some(path) = args.project.as_ref() {
+            let project = ClinkerProject::new(session.clone(), &data)?;
+            write_output(path, &project.to_json()?, args.force)?;
+        }
     }
 
     if let Some(path) = args.matrix_out.as_ref() {
