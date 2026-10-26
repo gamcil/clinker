@@ -744,6 +744,8 @@ function openRunPanel() {
 }
 
 newRunButton.addEventListener("click", () => {
+  setSelectedInputFiles([], { replace: true });
+  handleFileSelection();
   openRunPanel();
   filesInput.focus();
 });
