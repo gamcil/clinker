@@ -24,7 +24,7 @@ test('task menus support adding data, saving, editing and keyboard navigation at
   t.after(() => browser.close());
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   const errors = [];
-  page.on('pageerror', error => errors.push(error.message));
+  page.on('pageerror', error => { errors.push(error.message); t.diagnostic(error.stack || error.message); });
   await page.goto(`http://127.0.0.1:${server.address().port}/`);
   await page.waitForFunction(() => Boolean(document.querySelector('#run-tree-file')));
   const openMenu = id => page.locator(`${id} > summary`).click();
@@ -74,10 +74,23 @@ test('task menus support adding data, saving, editing and keyboard navigation at
   const appearance = page.locator('#plot-editor clinker-appearance-panel');
   const treeField = appearance.locator('[data-config="tree.show"]');
   assert.equal(await page.locator('#plot-editor').getByRole('tab', { name: 'Appearance', exact: true }).getAttribute('aria-selected'), 'true');
-  const waitForTreeFocus = () => page.waitForFunction(() => {
-    const panel = document.querySelector('#plot-editor').shadowRoot.querySelector('clinker-appearance-panel');
-    return panel.shadowRoot.activeElement?.dataset.config === 'tree.show';
-  });
+  const waitForTreeFocus = async () => {
+    try {
+      await page.waitForFunction(() => {
+        const panel = document.querySelector('#plot-editor').shadowRoot.querySelector('clinker-appearance-panel');
+        return panel.shadowRoot.activeElement?.dataset.config === 'tree.show';
+      });
+    } catch (error) {
+      t.diagnostic(JSON.stringify(await page.evaluate(() => {
+        const focus = [];
+        for (let node = document.activeElement; node; node = node.shadowRoot?.activeElement) {
+          focus.push({ tag: node.tagName, id: node.id, config: node.dataset.config });
+        }
+        return { focus, hasFocus: document.hasFocus() };
+      })));
+      throw error;
+    }
+  };
   await waitForTreeFocus();
   await capture('tree-settings');
   const filter = appearance.getByRole('searchbox', { name: 'Find an appearance setting', exact: true });
@@ -124,33 +137,45 @@ test('task menus support adding data, saving, editing and keyboard navigation at
   await capture('desktop-file-dark');
   await page.keyboard.press('Escape');
 
-  for (const width of [900, 375, 320]) {
-    await page.setViewportSize({ width, height: 850 });
-    const boxes = await page.locator('.app-bar > h1, #new-run, #file-menu > summary, .app-actions > .menu > summary, #edit-plot, #appearance-label, #plot-help')
-      .evaluateAll(items => items.map(item => {
-        const { x, y, width, height } = item.getBoundingClientRect();
-        return { name: item.textContent, x, y, width, height };
-      }));
-    for (const box of boxes) {
-      assert.ok(box.x >= 0 && box.x + box.width <= width, `${box.name} fits at ${width}px`);
-      for (const other of boxes.filter(other => other !== box)) {
-        const overlap = Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x) > 1
-          && Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y) > 1;
-        assert.equal(overlap, false, `${box.name} and ${other.name} do not overlap at ${width}px`);
+  for (const fontFamily of ['', 'monospace']) {
+    await page.locator('.app-bar').evaluate((bar, font) => { bar.style.fontFamily = font; }, fontFamily);
+    for (const width of [900, 375, 320]) {
+      await page.setViewportSize({ width, height: 850 });
+      const boxes = await page.locator('.app-bar > h1, #new-run, #file-menu > summary, .app-actions > .menu > summary, #edit-plot, #appearance-label, #plot-help')
+        .evaluateAll(items => items.map(item => {
+          const { x, y, width, height } = item.getBoundingClientRect();
+          return { name: item.textContent, x, y, width, height };
+        }));
+      for (const box of boxes) {
+        assert.ok(box.x >= 0 && box.x + box.width <= width, `${box.name} fits at ${width}px (${fontFamily || 'system'}): ${JSON.stringify(box)}`);
+        for (const other of boxes.filter(other => other !== box)) {
+          const overlap = Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x) > 1
+            && Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y) > 1;
+          assert.equal(overlap, false, `${box.name} and ${other.name} do not overlap at ${width}px`);
+        }
       }
+      if (width <= 375) {
+        const projectControls = await page.locator('.app-bar > h1, #new-run, #file-menu > summary, #appearance-label, #plot-help').evaluateAll(items => items.map(item => {
+          const { y, height } = item.getBoundingClientRect();
+          return y + height / 2;
+        }));
+        assert.ok(Math.max(...projectControls) - Math.min(...projectControls) < 2, `project controls fit on the first row at ${width}px (${fontFamily || 'system'})`);
+        const actions = await page.locator('#add-data-menu > summary, #edit-plot').evaluateAll(items => items.map(item => {
+          const { y, height } = item.getBoundingClientRect();
+          return y + height / 2;
+        }));
+        assert.ok(Math.abs(actions[0] - actions[1]) < 2, `plot actions align on one row at ${width}px (${fontFamily || 'system'}): ${actions}`);
+      }
+      for (const id of ['#file-menu', '#add-data-menu', '#plot-order', '#appearance-menu']) {
+        await openMenu(id);
+        const box = await page.locator(`${id} .menu-popover`).boundingBox();
+        assert.ok(box.x >= 0 && box.x + box.width <= width, `${id} stays inside ${width}px viewport`);
+        await page.keyboard.press('Escape');
+      }
+      await capture(`narrow-dark-${fontFamily || 'system'}-${width}`);
     }
-    if (width <= 375) {
-      const actions = await page.locator('#add-data-menu > summary, #edit-plot').evaluateAll(items => items.map(item => item.getBoundingClientRect().y));
-      assert.ok(Math.abs(actions[0] - actions[1]) < 2, 'plot actions fit on one row below the project controls');
-    }
-    for (const id of ['#file-menu', '#add-data-menu', '#plot-order', '#appearance-menu']) {
-      await openMenu(id);
-      const box = await page.locator(`${id} .menu-popover`).boundingBox();
-      assert.ok(box.x >= 0 && box.x + box.width <= width, `${id} stays inside ${width}px viewport`);
-      await page.keyboard.press('Escape');
-    }
-    await capture(`narrow-dark-${width}`);
   }
+  await page.locator('.app-bar').evaluate(bar => { bar.style.fontFamily = ''; });
   await page.setViewportSize({ width: 1400, height: 900 });
   await openMenu('#appearance-menu');
   await page.locator('[data-theme-mode="auto"]').click();

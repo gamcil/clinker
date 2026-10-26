@@ -1427,6 +1427,43 @@ html,
 }
 
 @media (max-width: 480px) {
+:where(.clinker-app) .app-bar {
+    display: flex;
+    flex-wrap: wrap;
+  }
+:where(.clinker-app) .app-bar .app-logo {
+    font-size: 1.2rem;
+  }
+:where(.clinker-app) .app-bar .about-button {
+    width: 24px;
+    min-width: 24px;
+  }
+/* Size the two toolbar rows independently: wide labels in the first row
+   must not push the editor action beyond the second row's viewport. */
+:where(.clinker-app) .app-bar::before {
+    content: "";
+    flex: 0 0 100%;
+    order: 1;
+  }
+:where(.clinker-app) .app-bar:has(#plot-actions[hidden])::before {
+    display: none;
+  }
+:where(.clinker-app) .app-bar .app-button,
+:where(.clinker-app) .app-bar .menu > summary {
+    padding-inline: 5px;
+  }
+:where(.clinker-app) .app-actions {
+    order: 2;
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    gap: 4px;
+  }
+:where(.clinker-app) .app-bar .edit-figure-action {
+    order: 3;
+    flex: none;
+    margin-left: auto;
+  }
 :where(.clinker-app) .run-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
