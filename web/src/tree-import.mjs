@@ -1,5 +1,5 @@
 import { mountTreeInput } from './tree-input.mjs';
-import { matchTreeLeaves, resolveTree, validateTree, identifyInputClusters } from './tree.mjs';
+import { matchTreeLeaves, resolveTree, validateTree, identifyInputClusters } from './viewer/tree.mjs';
 
 function frameTree(chart) {
   const bounds = chart.figureBounds();

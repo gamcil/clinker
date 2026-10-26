@@ -56,6 +56,37 @@ complete measured footprint of headings, legends and data marks, including
 left/right overhang. The upstream fix also aligns hover regions and figure
 bounds with those footprints and refreshes measurements when fonts load.
 
+## Shared viewer
+
+`src/viewer/viewer.mjs` owns chart creation/replacement, editor binding, selection
+controls, initial minimap behavior, interface appearance and figure export. The
+host supplies plot, stage and editor elements; the viewer does not query global
+application markup or start analysis workers.
+
+```js
+const viewer = createViewer({ plot, stage, editor, appearance: 'auto' });
+viewer.loadProject(savedProject);
+viewer.openEditor();
+const saved = viewer.project(treeState);
+const svg = viewer.exportSvg();
+```
+
+Hosts load the built D3 and clustermap scripts before their entry module.
+`mount(data, { analysis, config, state })` starts a fresh figure from an analysis
+result. `loadProject(saved)` restores its edited data and state directly.
+`setAppearance(mode)` controls interface appearance independently of figure
+configuration. `destroy()` releases the chart, selection toolbar and viewer
+event listener; hosts remain responsible for their own controls and listeners.
+
+`src/viewer/project.mjs` owns project validation, creation and serialization.
+`src/viewer/tree.mjs` contains the shared tree data helpers. See the
+[version 2 project contract](../docs/project-format.md).
+
+`src/app.js` owns uploads, worker analysis, run status, application menus and
+storage preferences. Tree/annotation import dialogs remain host workflows and
+use the viewer's chart. The native local entry will reuse the viewer without
+importing the browser analysis entry or running WASM analysis.
+
 ## Analysis workflow
 
 During a tile, WASM reports progress every 100 processed pairs. The page sums

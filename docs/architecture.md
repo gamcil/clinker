@@ -113,9 +113,9 @@ CLI and web application. When the web app exports a versioned
 `clinker-project`, it embeds this analysis state alongside the plot data,
 renderer appearance, and editing state. The web app therefore needs only one
 project file to preserve everything available for a run. The web Open action
-accepts this complete project format only; the standalone session schema is an
-internal CLI/core persistence format and the analysis payload embedded in a
-web project.
+accepts this complete project format only. The CLI writes the same format
+with `--project comparison.json`; `--session` remains the native analysis
+continuation format. See [project formats](project-format.md).
 
 Plot data contains `clusters`, `links`, and connected-component `groups`.
 Gene, locus, and cluster IDs are stable within a run; translations are retained
@@ -152,6 +152,11 @@ and `block-aligner` for SIMD-accelerated global protein alignment.
 `web/dist/` is the generated static application, including vendor modules and WASM. Build instructions
 are in [web/README.md](../web/README.md). The application runs parsing, alignment,
 grouping, ordering, and layout locally through `clinker-core` compiled to WASM.
+
+`web/src/viewer/` holds the shared figure lifecycle and project/tree data helpers.
+The browser entry supplies analysis results and application controls; the viewer
+does not start workers or import the analysis entry. The native local viewer
+will use this same component with native results.
 
 ## Features and releases
 

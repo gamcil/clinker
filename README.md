@@ -24,6 +24,7 @@ Run from the repository root:
 ```sh
 cargo build --locked --release -p clinker-cli
 ./target/release/clinker-rs examples/*.gbk --plot figure.html
+./target/release/clinker-rs examples/*.gbk --project comparison.json
 ```
 
 The executable is currently named `clinker-rs`. Cargo builds use the committed
@@ -48,6 +49,7 @@ crates/clinker-core/    parsing, alignment, grouping and plot data
 crates/clinker-cli/     native command line and bundled viewer assets
 crates/clinker-wasm/    browser bindings to the shared core
 web/src/               browser app and workers
+web/src/viewer/        shared figure viewer and project helpers
 web/scripts/           build, package and asset synchronization
 web/dist/              generated static application (ignored)
 web/tests/             frontend checks
@@ -57,7 +59,8 @@ docs/                  architecture, CLI and release documentation
 ```
 
 See [architecture and development](docs/architecture.md),
-[feature status](docs/features.md), and [release procedure](docs/releasing.md).
+[project formats](docs/project-format.md), [feature status](docs/features.md),
+and [release procedure](docs/releasing.md).
 The shared local viewer and Cargo release packaging are subsequent migration
 steps; the current CLI still generates its existing portable HTML viewer.
 

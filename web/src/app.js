@@ -1,13 +1,11 @@
 import { analyseTilesInWorkerPool } from "./alignment.mjs";
-import { similarityCsv, parseProject, downloadText } from "./project.mjs";
+import { similarityCsv, parseProject, serializeProject, downloadText } from "./viewer/project.mjs";
 import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs";
 import { Workflow } from "./workflow.mjs";
 import { mountTreeImport } from "./tree-import.mjs";
 import { mountAnnotationImport } from "./annotation-import.mjs";
-import { inputTreeClusters, bindInputTree, clusteringTree } from "./tree.mjs";
-import {
-  mountPlotSelectionToolbar,
-} from "./vendor/clustermap/editor.mjs";
+import { inputTreeClusters, bindInputTree, clusteringTree } from "./viewer/tree.mjs";
+import { createViewer } from "./viewer/viewer.mjs";
 
 const filesInput = document.querySelector("#files");
 const fileDropZone = document.querySelector("#file-drop-zone");
@@ -61,7 +59,7 @@ const runSteps = new Map([...document.querySelectorAll("[data-run-step]")].map(s
 ]));
 const runStatus = document.querySelector("#run-status");
 const plotStatus = document.querySelector("#plot-status");
-const plot = d3.select("#plot");
+const plotElement = document.querySelector("#plot");
 const plotStage = document.querySelector(".plot-stage");
 const toolbarMenus = [...document.querySelectorAll(".menu")];
 const appearanceLabel = document.querySelector("#appearance-label");
@@ -87,30 +85,11 @@ function applyInterfaceTheme(mode) {
     button.setAttribute("aria-pressed", String(button.dataset.themeMode === mode));
   }
 }
-function bindChartTheme(target) {
-  target.uiAppearance(themePreference);
-  applyInterfaceTheme(themePreference);
-}
 let themePreference = readThemePreference();
 const WORKER_URL = new URL("./worker.js", import.meta.url);
-const BASE_CHART_CONFIG = {
-  link: { bestOnly: true },
-  plot: { renderer: "webgpu" },
-  legend: { columns: 4, position: "bottom" },
-};
-function createChart(config = {}) {
-  return ClusterMap.ClusterMap().config(BASE_CHART_CONFIG).config(config);
-}
-
-// A chart keeps its camera and editable locus state. Each completed analysis
-// is a new dataset, so give it a fresh instance rather than carrying state
-// between positional IDs such as `cluster-0` and `locus-0-0`.
-let chart = createChart();
-bindChartTheme(chart);
-plotEditor.chart = chart;
-let disposeSelectionToolbar = null;
+const viewer = createViewer({ plot: plotElement, stage: plotStage, editor: plotEditor, appearance: themePreference });
+applyInterfaceTheme(themePreference);
 let latestSimilarity = null;
-let latestAnalysisSession = null;
 let analysisInProgress = false;
 let activeWorkflow = null;
 let inputInspection = null;
@@ -146,15 +125,15 @@ function setAnalysisInputsDisabled(disabled) {
   loadClinkerFileButton.disabled = disabled;
   openProjectStartButton.disabled = disabled;
   newRunButton.disabled = disabled;
-  treeButton.disabled = disabled || !chart.data();
-  annotationImportButton.disabled = disabled || !chart.data();
+  treeButton.disabled = disabled || !viewer.chart.data();
+  annotationImportButton.disabled = disabled || !viewer.chart.data();
   plotActions.inert = disabled;
   if (disabled) addDataMenu.open = false;
-  plotOrder.inert = disabled || !chart.data();
+  plotOrder.inert = disabled || !viewer.chart.data();
   if (disabled) plotOrder.open = false;
   document.querySelector("#run-tree-fields").disabled = disabled;
   cancelRunButton.disabled = false;
-  cancelRunButton.hidden = !disabled && !chart.data();
+  cancelRunButton.hidden = !disabled && !viewer.chart.data();
   cancelRunButton.textContent = disabled ? "Cancel" : "Back to plot";
   syncPrefilterControls();
 }
@@ -204,10 +183,10 @@ async function runWorkflow(task, failureMessage) {
     analysisInProgress = false;
     document.querySelector(".run-card").classList.remove("is-busy");
     setAnalysisInputsDisabled(false);
-    const hasPlot = Boolean(chart.data());
+    const hasPlot = Boolean(viewer.chart.data());
     matrixButton.disabled = !hasPlot || !latestSimilarity;
     svgButton.disabled = !hasPlot;
-    projectButton.disabled = !hasPlot || !latestAnalysisSession;
+    projectButton.disabled = !hasPlot || !viewer.analysis;
     editPlotButton.disabled = !hasPlot;
     annotationImportButton.disabled = !hasPlot;
     if (completed) {
@@ -719,11 +698,11 @@ document.addEventListener("keydown", event => {
     return;
   }
   if (document.querySelector("dialog[open]")) return;
-  if (!analysisInProgress && !runPanel.hidden && chart.data()) closeRunPanel();
+  if (!analysisInProgress && !runPanel.hidden && viewer.chart.data()) closeRunPanel();
 });
 
 function closeRunPanel() {
-  if (analysisInProgress || !chart.data()) return;
+  if (analysisInProgress || !viewer.chart.data()) return;
   runPanel.hidden = true;
   plotActions.hidden = false;
   editPlotButton.hidden = false;
@@ -735,7 +714,7 @@ function closeRunPanel() {
 function openRunPanel() {
   runPanel.hidden = false;
   newRunButton.setAttribute("aria-expanded", "true");
-  cancelRunButton.hidden = !chart.data();
+  cancelRunButton.hidden = !viewer.chart.data();
   cancelRunButton.textContent = "Back to plot";
   setRunStatus("");
   closePlotEditor();
@@ -753,16 +732,16 @@ cancelRunButton.addEventListener("click", () => {
 });
 
 function closePlotEditor() {
-  plotEditor.close();
+  viewer.closeEditor();
 }
 
 function showPlotEditor() {
   if (!runPanel.hidden) closeRunPanel();
-  plotEditor.open();
+  viewer.openEditor();
 }
 
 function syncEditorToggle() {
-  const open = !plotEditor.hidden;
+  const open = viewer.editorOpen;
   if (open && !runPanel.hidden) closeRunPanel();
   editPlotButton.setAttribute("aria-expanded", String(open));
   editPlotButton.textContent = open ? "Close editor" : "Edit figure";
@@ -772,16 +751,9 @@ plotEditor.addEventListener("clinker-editor-close", syncEditorToggle);
 syncEditorToggle();
 
 editPlotButton.addEventListener("click", () => {
-  const isOpen = !plotEditor.hidden;
+  const isOpen = viewer.editorOpen;
   if (isOpen) closePlotEditor();
   else showPlotEditor();
-});
-
-plot.node().addEventListener("clustermap:edit-annotation", event => {
-  if (event.detail?.chart !== chart || typeof plotEditor.editAnnotations !== "function") return;
-  showPlotEditor();
-  plotEditor.editAnnotations(event.detail.panelUid);
-  event.preventDefault();
 });
 
 function parseInputFiles(
@@ -902,7 +874,7 @@ function bestLinkCount(plotData) {
 matrixButton.addEventListener("click", () => {
   if (!latestSimilarity) return;
   try {
-    downloadText("clinker-cluster-similarity.csv", similarityCsv(latestSimilarity, { data: chart.data(), state: chart.state() }), "text/csv;charset=utf-8");
+    downloadText("clinker-cluster-similarity.csv", similarityCsv(latestSimilarity, { data: viewer.chart.data(), state: viewer.chart.state() }), "text/csv;charset=utf-8");
   } catch (error) {
     setContextStatus(`CSV export failed: ${error.message || String(error)}`, { tone: "error" });
   }
@@ -910,26 +882,16 @@ matrixButton.addEventListener("click", () => {
 
 svgButton.addEventListener("click", () => {
   try {
-    downloadText("clinker.svg", chart.exportSvg(), "image/svg+xml;charset=utf-8");
+    downloadText("clinker.svg", viewer.exportSvg(), "image/svg+xml;charset=utf-8");
   } catch (error) {
     setContextStatus(`SVG export failed: ${error.message || String(error)}`, { tone: "error" });
   }
 });
 
-function replaceChart(config = chart.config()) {
-  treeImport.close();
-  const previousChart = chart;
-  disposeSelectionToolbar?.();
-  disposeSelectionToolbar = null;
-  chart = createChart(config);
-  bindChartTheme(chart);
-  previousChart.destroy();
-}
-
 for (const button of themeModeButtons) {
   button.addEventListener("click", () => {
     themePreference = button.dataset.themeMode;
-    chart.uiAppearance(themePreference);
+    viewer.setAppearance(themePreference);
     applyInterfaceTheme(themePreference);
     try { localStorage.setItem(themePreferenceKey, themePreference); } catch {}
   });
@@ -938,46 +900,14 @@ systemDarkMode.addEventListener?.("change", () => {
   if (themePreference === "auto") applyInterfaceTheme("auto");
 });
 
-function configureInitialMinimap({ keepEnabled = false } = {}) {
-  const config = chart.config().plot;
-  if (!["canvas", "webgpu"].includes(config.renderer) || (keepEnabled && config.minimap.show)) return;
-  const bounds = chart.figureBounds();
-  if (!bounds) return;
-  const { minX: x, minY: y } = bounds;
-  const width = bounds.maxX - x;
-  const height = bounds.maxY - y;
-  const viewport = document.querySelector("#plot").getBoundingClientRect();
-  const camera = chart.state().camera;
-  if (!viewport.width || !viewport.height) return;
-  const left = x * camera.k + camera.x;
-  const top = y * camera.k + camera.y;
-  const show = left < -1 || top < -1
-    || left + width * camera.k > viewport.width + 1
-    || top + height * camera.k > viewport.height + 1;
-  if (show !== config.minimap.show) {
-    chart.config({ plot: { minimap: { show } } });
-    chart.clearHistory();
-  }
-}
-
-function mountSelectionToolbar() {
-  disposeSelectionToolbar?.();
-  disposeSelectionToolbar = mountPlotSelectionToolbar(chart, plotStage);
+function mountImportedPlot(saved) {
+  treeImport.close();
+  viewer.loadProject(saved);
   treeImport.bind();
-}
-
-function mountImportedPlot(data, { config, state = null }) {
-  replaceChart(config);
-  plot.datum(data).call(chart);
-  if (state) chart.state(state);
-  configureInitialMinimap({ keepEnabled: true });
-  mountSelectionToolbar();
-  plotEditor.chart = chart;
   latestSimilarity = null;
-  latestAnalysisSession = null;
   matrixButton.disabled = true;
   svgButton.disabled = false;
-  projectButton.disabled = true;
+  projectButton.disabled = false;
   editPlotButton.disabled = false;
   annotationImportButton.disabled = false;
   closePlotEditor();
@@ -986,10 +916,10 @@ function mountImportedPlot(data, { config, state = null }) {
 }
 
 projectButton.addEventListener("click", () => {
-  if (!latestAnalysisSession) return;
+  if (!viewer.analysis) return;
   try {
-    const project = { ...chart.project(), version: 2, analysis: latestAnalysisSession, ...treeImport.projectTrees() };
-    downloadText("clinker-project.json", `${JSON.stringify(project, null, 2)}\n`, "application/json;charset=utf-8");
+    const project = viewer.project(treeImport.projectTrees());
+    downloadText("clinker-project.json", serializeProject(project), "application/json;charset=utf-8");
   } catch (error) {
     setContextStatus(`Project export failed: ${error.message || String(error)}`, { tone: "error" });
   }
@@ -1001,7 +931,7 @@ function openAnalysisSession(session, workflow) {
 
 function retainAnalysisResult(result) {
   latestSimilarity = result.similarityMatrix;
-  latestAnalysisSession = result.analysisSession;
+  viewer.setAnalysis(result.analysisSession);
   matrixButton.disabled = false;
   projectButton.disabled = false;
 }
@@ -1018,7 +948,7 @@ clinkerFileInput.addEventListener("change", () => {
     workflow.throwIfCancelled();
     const analysisResult = await openAnalysisSession(saved.analysis, workflow);
     workflow.throwIfCancelled();
-    mountImportedPlot(saved.data, { config: saved.config, state: saved.state });
+    mountImportedPlot(saved);
     treeImport.restoreTrees(saved);
     retainAnalysisResult(analysisResult);
     setPlotStatus("Loaded clinker project with its analysis data.");
@@ -1222,7 +1152,6 @@ async function analyseFiles(files, workflow) {
   const plotData = result.plotData;
   if (resolvedRunTree) plotData.tree = bindInputTree(resolvedRunTree, plotData.clusters, prefilter.genbank.asSeparateClusters);
   latestSimilarity = result.similarityMatrix;
-  latestAnalysisSession = result.analysisSession;
   matrixButton.disabled = false;
   const displayedBestLinks = bestLinkCount(plotData);
   const summary = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links; ${displayedBestLinks} displayed best links.`;
@@ -1241,12 +1170,11 @@ async function analyseFiles(files, workflow) {
     `Arranged ${plotData.clusters.length.toLocaleString()} clusters · ${locusCount.toLocaleString()} loci`,
   );
 
-  replaceChart();
-  plot.datum(plotData).call(chart);
-  configureInitialMinimap();
-  mountSelectionToolbar();
+  treeImport.close();
+  viewer.mount(plotData, { analysis: result.analysisSession });
+  treeImport.bind();
   treeImport.setDendrogram(clusteringTree(result.clusteringMerges, plotData.clusters, result.clusteringHeights));
-  plotEditor.chart = chart;
+  viewer.refreshEditor();
   svgButton.disabled = false;
   projectButton.disabled = false;
   editPlotButton.disabled = false;
@@ -1286,7 +1214,7 @@ exampleButton.addEventListener("click", () => {
 
 const treeImport = mountTreeImport({
   button: treeButton,
-  getChart: () => chart,
+  getChart: () => viewer.chart,
   getRunInputs: async () => {
     let inspection;
     let validation;
@@ -1297,17 +1225,17 @@ const treeImport = mountTreeImport({
     return { ready: validation.ready, clusters: inputTreeClusters(validation.filesWithRecords || [], separateRecordsInput.checked) };
   },
   onAppearance: () => {
-    return plotEditor.openAppearance({ section: "tree", focus: true });
+    return viewer.openTreeAppearance();
   },
   onRunChange: ready => { analyseButton.disabled = analysisInProgress || !inputsReady || !ready; },
   onChange: message => {
-    plotEditor.chart = chart;
+    viewer.refreshEditor();
     setPlotStatus(message);
   },
 });
 
 mountAnnotationImport({
   button: annotationImportButton,
-  getChart: () => chart,
+  getChart: () => viewer.chart,
   onImported: message => setPlotStatus(message),
 });

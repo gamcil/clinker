@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { similarityCsv, parseProject, displayedClusterOrder } from "../src/project.mjs";
+import { similarityCsv, parseProject, displayedClusterOrder } from "../src/viewer/project.mjs";
 
 test("CSV follows edited names, order and deleted clusters while retaining analysis indices", () => {
   const pair = { queryCoverage: 0.8, targetCoverage: 0.6, similarity: 0.8 };

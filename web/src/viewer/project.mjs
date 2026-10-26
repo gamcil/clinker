@@ -1,5 +1,8 @@
 import { validateTree } from './tree.mjs';
 
+export const PROJECT_FORMAT = 'clinker-project';
+export const PROJECT_VERSION = 2;
+
 export function displayedClusterOrder({ data, state }) {
   if (data.tree !== undefined) return validateTree(data.tree, new Set(data.clusters.map(cluster => cluster.uid)));
   return state?.clusterOrder?.length ? state.clusterOrder : data.clusters.map(cluster => cluster.uid);
@@ -135,7 +138,11 @@ export function parseProject(text) {
   let saved;
   try { saved = JSON.parse(text); }
   catch { throw new Error("the selected file is not valid JSON"); }
-  if (saved?.format !== "clinker-project" || saved.version !== 2) throw new Error("the file is not a clinker project");
+  return validateProject(saved);
+}
+
+export function validateProject(saved) {
+  if (saved?.format !== PROJECT_FORMAT || saved.version !== PROJECT_VERSION) throw new Error("the file is not a clinker project");
   if (!saved.config || typeof saved.config !== "object" || Array.isArray(saved.config)) {
     throw new Error("project appearance settings must be an object");
   }
@@ -165,6 +172,16 @@ export function parseProject(text) {
     }
   }
   return saved;
+}
+
+// Preserve extension fields from an opened project; the current figure and
+// retained analysis replace their saved counterparts. UI appearance is separate.
+export function createProject(figure, analysis, extensions = {}) {
+  return validateProject({ ...extensions, ...figure, format: PROJECT_FORMAT, version: PROJECT_VERSION, analysis });
+}
+
+export function serializeProject(project) {
+  return `${JSON.stringify(validateProject(project), null, 2)}\n`;
 }
 
 export function downloadText(filename, text, type) {

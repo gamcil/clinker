@@ -1,5 +1,5 @@
 import { Workflow } from './workflow.mjs';
-import { parseNewick, matchTreeLeaves } from './tree.mjs';
+import { parseNewick, matchTreeLeaves } from './viewer/tree.mjs';
 
 // One set of fields serves the inline new-run input and the plot import dialog.
 export function mountTreeInput(container, { inline = false, onChange = () => {}, isCurrent = () => true } = {}) {
