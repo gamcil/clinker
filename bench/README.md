@@ -11,7 +11,7 @@ all ten dataset/configuration combinations in a seeded shuffled order: 50 runs.
 
 | Configuration | Implementation | K-mer filter |
 | --- | --- | --- |
-| python | Legacy Python source in this checkout | Off |
+| python | Python maintenance checkout or extracted release | Off |
 | native | Release-mode clinker-core | Off |
 | wasm | Chromium Web Workers and production WASM | Off |
 | native-prefilter | Release-mode clinker-core | k=3, minimum count=3 |
@@ -36,11 +36,13 @@ separate environment elsewhere:
 
 ```sh
 python3 -m venv bench/.venv
-bench/.venv/bin/python -m pip install -e .
+git worktree add ../clinker-python-maintenance python-maintenance
+bench/.venv/bin/python -m pip install -e ../clinker-python-maintenance
 ```
 
-The adapters import the Python source from this checkout, not another installed
-clinker package. Package versions, Python source hashes, git status, native
+Pass `--legacy-source ../clinker-python-maintenance` to direct runner commands.
+The adapters import this explicit legacy checkout, not the Rust branch or an
+unrelated installed clinker package. Package versions, Python source hashes, git status, native
 binary hash and WASM hash are recorded. For publication, use committed source
 revisions and retain the recorded Python package versions.
 

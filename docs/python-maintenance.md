@@ -7,8 +7,9 @@ is the existing `v0.0.32` release, commit
 
 Keep future Python fixes, dependency updates, package version changes and PyPI
 releases on that branch. Rust development continues on `rust-port` until the
-Rust-first repository cutover. Python files remain on the Rust branch during
-this first migration step; their removal is a separate change.
+Rust-first repository cutover. The Rust branch no longer contains the Python
+implementation, packaging files, Dockerfile, or PyPI workflow. Check out
+`python-maintenance` before building or publishing a Python package.
 
 ## Publishing contract
 

@@ -120,10 +120,14 @@ def main():
     parser.add_argument("--timeout", type=float, default=3600)
     parser.add_argument("--python", default=sys.executable, help="Interpreter with v1 dependencies")
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--legacy-source", type=Path, required=True, help="Python maintenance checkout or extracted release")
     parser.add_argument("--validate-only", action="store_true")
     parser.add_argument("--prepare-inputs", action="store_true", help="Create separate copies excluding documented clipped boundary CDS fragments")
     parser.add_argument("--smoke", action="store_true", help="Two smallest files per dataset; one repetition")
     args = parser.parse_args()
+    args.legacy_source = args.legacy_source.resolve()
+    if not (args.legacy_source / "clinker/align.py").is_file():
+        parser.error("--legacy-source must point to a Python maintenance checkout or extracted release")
     if min(args.repeats, args.workers, args.timeout) <= 0 or not 0 < args.identity <= 1:
         parser.error("positive repeats/workers/timeout and identity in (0,1] required")
     if not 1 <= args.kmer_size <= 8 or args.min_shared_kmers < 1:
@@ -182,14 +186,14 @@ def main():
                         ["bench/run.py", "bench/python_v1.py", "bench/browser.mjs", "bench/wasm.mjs",
                          "bench/prepare_inputs.py", "crates/clinker-core/examples/benchmark.rs",
                          "web/alignment.mjs", "web/worker.js", "Cargo.lock"]},
-                    "legacy_source_sha256": {p: sha((ROOT / p).read_bytes()) for p in
+                    "legacy_source_sha256": {p: sha((args.legacy_source / p).read_bytes()) for p in
                         ["clinker/align.py", "clinker/classes.py", "clinker/formatters.py"]},
                     "cache_policy": "warm filesystem; fresh analysis and alignment pool each run",
                     "prefilter": {"k": args.kmer_size, "count": args.min_shared_kmers}}
         (output / "metadata.json").write_text(json.dumps(metadata, indent=2, default=str) + "\n")
 
         def run(config, files, inspect=False, label="run"):
-            request = {"files": files, "workers": args.workers, "identity": args.identity,
+            request = {"legacy_source": str(args.legacy_source), "files": files, "workers": args.workers, "identity": args.identity,
                        "prefilter": config.endswith("-prefilter"), "inspect": inspect,
                        "kmer_size": args.kmer_size, "min_shared_kmers": args.min_shared_kmers}
             if config.startswith("wasm"):

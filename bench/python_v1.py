@@ -1,18 +1,19 @@
-"""Thin timing adapter for the legacy Python implementation in this checkout."""
+"""Thin timing adapter for an explicit legacy Python source checkout."""
 import io
 import json
 from pathlib import Path
 import sys
 from time import perf_counter
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from Bio import SeqIO
-from clinker.classes import Cluster, Locus
-from clinker.align import align_clusters
 
 
 def main():
     request = json.load(sys.stdin)
+    source = Path(request["legacy_source"])
+    sys.path.insert(0, str(source))
+    from Bio import SeqIO
+    from clinker.classes import Cluster, Locus
+    from clinker.align import align_clusters
     staged = [(Path(path).stem, Path(path).read_bytes()) for path in request["files"]]
     start = perf_counter()
     # Same construction as cluster_from_genbank, reading staged bytes rather
