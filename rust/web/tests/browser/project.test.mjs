@@ -129,13 +129,19 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   assert.deepEqual(await page.evaluate(() => document.querySelector('#plot-editor').chart.locusSelection()), [selectedLocus]);
   await page.evaluate(() => document.querySelector('#plot-editor').chart.locusSelection([]));
   await page.locator('#edit-plot').click();
-  await page.locator('#plot-editor [data-kind="genes"]').click();
-  const selection = page.locator('#plot-editor [data-select-many]').last();
-  const deletedGenes = JSON.parse(await selection.getAttribute('data-select-many'));
+  const editor = page.locator('#plot-editor');
+  await editor.locator('clinker-view-switcher[data-kind-picker]').getByRole('button', { name: 'Genes', exact: true }).click();
+  const targetCluster = beforeDelete.data.clusters.find(cluster => cluster.loci.length === 1 && cluster.loci[0].genes.length);
+  assert.ok(targetCluster, 'the example has a single-locus cluster for bulk gene selection');
+  const deletedGenes = targetCluster.loci[0].genes.map(gene => gene.uid);
+  const selection = editor.getByRole('checkbox', {
+    name: `Select ${deletedGenes.length} genes in ${targetCluster.label || targetCluster.name || targetCluster.uid}`, exact: true,
+  });
   assert.ok(deletedGenes.length > 0);
   await selection.check();
+  await editor.locator('clinker-record-actions').getByText('Remove…', { exact: true }).click();
   page.once('dialog', dialog => dialog.accept());
-  await page.locator('#plot-editor [data-command="delete"]').click();
+  await editor.getByRole('button', { name: 'Delete selected genes', exact: true }).click();
   const afterDelete = await figure();
   const geneIds = snapshot => snapshot.data.clusters.flatMap(c => c.loci.flatMap(l => l.genes.map(g => g.uid)));
   const contents = ({ data }) => ({

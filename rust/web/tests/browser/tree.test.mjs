@@ -212,13 +212,14 @@ test('tree import, matching, edits, renderers and project round-trips retain the
     const chart = document.querySelector('#plot-editor').chart;
     const pair = chart.data().tree.nodes.find(node => node.children?.length === 2 && node.children.every(uid => chart.data().tree.nodes.find(child => child.uid === uid).cluster));
     const ids = pair.children.map(uid => chart.data().tree.nodes.find(node => node.uid === uid).cluster);
-    chart.locusSelection(chart.data().clusters.filter(cluster => ids.includes(cluster.uid)).flatMap(cluster => cluster.loci.map(locus => locus.uid)));
+    chart.clusterSelection(ids);
     const rect = uid => {
       const box = [...document.querySelectorAll('#plot g.cluster')].find(node => node.__data__.uid === uid).querySelector('text.clusterText').getBoundingClientRect();
       return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     };
     return { ids, from: rect(ids[0]), to: rect(chart.state().clusterOrder[0]) };
   });
+  assert.deepEqual(await page.evaluate(() => document.querySelector('#plot-editor').chart.selection()), { kind: 'clusters', ids: batch.ids });
   await page.mouse.move(batch.from.x, batch.from.y);
   await page.mouse.down();
   await page.mouse.move(batch.to.x, batch.to.y - 10, { steps: 8 });
@@ -227,8 +228,9 @@ test('tree import, matching, edits, renderers and project round-trips retain the
   assert.notDeepEqual(afterBatch.state.clusterOrder, beforeBatch.state.clusterOrder);
   const positions = batch.ids.map(uid => afterBatch.state.clusterOrder.indexOf(uid));
   assert.equal(Math.abs(positions[0] - positions[1]), 1);
-  await page.evaluate(() => { const chart = document.querySelector('#plot-editor').chart; chart.undo(); chart.locusSelection([]); });
+  await page.evaluate(() => { const chart = document.querySelector('#plot-editor').chart; chart.undo(); chart.clusterSelection([]); });
   assert.deepEqual((await snapshot()).data.tree, beforeBatch.data.tree);
+  assert.deepEqual((await snapshot()).state.clusterOrder, beforeBatch.state.clusterOrder);
 
   await orderMenu();
   await page.locator('#tree-appearance').click();
