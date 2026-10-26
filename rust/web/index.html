@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=20261026-task-navigation-v4">
+    <link rel="stylesheet" href="style.css?v=20261026-shared-imports-v1">
     <link rel="stylesheet" href="clustermap-editor.css?v=20261025-clustermap-a524445-v1">
     <script src="d3.min.js"></script>
     <script src="clustermap.min.js?v=20261025-clustermap-a524445-v1"></script>
@@ -334,7 +334,7 @@
         </section>
       </div>
     </dialog>
-    <dialog id="tree-dialog" class="help-dialog tree-dialog" aria-labelledby="tree-title">
+    <dialog id="tree-dialog" class="help-dialog import-dialog tree-dialog" aria-labelledby="tree-title">
       <header class="help-heading">
         <div class="help-heading-row">
           <h2 id="tree-title">Import tree</h2>
@@ -350,7 +350,7 @@
         <button id="apply-tree" class="primary" type="button" disabled>Apply tree</button>
       </footer>
     </dialog>
-    <dialog id="annotation-dialog" class="help-dialog annotation-dialog" aria-labelledby="annotation-title">
+    <dialog id="annotation-dialog" class="help-dialog import-dialog annotation-dialog" aria-labelledby="annotation-title">
       <header class="help-heading">
         <div class="help-heading-row">
           <h2 id="annotation-title">Import annotations</h2>
@@ -358,8 +358,8 @@
         </div>
       </header>
       <div class="help-body annotation-import-body">
-        <div class="annotation-file-picker"><span class="annotation-inline-label">TSV or CSV table</span><button id="choose-annotation-file" type="button">Choose table…</button><span id="annotation-file-name">No table selected</span><input id="annotation-file" class="visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
-        <div class="annotation-import-options">
+        <div class="import-file-picker"><button id="choose-annotation-file" type="button">Choose TSV / CSV file</button><span id="annotation-file-name">None selected</span><input id="annotation-file" class="visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
+        <div class="import-options">
           <label>Delimiter<select id="annotation-delimiter"><option value="auto">Automatic</option><option value=",">Comma</option><option value="&#9;">Tab</option></select></label>
           <label>Match rows using<select id="annotation-key-column" disabled></select></label>
         </div>
@@ -380,7 +380,7 @@
       </footer>
     </dialog>
     <template id="tree-input-template">
-        <div class="tree-file-picker">
+        <div class="import-file-picker tree-file-picker">
           <span class="tree-inline-label">Tree <span>(optional)</span></span>
           <button id="choose-tree-file" type="button" autofocus>Choose Newick file</button>
           <span id="tree-file-name">None selected</span>
@@ -400,12 +400,12 @@
         </section>
         <details id="tree-options" class="tree-options">
           <summary>Import options</summary>
-          <div class="tree-import-options">
+          <div class="import-options tree-import-options">
             <label>Numeric node labels<select id="tree-internal-labels"><option value="support">Support values</option><option value="names">Node names</option></select></label>
             <label>Support scale<select id="tree-support-scale"><option value="unspecified">Unspecified</option><option value="percent">Percent (0–100)</option><option value="proportion">Proportion (0–1)</option></select></label>
           </div>
         </details>
     </template>
-    <script type="module" src="app.js?v=20261026-task-navigation-v4"></script>
+    <script type="module" src="app.js?v=20261026-shared-imports-v1"></script>
   </body>
 </html>

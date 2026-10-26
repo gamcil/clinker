@@ -3,7 +3,7 @@ import { similarityCsv, parseProject, downloadText } from "./project.mjs?v=20261
 import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs?v=20261018-tree-v5";
 import { Workflow } from "./workflow.mjs?v=20261015-workflow-v1";
 import { mountTreeImport } from "./tree-import.mjs?v=20261026-task-navigation-v1";
-import { mountAnnotationImport } from "./annotation-import.mjs?v=20261026-task-navigation-v1";
+import { mountAnnotationImport } from "./annotation-import.mjs?v=20261026-shared-imports-v1";
 import { inputTreeClusters, bindInputTree, clusteringTree } from "./tree.mjs?v=20261018-annotations-v1";
 import {
   defineClinkerEditor,

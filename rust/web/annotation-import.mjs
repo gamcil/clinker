@@ -189,7 +189,7 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
     table = null; matchEntries = [];
     columnsWrap.hidden = true; reviewWrap.hidden = true;
     apply.disabled = true;
-    if (!file) { fileName.textContent = "No table selected"; keyInput.disabled = true; summary.textContent = "Choose a TSV or CSV file to begin."; return; }
+    if (!file) { fileName.textContent = "None selected"; keyInput.disabled = true; summary.textContent = "Choose a TSV or CSV file to begin."; return; }
     fileName.textContent = file.name;
     try {
       const delimiter = delimiterInput.value === "auto" ? (/\.tsv$/i.test(file.name) ? "\t" : ",") : delimiterInput.value;
@@ -283,7 +283,7 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
 
   dialog.addEventListener("close", () => {
     fileInput.value = "";
-    fileName.textContent = "No table selected";
+    fileName.textContent = "None selected";
     keyInput.replaceChildren();
     keyInput.disabled = true;
     columnsBody.replaceChildren();

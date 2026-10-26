@@ -75,7 +75,7 @@ h1 {
 .app-bar button,
 .run-card button,
 .tree-import-actions button,
-.tree-file-picker button,
+.import-file-picker button,
 .menu summary {
   min-height: 30px;
   border: 1px solid #cbd3de;
@@ -91,7 +91,7 @@ h1 {
 .app-bar button:hover:not(:disabled),
 .run-card button:hover:not(:disabled),
 .tree-import-actions button:hover:not(:disabled),
-.tree-file-picker button:hover:not(:disabled),
+.import-file-picker button:hover:not(:disabled),
 .menu summary:hover,
 .app-bar button[aria-expanded="true"],
 .menu[open] > summary {
@@ -101,7 +101,7 @@ h1 {
 
 .app-bar button:focus-visible,
 .tree-import-actions button:focus-visible,
-.tree-file-picker button:focus-visible,
+.import-file-picker button:focus-visible,
 .app-bar input:focus-visible,
 .run-card button:focus-visible,
 .run-card input:focus-visible,
@@ -285,25 +285,16 @@ h1 {
 }
 
 .tree-dialog { width: min(560px, calc(100vw - 32px)); }
-.tree-dialog .help-heading { padding: 14px 18px; }
-.tree-dialog .help-heading h2 { margin: 0; }
-.tree-dialog .help-body { padding: 16px 18px; }
-.tree-dialog .tree-import-actions { padding: 12px 18px; }
+.import-dialog .help-heading { padding: 14px 18px; }
+.import-dialog .help-heading h2 { margin: 0; }
+.import-dialog .help-body { padding: 16px 18px; overflow: auto; }
+.import-dialog .tree-import-actions { padding: 12px 18px; }
 .tree-dialog .tree-options { margin-top: 14px; padding-top: 12px; }
 .tree-dialog .tree-matching-scroll { max-height: 15rem; }
 .tree-dialog #tree-import-note { margin-bottom: 0; }
-.tree-dialog .tree-file-picker span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .annotation-dialog { width: min(760px, calc(100vw - 32px)); max-height: min(88vh, 900px); }
-.annotation-dialog .help-heading { padding: 14px 18px; }
-.annotation-dialog .help-heading h2 { margin: 0; }
-.annotation-dialog .help-body { padding: 16px 18px; overflow: auto; }
-.annotation-dialog .tree-import-actions { padding: 12px 18px; }
-.annotation-file-picker { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 10px; }
-.annotation-inline-label { color: #63728a; }
-.annotation-file-picker #annotation-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #63728a; }
-.annotation-file-picker #choose-annotation-file { min-height: 30px; padding: 4px 10px; }
-.annotation-import-options { display: flex; flex-wrap: wrap; gap: 14px 24px; margin-top: 16px; }
-.annotation-import-options label { display: grid; gap: 5px; color: #63728a; }
+.import-options { display: flex; flex-wrap: wrap; gap: 14px; margin: 16px 0 14px; }
+.import-options label { display: grid; flex: 1; gap: 6px; min-width: 180px; }
 .annotation-match-summary { margin: 14px 0 0; }
 .annotation-match-review, .annotation-column-settings { margin-top: 18px; }
 .annotation-match-review > p { margin: 0 0 10px; color: #63728a; }
@@ -313,11 +304,12 @@ h1 {
 .annotation-table-scroll table { width: 100%; border-collapse: collapse; }
 .annotation-table-scroll th, .annotation-table-scroll td { padding: 7px 9px; text-align: left; }
 .annotation-table-scroll th { position: sticky; top: 0; background: #f5f7fa; color: #63728a; font-size: .85rem; font-weight: 600; }
-.annotation-table-scroll select { width: 100%; min-width: 10rem; border: 0; border-radius: 4px; background: #f5f7fa; }
+.import-dialog .annotation-table-scroll select { width: 100%; min-width: 10rem; border: 0; border-radius: 4px; background: #f5f7fa; }
 .annotation-table-scroll select:focus-visible { outline: 2px solid #286ab3; outline-offset: 1px; }
 .annotation-match-key, .annotation-column-name { overflow-wrap: anywhere; }
-.tree-file-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.tree-file-picker span { min-width: 0; overflow-wrap: anywhere; color: #63728a; }
+.import-file-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.import-file-picker span { min-width: 0; overflow-wrap: anywhere; color: #63728a; }
+.import-dialog .import-file-picker > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-options { margin-top: 20px; border-top: 1px solid #e5eaf0; padding-top: 16px; }
 .tree-options summary { cursor: pointer; color: #63728a; }
 .tree-root-metadata { margin-top: 16px; padding: 10px 12px; border: 1px solid #e5d5b4; border-radius: 6px; background: #fffbf2; }
@@ -328,9 +320,8 @@ h1 {
 .menu-section-divider { border-top: 1px solid #e5eaf0; margin: 4px 0; }
 #plot-order button[aria-pressed="true"]::after { content: "✓"; float: right; margin-left: 16px; color: #286ab3; }
 #appearance-menu button[aria-pressed="true"]::after { content: "✓"; float: right; margin-left: 16px; color: #286ab3; }
-.tree-import-options { display: flex; flex-wrap: wrap; gap: 14px; margin: 20px 0 14px; }
-.tree-import-options label { display: grid; flex: 1; gap: 6px; min-width: 180px; }
-.tree-import-body select,
+.tree-import-options { margin-top: 20px; }
+.import-dialog select,
 .run-tree-fields select {
   width: 100%;
   min-width: 0;
@@ -1539,8 +1530,7 @@ h1 {
 :root[data-theme="dark"] .app-bar button,
 :root[data-theme="dark"] .run-card button:not(.primary-action),
 :root[data-theme="dark"] .tree-import-actions button:not(#apply-tree):not(#apply-annotations),
-:root[data-theme="dark"] .tree-file-picker button,
-:root[data-theme="dark"] .annotation-file-picker button,
+:root[data-theme="dark"] .import-file-picker button,
 :root[data-theme="dark"] .menu summary,
 :root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
 :root[data-theme="dark"] select,
@@ -1554,8 +1544,7 @@ h1 {
 :root[data-theme="dark"] .menu-popover button:hover:not(:disabled),
 :root[data-theme="dark"] .app-bar button:hover:not(:disabled),
 :root[data-theme="dark"] .run-card button:hover:not(:disabled),
-:root[data-theme="dark"] .tree-file-picker button:hover:not(:disabled),
-:root[data-theme="dark"] .annotation-file-picker button:hover:not(:disabled),
+:root[data-theme="dark"] .import-file-picker button:hover:not(:disabled),
 :root[data-theme="dark"] .menu summary:hover,
 :root[data-theme="dark"] .advanced-check:hover,
 :root[data-theme="dark"] .compact-file-button:hover:not(:has(input:disabled)),
