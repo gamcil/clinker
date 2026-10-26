@@ -31,7 +31,11 @@ rules limited to host placement and dimensions; avoid selectors for its internal
 buttons, borders or text. Do not query editor shadow roots for navigation.
 
 The dependency is pinned to refactor commit
-`4a957c772f2e8e062f8c85ab21fb22b22811c095`. Clinker sets the application's saved
+`c30feeaba3dfaac03e10a328218dd4b183db08dc`. This adds the raster focus correction
+on `fix/preserve-editor-focus`, based on refactor commit `4218e0a`: hovering the
+plot preserves focus in editor controls, including after closing a toolbar menu.
+Clicking the canvas transfers focus explicitly; Space inside shadow editor fields
+does not start plot panning. Clinker sets the application's saved
 System/Light/Dark preference with `chart.uiAppearance(...)`; loading a project
 or editing figure settings does not change that preference. Interface appearance
 does not modify figure colours, annotation scales, undo history or exported SVG.
