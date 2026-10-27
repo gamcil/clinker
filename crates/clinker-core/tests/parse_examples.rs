@@ -202,6 +202,44 @@ ORIGIN
 }
 
 #[test]
+fn circular_rotation_rejects_missing_sequence_and_invalid_locations() {
+    use clinker_core::ParseError;
+
+    let circular = std::str::from_utf8(include_bytes!("fixtures/circular.gbk")).unwrap();
+    let contig = format!(
+        "{}CONTIG      join(OTHER:1..30)\n//\n",
+        circular.split_once("ORIGIN").unwrap().0
+    );
+    assert!(matches!(
+        parse_genbank("contig.gbk", contig.as_bytes()),
+        Err(ParseError::MissingRotationSequence { .. })
+    ));
+    let original = parse_genbank_with_options(
+        "contig.gbk",
+        contig.as_bytes(),
+        &ParseOptions {
+            set_origin: false,
+            ..ParseOptions::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(original[0].loci[0].genes[0].translation, "MMMMM");
+    let whole_record = contig.replace("join(25..30,1..9)", "1..30");
+    assert!(parse_genbank("whole-record.gbk", whole_record.as_bytes()).is_ok());
+    let between = circular.replace("ORIGIN", "     misc_feature    30^1\nORIGIN");
+    assert!(parse_genbank("between.gbk", between.as_bytes()).is_ok());
+
+    let invalid = circular.replace(
+        "ORIGIN",
+        "     misc_feature    9223372036854775799..9223372036854775807\nORIGIN",
+    );
+    assert!(matches!(
+        parse_genbank("invalid.gbk", invalid.as_bytes()),
+        Err(ParseError::RotationLocation { .. })
+    ));
+}
+
+#[test]
 fn rotates_a_fixture_backed_circular_origin_crossing_feature() {
     let bytes = include_bytes!("fixtures/circular.gbk");
 

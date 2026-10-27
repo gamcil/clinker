@@ -92,7 +92,9 @@ cargo run -p clinker-cli -- input.gbk --as-separate-clusters
 ```
 
 Circular records are rotated automatically when a gene crosses the origin.
-Pass `--dont-set-origin` to retain the original coordinates.
+Pass `--dont-set-origin` to retain the original coordinates. Rotation requires
+local nucleotide sequence; CONTIG-only records with supplied protein translations
+can use this option to retain their original origin.
 
 Build annotation-only plots, or seed homology groups and colours from
 two-column CSV files:

@@ -19,6 +19,14 @@ pub enum ParseError {
     MissingRecords,
     #[error("record {record} has invalid sequence length {length}")]
     InvalidRecordLength { record: String, length: i64 },
+    #[error("cannot rotate circular record {record} without nucleotide sequence")]
+    MissingRotationSequence { record: String },
+    #[error("cannot rotate circular record {record}: {source}")]
+    RotationLocation {
+        record: String,
+        #[source]
+        source: LocationError,
+    },
     #[error("could not determine coordinates for CDS feature {label}: {source}")]
     FeatureLocation {
         label: String,
@@ -81,6 +89,14 @@ pub fn parse_genbank_with_options(
     for record in SeqReader::new(Cursor::new(bytes)) {
         let mut record = record?;
         let name = record.name.clone().ok_or(ParseError::MissingRecordName)?;
+        let length = u64::try_from(record.len())
+            .ok()
+            .filter(|length| *length > 0 && *length <= MAX_SEQUENCE_COORDINATE)
+            .ok_or_else(|| ParseError::InvalidRecordLength {
+                record: name.clone(),
+                length: record.len(),
+            })?;
+
         let organism = record
             .source
             .as_ref()
@@ -99,9 +115,20 @@ pub fn parse_genbank_with_options(
             && !options.ranges.contains_key(&name)
             && let Some(origin) = circular_origin_shift(&record)
         {
+            if record.seq.is_empty() {
+                return Err(ParseError::MissingRotationSequence { record: name });
+            }
+            for feature in &record.features {
+                validate_rotation_location(&feature.location, length).map_err(|source| {
+                    ParseError::RotationLocation {
+                        record: name.clone(),
+                        source,
+                    }
+                })?;
+            }
             record = record.set_origin(origin);
         }
-        let locus = locus_from_record(record, name.clone(), options.ranges.get(&name))?;
+        let locus = locus_from_record(record, name.clone(), length, options.ranges.get(&name))?;
         loci.push((name, organism, locus));
     }
 
@@ -139,15 +166,9 @@ fn common_organism(loci: &[(String, Option<String>, Locus)]) -> Option<String> {
 fn locus_from_record(
     record: Seq,
     name: String,
+    length: u64,
     range: Option<&SequenceRange>,
 ) -> Result<Locus, ParseError> {
-    let length = u64::try_from(record.len())
-        .ok()
-        .filter(|length| *length > 0 && *length <= MAX_SEQUENCE_COORDINATE)
-        .ok_or_else(|| ParseError::InvalidRecordLength {
-            record: name.clone(),
-            length: record.len(),
-        })?;
     let range = range.copied().unwrap_or(SequenceRange {
         start: 0,
         end: length,
@@ -199,12 +220,43 @@ fn circular_origin_shift(record: &Seq) -> Option<i64> {
         })
         .find_map(|feature| {
             let parts = location_parts(&feature.location);
-            let touches_start = parts.iter().any(|&(start, _)| start == 0);
-            let end_part = parts
-                .iter()
-                .find(|&&(start, end)| end == length && start >= 0 && start < length);
-            (touches_start && end_part.is_some()).then(|| end_part.unwrap().0)
+            if !parts.iter().any(|&(start, _)| start == 0) {
+                return None;
+            }
+            parts.iter().find_map(|&(start, end)| {
+                (end == length && start > 0 && start < length).then_some(start)
+            })
         })
+}
+
+fn validate_rotation_location(location: &Location, length: u64) -> Result<(), LocationError> {
+    match location {
+        Location::Range(..) => location_interval(location, length).map(|_| ()),
+        Location::Between(start, end) => {
+            if [*start, *end]
+                .into_iter()
+                .all(|point| u64::try_from(point).is_ok_and(|point| point < length))
+            {
+                Ok(())
+            } else {
+                Err(LocationError::OutOfBounds(location.clone()))
+            }
+        }
+        Location::Complement(inner) => validate_rotation_location(inner, length),
+        Location::Join(parts)
+        | Location::Order(parts)
+        | Location::Bond(parts)
+        | Location::OneOf(parts) => {
+            if parts.is_empty() {
+                return Err(LocationError::Empty);
+            }
+            for part in parts {
+                validate_rotation_location(part, length)?;
+            }
+            Ok(())
+        }
+        Location::External(..) | Location::Gap(_) => Ok(()),
+    }
 }
 
 fn location_parts(location: &Location) -> Vec<(i64, i64)> {
