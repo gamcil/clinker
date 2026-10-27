@@ -209,29 +209,9 @@ impl Analysis {
         ));
     }
 
-    /// Append clusters and compare new cluster pairs using a local native
-    /// thread pool. `jobs == 0` uses the number of available CPU threads.
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn append_clusters_with_jobs(
-        &mut self,
-        clusters: Vec<Cluster>,
-        identity_cutoff: f32,
-        jobs: usize,
-    ) -> Result<(), AnalysisError> {
-        self.append_clusters_with_options_and_jobs(
-            clusters,
-            AnalysisOptions {
-                identity_cutoff,
-                ..AnalysisOptions::default()
-            },
-            jobs,
-        )
-        .map(|_| ())
-    }
-
     /// Append clusters using the same native scheduler with or without prefiltering.
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn append_clusters_with_options_and_jobs(
+    pub fn append_clusters_with_jobs(
         &mut self,
         clusters: Vec<Cluster>,
         options: AnalysisOptions,
@@ -252,7 +232,7 @@ impl Analysis {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn reanalyse_with_options_and_jobs(
+    pub fn reanalyse(
         &mut self,
         options: AnalysisOptions,
         jobs: usize,
@@ -266,15 +246,15 @@ impl Analysis {
 
 /// Parse supported annotation inputs and retain cross-cluster gene links at the identity
 /// cutoff.
-pub fn analyse_genbank(
+pub fn analyse(
     files: &[InputFile<'_>],
     options: AnalysisOptions,
 ) -> Result<Analysis, AnalysisError> {
-    analyse_genbank_with_options(files, options, &ParseOptions::default())
+    analyse_with_parse_options(files, options, &ParseOptions::default())
 }
 
-/// Analyse GenBank inputs with explicit parsing behavior.
-pub fn analyse_genbank_with_options(
+/// Analyse annotation inputs with explicit parsing behavior.
+pub fn analyse_with_parse_options(
     files: &[InputFile<'_>],
     options: AnalysisOptions,
     parse_options: &ParseOptions,
@@ -292,7 +272,7 @@ pub fn analyse_genbank_with_options(
 /// `jobs == 0` uses the number of available CPU threads. Results retain the
 /// same deterministic cluster-pair ordering as the serial implementation.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn analyse_genbank_with_options_and_jobs(
+pub fn analyse_with_jobs(
     files: &[InputFile<'_>],
     options: AnalysisOptions,
     parse_options: &ParseOptions,
@@ -319,24 +299,11 @@ pub fn parse_input_files_with_options(
     files: &[InputFile<'_>],
     options: &ParseOptions,
 ) -> Result<Vec<Cluster>, AnalysisError> {
-    parse_input_files_with_options_and_progress(files, options, |_| {})
+    parse_input_files_with_progress(files, options, |_| {})
 }
 
-/// Parse annotation inputs and report the number of successfully processed input files.
-///
-/// Browser workers use the callback to surface progress without moving file
-/// parsing out of the shared core implementation.
+/// Parse inputs with explicit options and report successfully processed files.
 pub fn parse_input_files_with_progress<F>(
-    files: &[InputFile<'_>],
-    progress: F,
-) -> Result<Vec<Cluster>, AnalysisError>
-where
-    F: FnMut(usize),
-{
-    parse_input_files_with_options_and_progress(files, &ParseOptions::default(), progress)
-}
-
-pub fn parse_input_files_with_options_and_progress<F>(
     files: &[InputFile<'_>],
     options: &ParseOptions,
     mut progress: F,
@@ -515,9 +482,9 @@ pub fn can_reach_identity(query_length: usize, target_length: usize, identity_cu
 #[cfg(test)]
 mod tests {
     #[cfg(not(target_arch = "wasm32"))]
-    use super::analyse_genbank_with_options_and_jobs;
+    use super::analyse_with_jobs;
     use super::{
-        AnalysisOptions, InputFile, ProteinPair, analyse_genbank, can_reach_identity,
+        AnalysisOptions, InputFile, ProteinPair, analyse, can_reach_identity,
         parse_input_files_with_progress,
     };
     #[cfg(not(target_arch = "wasm32"))]
@@ -558,7 +525,7 @@ ORIGIN
             },
         ];
 
-        let analysis = analyse_genbank(&files, AnalysisOptions::default()).unwrap();
+        let analysis = analyse(&files, AnalysisOptions::default()).unwrap();
 
         assert_eq!(analysis.clusters.len(), 2);
         assert_eq!(analysis.links.len(), 1);
@@ -593,14 +560,10 @@ ORIGIN
             },
         ];
         let options = AnalysisOptions::default();
-        let serial = analyse_genbank(&files, options).unwrap();
+        let serial = analyse(&files, options).unwrap();
 
-        let one_job =
-            analyse_genbank_with_options_and_jobs(&files, options, &ParseOptions::default(), 1)
-                .unwrap();
-        let two_jobs =
-            analyse_genbank_with_options_and_jobs(&files, options, &ParseOptions::default(), 2)
-                .unwrap();
+        let one_job = analyse_with_jobs(&files, options, &ParseOptions::default(), 1).unwrap();
+        let two_jobs = analyse_with_jobs(&files, options, &ParseOptions::default(), 2).unwrap();
 
         assert_eq!(one_job, serial);
         assert_eq!(two_jobs, serial);
@@ -692,7 +655,7 @@ ORIGIN
                     links: Vec::new(),
                 };
                 let stats = analysis
-                    .append_clusters_with_options_and_jobs(clusters.clone(), options, jobs)
+                    .append_clusters_with_jobs(clusters.clone(), options, jobs)
                     .unwrap();
                 assert_eq!(analysis.links, expected);
                 assert!(stats.aligned_pairs >= analysis.links.len());
@@ -704,11 +667,11 @@ ORIGIN
                     links: Vec::new(),
                 };
                 incremental
-                    .append_clusters_with_options_and_jobs(clusters[..2].to_vec(), options, jobs)
+                    .append_clusters_with_jobs(clusters[..2].to_vec(), options, jobs)
                     .unwrap();
                 let existing = incremental.links.clone();
                 incremental
-                    .append_clusters_with_options_and_jobs(clusters[2..].to_vec(), options, jobs)
+                    .append_clusters_with_jobs(clusters[2..].to_vec(), options, jobs)
                     .unwrap();
                 assert_eq!(incremental.links, expected);
                 assert!(incremental.links.starts_with(&existing));
@@ -731,7 +694,10 @@ ORIGIN
         let mut reports = Vec::new();
 
         let clusters =
-            parse_input_files_with_progress(&files, |processed| reports.push(processed)).unwrap();
+            parse_input_files_with_progress(&files, &ParseOptions::default(), |processed| {
+                reports.push(processed)
+            })
+            .unwrap();
 
         assert_eq!(clusters.len(), 2);
         assert_eq!(reports, vec![1, 2]);

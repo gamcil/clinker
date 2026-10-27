@@ -172,9 +172,7 @@ pub enum SessionError {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        AnalysisOptions, GeneGroupDefinition, InputFile, analyse_genbank, parse_input_files,
-    };
+    use crate::{AnalysisOptions, GeneGroupDefinition, InputFile, analyse, parse_input_files};
 
     use super::{ANALYSIS_SESSION_FORMAT, AnalysisSession, SessionError};
 
@@ -211,7 +209,7 @@ ORIGIN
 
     #[test]
     fn round_trips_full_analysis_state() {
-        let analysis = analyse_genbank(
+        let analysis = analyse(
             &[
                 InputFile {
                     name: "first.gbk",
@@ -267,7 +265,7 @@ ORIGIN
 
     #[test]
     fn appending_clusters_preserves_old_links_and_adds_only_new_pairs() {
-        let mut analysis = analyse_genbank(
+        let mut analysis = analyse(
             &[
                 InputFile {
                     name: "first.gbk",
@@ -298,7 +296,7 @@ ORIGIN
 
     #[test]
     fn invalid_analysis_is_rejected_on_load_and_before_plotting() {
-        let analysis = analyse_genbank(
+        let analysis = analyse(
             &[
                 InputFile {
                     name: "first.gbk",

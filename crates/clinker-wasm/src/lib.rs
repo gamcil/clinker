@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 
 use clinker_core::{
     AlignmentCounts, AlignmentSettings, Analysis, AnalysisOptions, AnalysisSession, Cluster,
-    ClusterPairSimilarity, FigureStage, GenBankOptions, Gene, GeneGroupDefinition, GeneRef,
-    InputFile, KmerPrefilter, Link, Locus, PlotData, PreparedAlignment, ProteinBatch,
+    ClusterPairSimilarity, FigureStage, Gene, GeneGroupDefinition, GeneRef, InputFile,
+    KmerPrefilter, Link, Locus, ParseOptions, PlotData, PreparedAlignment, ProteinBatch,
     ProteinBatchAligner, ProteinBatchResult, ProteinPair, RowOrder, SequenceRange,
     parse_input_files_with_options,
 };
@@ -107,7 +107,7 @@ impl Default for BrowserGenBankOptions {
     }
 }
 
-impl From<&BrowserGenBankOptions> for GenBankOptions {
+impl From<&BrowserGenBankOptions> for ParseOptions {
     fn from(options: &BrowserGenBankOptions) -> Self {
         Self {
             ranges: options
@@ -137,7 +137,7 @@ pub struct BrowserFileParser {
     file_positions: BTreeMap<String, usize>,
     pending_files: Vec<BrowserFile>,
     prefilter: BrowserAnalysisSettings,
-    genbank_options: GenBankOptions,
+    parse_options: ParseOptions,
 }
 
 #[wasm_bindgen]
@@ -147,13 +147,13 @@ impl BrowserFileParser {
         let prefilter = serde_wasm_bindgen::from_value::<BrowserAnalysisSettings>(prefilter)
             .map_err(|error| JsValue::from_str(&format!("invalid prefilter settings: {error}")))?;
         prefilter.validate()?;
-        let genbank_options = GenBankOptions::from(&prefilter.genbank);
+        let parse_options = ParseOptions::from(&prefilter.genbank);
         Ok(Self {
             clusters: Vec::new(),
             file_positions: BTreeMap::new(),
             pending_files: Vec::new(),
             prefilter,
-            genbank_options,
+            parse_options,
         })
     }
 
@@ -172,7 +172,7 @@ impl BrowserFileParser {
             name: &file.name,
             bytes: &file.bytes,
         };
-        let mut clusters = parse_input_files_with_options(&[input], &self.genbank_options)
+        let mut clusters = parse_input_files_with_options(&[input], &self.parse_options)
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
         self.clusters.append(&mut clusters);
         Ok(())
@@ -182,7 +182,7 @@ impl BrowserFileParser {
         if !self.pending_files.is_empty() {
             let pending = std::mem::take(&mut self.pending_files);
             let mut clusters =
-                parse_input_files_with_options(&input_files(&pending), &self.genbank_options)
+                parse_input_files_with_options(&input_files(&pending), &self.parse_options)
                     .map_err(|error| JsValue::from_str(&error.to_string()))?;
             self.clusters.append(&mut clusters);
         }

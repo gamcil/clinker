@@ -73,8 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         clusters: Vec::new(),
         links: Vec::new(),
     };
-    let stats =
-        analysis.append_clusters_with_options_and_jobs(clusters, options, request.workers)?;
+    let stats = analysis.append_clusters_with_jobs(clusters, options, request.workers)?;
     let total_ms = start.elapsed().as_secs_f64() * 1000.0;
     // Work counts are diagnostics, computed after the elapsed-time boundary.
     let clusters = &analysis.clusters;

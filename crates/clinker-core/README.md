@@ -5,17 +5,22 @@ GenBank and GFF3/FASTA bytes, compares proteins, groups homologues, orders clust
 and prepares renderer data. Native and WebAssembly frontends use this same crate.
 
 ```rust
-use clinker_core::{AnalysisOptions, InputFile, RowOrder, analyse_genbank};
+use clinker_core::{AnalysisOptions, InputFile, RowOrder, analyse};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bytes = std::fs::read("cluster.gbk")?;
     let inputs = [InputFile { name: "cluster.gbk", bytes: &bytes }];
-    let analysis = analyse_genbank(&inputs, AnalysisOptions::default())?;
+    let analysis = analyse(&inputs, AnalysisOptions::default())?;
     let figure = analysis.prepare_figure(RowOrder::Similarity, &[], |_| {})?;
     println!("{} clusters", figure.plot_data.clusters.len());
     Ok(())
 }
 ```
+
+`analyse` accepts GenBank and GFF3/FASTA inputs. Use
+`analyse_with_parse_options` for explicit parsing settings, or the native
+`analyse_with_jobs` to select concurrency. Parsing APIs share `ParseOptions`;
+`parse_input_files_with_progress` takes those options and a progress callback.
 
 `AnalysisSession` retains analysis state for continuation. `ClinkerProject`
 combines that state with an editable figure; renderer-specific data remains JSON

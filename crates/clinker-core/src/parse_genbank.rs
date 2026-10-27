@@ -64,9 +64,6 @@ impl Default for ParseOptions {
     }
 }
 
-/// Backwards-compatible name retained for callers that only parse GenBank.
-pub type GenBankOptions = ParseOptions;
-
 pub fn parse_genbank(file_name: &str, bytes: &[u8]) -> Result<Cluster, ParseError> {
     let mut clusters = parse_genbank_with_options(file_name, bytes, &ParseOptions::default())?;
     clusters.pop().ok_or(ParseError::MissingRecords)

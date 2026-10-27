@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use clinker_core::{AnalysisOptions, FigureStage, InputFile, RowOrder, analyse_genbank};
+use clinker_core::{AnalysisOptions, FigureStage, InputFile, RowOrder, analyse};
 
 #[test]
 fn bundled_genbank_files_complete_the_analysis_and_plot_data_workflow() {
@@ -15,7 +15,7 @@ fn bundled_genbank_files_complete_the_analysis_and_plot_data_workflow() {
         },
     ];
 
-    let analysis = analyse_genbank(&files, AnalysisOptions::default()).unwrap();
+    let analysis = analyse(&files, AnalysisOptions::default()).unwrap();
 
     assert_eq!(analysis.clusters.len(), files.len());
     assert!(analysis.links.iter().all(|link| {

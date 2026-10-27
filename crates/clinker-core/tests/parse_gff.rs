@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use clinker_core::{
-    GenBankOptions, GffError, InputFile, SequenceRange, parse_gff3, parse_input_files_with_options,
+    GffError, InputFile, ParseOptions, SequenceRange, parse_gff3, parse_input_files_with_options,
 };
 
 const GFF: &[u8] = include_bytes!("fixtures/features.gff3");
@@ -9,13 +9,8 @@ const FASTA: &[u8] = include_bytes!("fixtures/features.fna");
 
 #[test]
 fn parses_multirecord_compound_cds_coordinates() {
-    let cluster = parse_gff3(
-        "features.gff3",
-        GFF,
-        Some(FASTA),
-        &GenBankOptions::default(),
-    )
-    .expect("valid GFF3 and FASTA");
+    let cluster = parse_gff3("features.gff3", GFF, Some(FASTA), &ParseOptions::default())
+        .expect("valid GFF3 and FASTA");
 
     assert_eq!(cluster.name, "features");
     assert_eq!(cluster.source_file.as_deref(), Some("features.gff3"));
@@ -48,7 +43,7 @@ seq\t.\tgene\t7\t24\t.\t-\t.\tID=gene_b\n\
 seq\t.\tmRNA\t7\t24\t.\t-\t.\tID=tx_b;Parent=gene_b\n\
 seq\t.\tCDS\t13\t18\t.\t-\t0\tID=cds_b;Parent=tx_b\n\
 ##FASTA\n>seq\nAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n";
-    let cluster = parse_gff3("utrs.gff3", input, None, &GenBankOptions::default()).unwrap();
+    let cluster = parse_gff3("utrs.gff3", input, None, &ParseOptions::default()).unwrap();
     let genes = &cluster.loci[0].genes;
     assert_eq!(genes.len(), 2);
     assert_eq!((genes[0].start, genes[0].end, genes[0].strand), (3, 9, 1));
@@ -58,9 +53,9 @@ seq\t.\tCDS\t13\t18\t.\t-\t0\tID=cds_b;Parent=tx_b\n\
     );
     assert!(genes[0].end <= genes[1].start);
 
-    let options = GenBankOptions {
+    let options = ParseOptions {
         ranges: BTreeMap::from([("seq".into(), SequenceRange { start: 3, end: 9 })]),
-        ..GenBankOptions::default()
+        ..ParseOptions::default()
     };
     let trimmed = parse_gff3("utrs.gff3", input, None, &options).unwrap();
     assert_eq!(trimmed.loci[0].genes.len(), 1);
@@ -76,7 +71,7 @@ seq\t.\tCDS\t13\t18\t.\t-\t0\tID=cds_b;Parent=tx_b\n\
 fn parses_an_embedded_fasta_section() {
     let input =
         b"##gff-version 3\nseq\t.\tCDS\t1\t9\t.\t+\t0\tID=embedded\n##FASTA\n>seq\nATGGCTTAA\n";
-    let cluster = parse_gff3("embedded.gff3", input, None, &GenBankOptions::default())
+    let cluster = parse_gff3("embedded.gff3", input, None, &ParseOptions::default())
         .expect("embedded FASTA is accepted");
 
     assert_eq!(cluster.loci[0].genes[0].translation, "MA");
@@ -85,7 +80,7 @@ fn parses_an_embedded_fasta_section() {
 #[test]
 fn keeps_split_codons_at_compound_cds_boundaries() {
     let input = b"##gff-version 3\nseq\t.\tCDS\t1\t4\t.\t+\t0\tID=split\nseq\t.\tCDS\t5\t9\t.\t+\t2\tID=split\n##FASTA\n>seq\nATGGCTTAA\n";
-    let cluster = parse_gff3("split.gff3", input, None, &GenBankOptions::default()).unwrap();
+    let cluster = parse_gff3("split.gff3", input, None, &ParseOptions::default()).unwrap();
 
     assert_eq!(cluster.loci[0].genes[0].translation, "MA");
 }
@@ -104,7 +99,7 @@ fn initial_phase_can_span_short_cds_segments_on_either_strand() {
             "partial.gff3",
             input.as_bytes(),
             None,
-            &GenBankOptions::default(),
+            &ParseOptions::default(),
         )
         .unwrap();
         assert_eq!(
@@ -121,7 +116,7 @@ fn genetic_code_applies_only_to_derived_translation() {
         "code.gff3",
         input.as_bytes(),
         None,
-        &GenBankOptions::default(),
+        &ParseOptions::default(),
     )
     .unwrap();
     assert_eq!(cluster.loci[0].genes[0].translation, "MW");
@@ -131,7 +126,7 @@ fn genetic_code_applies_only_to_derived_translation() {
             "invalid.gff3",
             invalid.as_bytes(),
             None,
-            &GenBankOptions::default()
+            &ParseOptions::default()
         ),
         Err(GffError::Translation { .. })
     ));
@@ -140,7 +135,7 @@ fn genetic_code_applies_only_to_derived_translation() {
         "supplied.gff3",
         supplied.as_bytes(),
         None,
-        &GenBankOptions::default(),
+        &ParseOptions::default(),
     )
     .unwrap();
     let gene = &cluster.loci[0].genes[0];
@@ -151,7 +146,7 @@ fn genetic_code_applies_only_to_derived_translation() {
 #[test]
 fn decodes_gff3_attributes_with_rust_bio() {
     let input = b"##gff-version 3\nseq\t.\tCDS\t1\t9\t.\t+\t0\tID=encoded;protein_id=alpha%20beta\n##FASTA\n>seq\nATGGCTTAA\n";
-    let cluster = parse_gff3("encoded.gff3", input, None, &GenBankOptions::default()).unwrap();
+    let cluster = parse_gff3("encoded.gff3", input, None, &ParseOptions::default()).unwrap();
 
     assert_eq!(cluster.loci[0].genes[0].label, "alpha beta");
 }
@@ -162,7 +157,7 @@ fn accepts_fasta_records_without_cds_annotations() {
         "empty.gff3",
         b"##gff-version 3\n",
         Some(b">seq\nATGGCTTAA\n"),
-        &GenBankOptions::default(),
+        &ParseOptions::default(),
     )
     .unwrap();
 
@@ -171,7 +166,7 @@ fn accepts_fasta_records_without_cds_annotations() {
 
 #[test]
 fn applies_absolute_ranges_to_offset_sequences() {
-    let options = GenBankOptions {
+    let options = ParseOptions {
         ranges: BTreeMap::from([(
             "chr1".to_owned(),
             SequenceRange {
@@ -179,7 +174,7 @@ fn applies_absolute_ranges_to_offset_sequences() {
                 end: 130,
             },
         )]),
-        ..GenBankOptions::default()
+        ..ParseOptions::default()
     };
     let cluster = parse_gff3("features.gff3", GFF, Some(FASTA), &options).unwrap();
 
@@ -216,7 +211,7 @@ fn large_absolute_coordinates_survive_parsing_arrangement_and_project_round_trip
                 "large.gff3",
                 annotation.as_bytes(),
                 Some(fasta),
-                &GenBankOptions::default(),
+                &ParseOptions::default(),
             )
             .unwrap()
         })
@@ -274,7 +269,7 @@ fn large_absolute_coordinates_survive_parsing_arrangement_and_project_round_trip
                 "large.gff3",
                 annotation.as_bytes(),
                 Some(b">seq\nATGGCTTAA\n"),
-                &GenBankOptions::default()
+                &ParseOptions::default()
             )
             .is_err()
         );
@@ -285,13 +280,7 @@ fn large_absolute_coordinates_survive_parsing_arrangement_and_project_round_trip
 fn uses_sequence_region_as_the_default_range_for_a_full_fasta_record() {
     let input = b"##gff-version 3\n##sequence-region seq 10 18\nseq\t.\tCDS\t10\t18\t.\t+\t0\tID=selected\n";
     let fasta = b">seq\nCCCCCCCCCATGGCTTAACCCCCCCCCCCC\n";
-    let cluster = parse_gff3(
-        "region.gff3",
-        input,
-        Some(fasta),
-        &GenBankOptions::default(),
-    )
-    .unwrap();
+    let cluster = parse_gff3("region.gff3", input, Some(fasta), &ParseOptions::default()).unwrap();
 
     assert_eq!((cluster.loci[0].start, cluster.loci[0].end), (9, 18));
     assert_eq!(cluster.loci[0].genes[0].translation, "MA");
@@ -305,7 +294,7 @@ fn rejects_invalid_gff_coordinates_without_panicking_or_silently_dropping_the_ge
             "invalid.gff3",
             input.as_bytes(),
             Some(b">seq\nATGGCTTAA\n"),
-            &GenBankOptions::default(),
+            &ParseOptions::default(),
         );
         assert!(matches!(result, Err(GffError::InvalidCoordinates { .. })));
     }
@@ -314,7 +303,7 @@ fn rejects_invalid_gff_coordinates_without_panicking_or_silently_dropping_the_ge
 #[test]
 fn reports_missing_and_mismatched_sequence_data() {
     assert!(matches!(
-        parse_gff3("features.gff3", GFF, None, &GenBankOptions::default()),
+        parse_gff3("features.gff3", GFF, None, &ParseOptions::default()),
         Err(GffError::MissingFasta)
     ));
     assert!(matches!(
@@ -322,7 +311,7 @@ fn reports_missing_and_mismatched_sequence_data() {
             "features.gff3",
             GFF,
             Some(b">chr1\nATGGCTAAACCCGAATTTTAAGGGCCCAAA\n"),
-            &GenBankOptions::default()
+            &ParseOptions::default()
         ),
         Err(GffError::MissingSequence { record }) if record == "chr2"
     ));
@@ -341,7 +330,7 @@ fn pairs_gff_and_fasta_inputs_by_stem() {
                 bytes: FASTA,
             },
         ],
-        &GenBankOptions::default(),
+        &ParseOptions::default(),
     )
     .unwrap();
 

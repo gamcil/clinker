@@ -238,9 +238,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     if args.reanalyse {
         session.analysis.append_clusters_without_alignment(clusters);
         if let Some(options) = alignment.options(identity_cutoff) {
-            session
-                .analysis
-                .reanalyse_with_options_and_jobs(options, args.jobs)?;
+            session.analysis.reanalyse(options, args.jobs)?;
         } else {
             session.analysis.links.clear();
         }
@@ -254,7 +252,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(options) = alignment.options(identity_cutoff) {
             session
                 .analysis
-                .append_clusters_with_options_and_jobs(clusters, options, args.jobs)?;
+                .append_clusters_with_jobs(clusters, options, args.jobs)?;
         } else {
             session.analysis.append_clusters_without_alignment(clusters);
         }

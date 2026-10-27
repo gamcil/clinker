@@ -376,7 +376,7 @@ fn gene_ref_id(reference: GeneRef) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::{AnalysisOptions, GeneGroupDefinition, InputFile, analyse_genbank};
+    use crate::{AnalysisOptions, GeneGroupDefinition, InputFile, analyse};
 
     #[test]
     fn plot_data_uses_stable_ids_and_omits_translations() {
@@ -409,7 +409,7 @@ ORIGIN
             },
         ];
 
-        let data = analyse_genbank(&files, AnalysisOptions::default())
+        let data = analyse(&files, AnalysisOptions::default())
             .unwrap()
             .to_plot_data()
             .unwrap();
@@ -443,7 +443,7 @@ ORIGIN
                 bytes: first,
             },
         ];
-        let analysis = analyse_genbank(&files, AnalysisOptions::default()).unwrap();
+        let analysis = analyse(&files, AnalysisOptions::default()).unwrap();
         let data = analysis.to_plot_data_in_order(&[1, 0]).unwrap();
 
         for order in [&[0, 0][..], &[0, 2][..], &[0][..]] {
@@ -477,7 +477,7 @@ ORIGIN
                 bytes: input,
             },
         ];
-        let analysis = analyse_genbank(&files, AnalysisOptions::default()).unwrap();
+        let analysis = analyse(&files, AnalysisOptions::default()).unwrap();
 
         let data = analysis.to_auto_arranged_plot_data(&[0, 1]).unwrap();
 
@@ -516,7 +516,7 @@ ORIGIN
                 bytes: second,
             },
         ];
-        let mut analysis = analyse_genbank(&files, AnalysisOptions::default()).unwrap();
+        let mut analysis = analyse(&files, AnalysisOptions::default()).unwrap();
         let definitions = [
             GeneGroupDefinition {
                 label: "Core enzyme".into(),

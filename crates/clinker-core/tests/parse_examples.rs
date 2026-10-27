@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use clinker_core::{GenBankOptions, SequenceRange, parse_genbank, parse_genbank_with_options};
+use clinker_core::{ParseOptions, SequenceRange, parse_genbank, parse_genbank_with_options};
 
 #[test]
 fn parses_the_existing_versicolor_example_into_one_locus() {
@@ -150,9 +150,9 @@ ORIGIN
         1 atggcttaa
 //
 "#;
-    let options = GenBankOptions {
+    let options = ParseOptions {
         as_separate_clusters: true,
-        ..GenBankOptions::default()
+        ..ParseOptions::default()
     };
 
     let clusters = parse_genbank_with_options("records.gbk", bytes, &options).unwrap();
@@ -185,9 +185,9 @@ ORIGIN
         1 atggctatggctatggct
 //
 "#;
-    let options = GenBankOptions {
+    let options = ParseOptions {
         ranges: BTreeMap::from([("RANGED".to_owned(), SequenceRange { start: 6, end: 12 })]),
-        ..GenBankOptions::default()
+        ..ParseOptions::default()
     };
 
     let clusters = parse_genbank_with_options("range.gbk", bytes, &options).unwrap();
@@ -206,13 +206,13 @@ fn rotates_a_fixture_backed_circular_origin_crossing_feature() {
     let bytes = include_bytes!("fixtures/circular.gbk");
 
     let shifted =
-        parse_genbank_with_options("circular.gbk", bytes, &GenBankOptions::default()).unwrap();
+        parse_genbank_with_options("circular.gbk", bytes, &ParseOptions::default()).unwrap();
     let unchanged = parse_genbank_with_options(
         "circular.gbk",
         bytes,
-        &GenBankOptions {
+        &ParseOptions {
             set_origin: false,
-            ..GenBankOptions::default()
+            ..ParseOptions::default()
         },
     )
     .unwrap();
@@ -232,9 +232,9 @@ fn rotates_a_fixture_backed_circular_origin_crossing_feature() {
 
 #[test]
 fn explicit_circular_trim_uses_original_record_coordinates() {
-    let options = GenBankOptions {
+    let options = ParseOptions {
         ranges: [("CIRCULAR".to_owned(), SequenceRange { start: 9, end: 18 })].into(),
-        ..GenBankOptions::default()
+        ..ParseOptions::default()
     };
     let clusters = parse_genbank_with_options(
         "circular.gbk",
