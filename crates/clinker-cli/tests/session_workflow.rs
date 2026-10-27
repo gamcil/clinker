@@ -1,17 +1,11 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::Path,
     process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use clinker_core::AnalysisSession;
-
-fn fixture(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples")
-        .join(name)
-}
 
 fn run(arguments: &[&Path]) {
     let output = Command::new(env!("CARGO_BIN_EXE_clinker-rs"))
@@ -39,8 +33,10 @@ fn creates_reopens_and_extends_an_analysis_session() {
     fs::create_dir(&directory).unwrap();
     let session_path = directory.join("analysis.json");
     let plot_path = directory.join("plot.json");
-    let first = fixture("A. versicolor CBS 583.65.gbk");
-    let second = fixture("A. alliaceus CBS 536.65.gbk");
+    let first = directory.join("first.gbk");
+    let second = directory.join("second.gbk");
+    fs::write(&first, include_bytes!("fixtures/session.gbk")).unwrap();
+    fs::write(&second, include_bytes!("fixtures/session.gbk")).unwrap();
 
     run(&[
         first.as_path(),

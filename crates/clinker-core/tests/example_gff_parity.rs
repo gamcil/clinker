@@ -4,14 +4,14 @@ macro_rules! assert_example_parity {
     ($stem:literal) => {{
         let genbank = parse_genbank(
             concat!($stem, ".gbk"),
-            include_bytes!(concat!("../../../examples/", $stem, ".gbk")),
+            include_bytes!(concat!("fixtures/examples/", $stem, ".gbk")),
         )
         .expect("bundled GenBank example parses");
         let gff = parse_gff3(
             concat!($stem, ".gff3"),
-            include_bytes!(concat!("../../../examples/gff3/", $stem, ".gff3")),
+            include_bytes!(concat!("fixtures/examples/gff3/", $stem, ".gff3")),
             Some(include_bytes!(concat!(
-                "../../../examples/gff3/",
+                "fixtures/examples/gff3/",
                 $stem,
                 ".fna"
             ))),

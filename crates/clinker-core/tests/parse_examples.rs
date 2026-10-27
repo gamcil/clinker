@@ -4,7 +4,7 @@ use clinker_core::{GenBankOptions, SequenceRange, parse_genbank, parse_genbank_w
 
 #[test]
 fn parses_the_existing_versicolor_example_into_one_locus() {
-    let bytes = include_bytes!("../../../examples/A. versicolor CBS 583.65.gbk");
+    let bytes = include_bytes!("fixtures/examples/A. versicolor CBS 583.65.gbk");
 
     let cluster = parse_genbank("A. versicolor CBS 583.65.gbk", bytes)
         .expect("the bundled example is valid GenBank");
@@ -110,7 +110,7 @@ ORIGIN
 
 #[test]
 fn handles_reverse_spliced_cds_with_complements_inside_a_join() {
-    let bytes = include_bytes!("../../../examples/A. burnettii MST-FP2249.gbk");
+    let bytes = include_bytes!("fixtures/examples/A. burnettii MST-FP2249.gbk");
     let cluster = parse_genbank("A. burnettii MST-FP2249.gbk", bytes)
         .expect("the bundled example is valid GenBank");
     let genes = &cluster.loci[0].genes;

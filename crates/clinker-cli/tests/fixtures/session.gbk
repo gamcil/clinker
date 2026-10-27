@@ -1,0 +1,8 @@
+LOCUS       SESSION                   60 bp    DNA     linear   UNA 01-JAN-2000
+FEATURES             Location/Qualifiers
+     CDS             1..60
+                     /locus_tag="gene"
+                     /translation="MAAAAAAAAAAAAAAAAAAA"
+ORIGIN
+        1 atggctgctgctgctgctgctgctgctgctgctgctgctgctgctgctgctgctgcttaa
+//

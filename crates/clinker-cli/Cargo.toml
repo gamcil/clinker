@@ -4,8 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 description = "Native command-line interface for clinker"
-include = ["src/**", "assets/**", "build.rs", "Cargo.toml"]
+include = ["src/**", "assets/**", "tests/**", "build.rs", "README.md", "LICENSE", "Cargo.toml"]
+keywords = ["bioinformatics", "genomics", "visualization"]
+categories = ["command-line-utilities", "science"]
 
 [[bin]]
 name = "clinker-rs"

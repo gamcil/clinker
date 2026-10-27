@@ -622,7 +622,7 @@ mod tests {
     #[test]
     fn discovers_gff_companion_fasta() {
         let fixture = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../clinker-core/tests/fixtures/features.gff3");
+            .join("tests/fixtures/features.gff3");
         let paths = discover_input_paths(&[fixture]).unwrap();
 
         assert_eq!(paths.len(), 2);

@@ -3,7 +3,7 @@ use std::{fs, process::Command};
 #[test]
 fn discovers_the_companion_fasta_and_writes_gff_plot_data() {
     let manifest = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let gff = manifest.join("../clinker-core/tests/fixtures/features.gff3");
+    let gff = manifest.join("tests/fixtures/features.gff3");
     let output = std::env::temp_dir().join(format!(
         "clinker-gff-{}-{}.json",
         std::process::id(),
