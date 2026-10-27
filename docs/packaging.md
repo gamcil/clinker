@@ -11,8 +11,6 @@
 
 `clinker-wasm` has `publish = false`; its bindings are distributed through the
 static application. The CLI package is named `clinker-cli` and installs one executable, `clinker`.
-The workflow's `CLINKER_BINARY` value is checked against Cargo metadata to keep
-archive packaging consistent.
 
 ## Cargo contents
 
@@ -29,45 +27,46 @@ The core dependency declares both `path` and `version`. Cargo removes the path
 when packaging for a registry, so publish the core before publishing the CLI.
 See [Cargo packaging](https://doc.rust-lang.org/cargo/commands/cargo-package.html).
 
-## Isolated package verification
+## Source package verification
 
-From a clean checkout:
+CI uses Cargo to create the source archives, then tests and installs the CLI
+from their extracted contents outside the checkout. The CLI workflow regression
+covers project/HTML exports and serving the embedded viewer and saved project.
+Native jobs also extract their platform archive and run its executable outside
+the checkout.
+
+Before the first registry publication, the CLI needs a local override for its
+unpublished core dependency. These are the same steps used by CI, from a clean
+checkout (Bash):
 
 ```sh
-node scripts/check-packages.mjs
+package_dir=$(mktemp -d)
+cargo package --locked --no-verify -p clinker-core -p clinker-cli --target-dir "$package_dir"
+for archive in "$package_dir"/package/*.crate; do
+  tar -xzf "$archive" -C "$package_dir"
+done
+core=("$package_dir"/clinker-core-*)
+cli=("$package_dir"/clinker-cli-*)
+patch="patch.crates-io.clinker-core.path=\"${core[0]}\""
+cargo test --manifest-path "${cli[0]}/Cargo.toml" --config "$patch" --target-dir "$package_dir/target"
+cargo install --locked --debug --path "${cli[0]}" --config "$patch" --target-dir "$package_dir/target" --root "$package_dir/install"
+(cd "$package_dir" && install/bin/clinker --version)
 ```
 
-For local development, `--offline` uses cached Cargo dependencies and
-`--allow-dirty` explicitly permits packaging modified source. CI uses neither.
-The script requires Node, Cargo and `tar` as maintainer tools; those tools do not
-become dependencies of an installed application.
+Cargo updates the extracted CLI lockfile for the core path override during the
+test step; installation then uses that lockfile with `--locked`. Dependencies
+come from the extracted archives and registry, without a synthetic workspace or
+changes to the checkout. The fresh temporary target directory avoids reusing
+older builds of same-version archives.
 
-The check:
+`--no-verify` skips Cargo's automatic registry verification of the unpublished
+peer; the extracted-package tests perform verification instead. After the core
+version is available on crates.io, replace these temporary extraction/override
+steps with `cargo package --locked -p clinker-core -p clinker-cli`.
 
-1. Packages core and CLI together with the workspace lockfile and explicit file lists.
-2. Extracts both archives into a temporary workspace outside the checkout.
-3. Overrides only the unpublished core dependency to the extracted peer archive,
-   keeping every third-party locked version. It never uses the checkout's core.
-4. Clears cached builds of the two project crates, builds all packaged targets,
-   and performs a debug `cargo install --locked` into a temporary installation
-   root. The dedicated target cache receives a `CACHEDIR.TAG` when missing so
-   current Cargo can clean package-only or older caches. Dependency caches remain
-   reusable; stable archive timestamps must not allow an older build of the same
-   project version to pass verification.
-5. Uses the installed executable to generate a project and portable HTML.
-6. Removes both extracted source trees, starts the installed viewer, and checks
-   the served project and the hash of every embedded asset.
-
-Package creation uses `--no-verify` because verification is explicitly performed
-on the extracted pair. This avoids requiring the first core version to exist in
-the public registry and works around Cargo 1.94's temporary-registry checksum
-failure for interdependent package verification. Debug installation keeps this
-check fast; native release jobs separately build optimized binaries on each OS.
-
-Accepted archives remain in `target/package-check/package/`. CI gates releases
-and Pages on this check and adds the `.crate` files to tagged GitHub releases.
-Native jobs also extract their platform archive and run its executable outside
-the checkout on every run.
+CI uploads the `.crate` files from its temporary package directory for tagged
+GitHub releases. Debug installation keeps the source check fast; native jobs
+separately build optimized binaries on each supported OS.
 
 ## Registry publication
 

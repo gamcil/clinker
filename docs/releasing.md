@@ -8,9 +8,9 @@ archives for tags matching `v[0-9]*`.
 
 - Set the workspace version in the root `Cargo.toml` and the `clinker-core` dependency
   version in `crates/clinker-cli/Cargo.toml`; refresh `Cargo.lock` if needed.
-- Run `node scripts/check-packages.mjs` from a clean checkout. It verifies actual
-  `.crate` contents, installation from extracted sources, portable HTML and every
-  embedded viewer asset. See [packaging](packaging.md).
+- Run the Cargo source-package checks from a clean checkout. They test and
+  install the extracted archives, including project/HTML exports and the embedded
+  viewer. See [packaging](packaging.md#source-package-verification).
 - Review [features.md](features.md), [release-notes.md](release-notes.md), and installation
   instructions in [cli.md](cli.md) and [web/DEPLOYMENT.md](../web/DEPLOYMENT.md).
 - Confirm the checks and hosted Pages build succeed for the intended commit.

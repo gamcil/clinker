@@ -119,8 +119,7 @@ Verified locally:
   import, project reopening, similarity CSV and SVG export on the larger input.
 - Portable HTML rendering directly from disk.
 - Extracted core/CLI Cargo archives: build, installation, exports and every
-  embedded viewer asset under Cargo 1.98. The package checker now initializes
-  its dedicated cache marker before cleaning.
+  embedded viewer asset under Cargo 1.98.
 
 Remaining release gates:
 
