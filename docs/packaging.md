@@ -50,8 +50,10 @@ The check:
    keeping every third-party locked version. It never uses the checkout's core.
 4. Clears cached builds of the two project crates, builds all packaged targets,
    and performs a debug `cargo install --locked` into a temporary installation
-   root. Dependency caches remain reusable; stable archive timestamps must not
-   allow an older build of the same project version to pass verification.
+   root. The dedicated target cache receives a `CACHEDIR.TAG` when missing so
+   current Cargo can clean package-only or older caches. Dependency caches remain
+   reusable; stable archive timestamps must not allow an older build of the same
+   project version to pass verification.
 5. Uses the installed executable to generate a project and portable HTML.
 6. Removes both extracted source trees, starts the installed viewer, and checks
    the served project and the hash of every embedded asset.

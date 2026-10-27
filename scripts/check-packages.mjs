@@ -1,7 +1,7 @@
 // Maintainer/CI check. Cargo consumers need no Node or frontend tooling.
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, writeFile, rm, realpath } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +13,13 @@ if (options.some(arg => !['--offline', '--allow-dirty'].includes(arg))) {
 }
 const offline = options.includes('--offline') ? ['--offline'] : [];
 const target = resolve(root, 'target/package-check');
+// Packaging alone does not initialize the marker required by newer Cargo clean.
+await mkdir(target, { recursive: true });
+await writeFile(resolve(target, 'CACHEDIR.TAG'),
+  'Signature: 8a477f597d28d172789f06886806bc55\n# Extracted Cargo package verification cache.\n',
+  { flag: 'wx' }).catch(error => {
+    if (error.code !== 'EEXIST') throw error;
+  });
 function run(command, args, cwd = root, capture = false) {
   const result = spawnSync(command, args, { cwd, encoding: 'utf8', stdio: capture ? 'pipe' : 'inherit' });
   if (result.error) throw result.error;
