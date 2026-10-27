@@ -55,8 +55,8 @@ code must not deserialize those fields into a narrower schema that drops edits.
 ## CLI and browser
 
 ```sh
-clinker-rs input-a.gbk input-b.gbk --project comparison.json
-clinker-rs --session analysis.json --project comparison.json
+clinker input-a.gbk input-b.gbk --project comparison.json
+clinker --session analysis.json --project comparison.json
 ```
 
 Open `comparison.json` through **File → Open project** in the browser app.

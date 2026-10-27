@@ -1,7 +1,7 @@
 # clinker-cli
 
 Native clinker analysis and an embedded interactive gene cluster viewer.
-The executable is named `clinker-rs` during the Rust transition.
+The executable is named `clinker`.
 
 After the Rust crates are published:
 
@@ -16,10 +16,10 @@ cargo install --locked --path crates/clinker-cli
 ```
 
 ```sh
-clinker-rs clusters/*.gbk --plot
-clinker-rs cluster.gff3 --plot figure.html
-clinker-rs clusters/*.gbk --project comparison.json
-clinker-rs --open-project comparison.json
+clinker clusters/*.gbk --plot
+clinker cluster.gff3 --plot figure.html
+clinker clusters/*.gbk --project comparison.json
+clinker --open-project comparison.json
 ```
 
 Bare `--plot` opens the local viewer and keeps the CLI running until Ctrl+C.

@@ -9,7 +9,7 @@ fn discovers_the_companion_fasta_and_writes_gff_plot_data() {
         std::process::id(),
         std::thread::current().name().unwrap_or("test")
     ));
-    let result = Command::new(env!("CARGO_BIN_EXE_clinker-rs"))
+    let result = Command::new(env!("CARGO_BIN_EXE_clinker"))
         .arg(gff)
         .arg("--no-align")
         .arg("--plot")

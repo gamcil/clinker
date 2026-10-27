@@ -8,7 +8,7 @@ use std::{
 use clinker_core::AnalysisSession;
 
 fn run(arguments: &[&Path]) {
-    let output = Command::new(env!("CARGO_BIN_EXE_clinker-rs"))
+    let output = Command::new(env!("CARGO_BIN_EXE_clinker"))
         .args(arguments)
         .output()
         .expect("run clinker CLI");

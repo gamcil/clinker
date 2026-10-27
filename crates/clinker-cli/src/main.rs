@@ -19,7 +19,7 @@ use clinker_core::{
 
 /// Analyse GenBank or GFF3 input with clinker.
 #[derive(Debug, Parser)]
-#[command(version, about)]
+#[command(name = "clinker", version, about)]
 struct Args {
     /// GenBank or GFF3 files/directories to analyse. Companion FASTA is discovered automatically.
     inputs: Vec<PathBuf>,
@@ -555,7 +555,7 @@ mod tests {
     fn validates_prefilter_arguments() {
         use clap::Parser;
         assert!(
-            super::Args::try_parse_from(["clinker-rs", "--prefilter"])
+            super::Args::try_parse_from(["clinker", "--prefilter"])
                 .unwrap()
                 .prefilter
         );
@@ -567,9 +567,7 @@ mod tests {
             vec!["--prefilter", "--min-shared-kmers", "0"],
             vec!["--prefilter", "--no-align"],
         ] {
-            assert!(
-                super::Args::try_parse_from(std::iter::once("clinker-rs").chain(args)).is_err()
-            );
+            assert!(super::Args::try_parse_from(std::iter::once("clinker").chain(args)).is_err());
         }
     }
 

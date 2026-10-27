@@ -10,10 +10,9 @@
 | `clinker-web.tar.gz` | Tested static browser app, WASM, vendor modules, examples and licences | An HTTP static host and a supported browser |
 
 `clinker-wasm` has `publish = false`; its bindings are distributed through the
-static application. The CLI package and binary currently remain `clinker-cli`
-and `clinker-rs`. Rename the binary to `clinker` once at the final Rust cutover;
-do not introduce a second compatibility binary. The workflow's `CLINKER_BINARY`
-value is checked against Cargo metadata to keep archive packaging consistent.
+static application. The CLI package is named `clinker-cli` and installs one executable, `clinker`.
+The workflow's `CLINKER_BINARY` value is checked against Cargo metadata to keep
+archive packaging consistent.
 
 ## Cargo contents
 

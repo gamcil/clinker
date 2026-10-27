@@ -28,8 +28,8 @@ on:
   workflow_dispatch:
 
 env:
-  # Rename once, at the final Rust cutover; check-packages validates this value.
-  CLINKER_BINARY: clinker-rs
+  # check-packages validates this against the Cargo binary target.
+  CLINKER_BINARY: clinker
 
 permissions:
   contents: read

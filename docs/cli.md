@@ -1,7 +1,7 @@
 # clinker native command line
 
-Extract the archive for your operating system, then run `clinker-rs --help`
-(`.\clinker-rs.exe --help` in Windows PowerShell). Rust and Python are not
+Extract the archive for your operating system, then run `clinker --help`
+(`.\clinker.exe --help` in Windows PowerShell). Rust and Python are not
 required to run the executable.
 
 Available archives target Linux x86-64, Windows x86-64, and Apple Silicon macOS.
@@ -10,14 +10,14 @@ The Linux executable dynamically links glibc and is built on the GitHub
 to support it. Intel macOS and Linux ARM binaries are not currently provided.
 
 ```sh
-./clinker-rs input-a.gbk input-b.gbk --plot
-./clinker-rs input-a.gbk input-b.gbk --plot figure.html
-./clinker-rs cluster.gff3 --plot figure.html
-./clinker-rs input-a.gbk input-b.gbk --session analysis.json
-./clinker-rs --session analysis.json --plot figure.html
-./clinker-rs input-a.gbk input-b.gbk --project comparison.json
-./clinker-rs --open-project comparison.json
-./clinker-rs --open-project comparison.json --no-browser
+./clinker input-a.gbk input-b.gbk --plot
+./clinker input-a.gbk input-b.gbk --plot figure.html
+./clinker cluster.gff3 --plot figure.html
+./clinker input-a.gbk input-b.gbk --session analysis.json
+./clinker --session analysis.json --plot figure.html
+./clinker input-a.gbk input-b.gbk --project comparison.json
+./clinker --open-project comparison.json
+./clinker --open-project comparison.json --no-browser
 ```
 
 GFF3 files need embedded FASTA or a same-stem companion FASTA in the same

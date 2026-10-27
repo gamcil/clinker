@@ -37,9 +37,8 @@ Rust releases are excluded from Python package publishing.
 
 The workflow does not publish to crates.io. Follow the separate core-then-CLI
 [registry publication procedure](packaging.md#registry-publication) when ready.
-The binary stays `clinker-rs` until the final Rust cutover. Update the single
-Cargo binary target, CLI references/tests/docs and workflow `CLINKER_BINARY`
-together at that point; do not ship an extra alias.
+The CLI package installs one executable named `clinker`. Native archives and
+Cargo installations use the same executable name.
 
 Python maintenance is isolated on `python-maintenance`, starting from the
 Python `v0.0.32` release. Its publishing workflow accepts only pushed

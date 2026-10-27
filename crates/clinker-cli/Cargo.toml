@@ -11,7 +11,7 @@ keywords = ["bioinformatics", "genomics", "visualization"]
 categories = ["command-line-utilities", "science"]
 
 [[bin]]
-name = "clinker-rs"
+name = "clinker"
 path = "src/main.rs"
 
 [dependencies]

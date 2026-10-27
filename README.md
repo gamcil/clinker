@@ -23,12 +23,12 @@ Run from the repository root:
 
 ```sh
 cargo build --locked --release -p clinker-cli
-./target/release/clinker-rs examples/*.gbk --plot
-./target/release/clinker-rs examples/*.gbk --plot figure.html
-./target/release/clinker-rs examples/*.gbk --project comparison.json
+./target/release/clinker examples/*.gbk --plot
+./target/release/clinker examples/*.gbk --plot figure.html
+./target/release/clinker examples/*.gbk --project comparison.json
 ```
 
-The executable is currently named `clinker-rs`. Cargo builds use the committed
+The executable is named `clinker`. Cargo builds use the committed
 viewer assets and do not require Node.js, npm, or a web build.
 
 For the browser application, install Node.js/npm, Rust with the
@@ -66,8 +66,8 @@ The native CLI embeds the shared local viewer. Bare `--plot` opens it;
 `--open-project comparison.json` restores an edited project. Use `--no-browser`
 to print the local URL without launching a browser. See [distribution packaging](docs/packaging.md)
 for source crates, native archives and independent install checks. Portable HTML
-remains a separate renderer-only export. The binary rename and default-branch
-cutover remain the final migration step.
+remains a separate renderer-only export. The default-branch and release cutover
+remain the final migration step.
 
 ## Citation
 

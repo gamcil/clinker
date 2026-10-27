@@ -11,7 +11,7 @@ file, build directory, and dependency resolution.
   grouping, ordering, and plot-data code. It takes input bytes rather than paths
   so both frontends execute the same analysis implementation.
 - `clinker-cli` is the small native command-line frontend. Its release binary
-  is named `clinker-rs`.
+  is named `clinker`.
 - `clinker-wasm` is a thin `wasm-bindgen` adapter used by the static web app.
 
 `Cargo.toml` is Rust's package manifest. It declares a package's name,
@@ -129,7 +129,7 @@ Build an optimized distributable binary:
 cargo build --release -p clinker-cli
 ```
 
-The resulting executable is `target/release/clinker-rs`. End users download a
+The resulting executable is `target/release/clinker`. End users download a
 release binary; they do not need Cargo or Rust installed.
 
 ## Dependency management
