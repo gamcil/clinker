@@ -1,14 +1,8 @@
 # Feature coverage and release scope
 
-The Rust implementation is intended to become clinker, rather than remain a
-second implementation that reproduces every numerical result from the Python
-package. The Python application is therefore used to identify established user
-workflows. Rust tests verify those capabilities directly with fixtures and
-end-to-end workflows.
-
-Alignment scores, traceback choices, link counts near a cutoff, cluster order,
-and generated identifiers do not need to match Python exactly. They must be
-well-defined, useful, stable enough for saved output, and covered by Rust tests.
+The native CLI and browser share the Rust analysis implementation. Supported
+workflows are listed below; scores, traceback choices and cluster order are not
+required to match the legacy Python implementation exactly.
 
 ## Implemented
 
@@ -67,61 +61,23 @@ clustermap. A release does not require output equivalence with Python, but
 unsupported established workflows must remain visible in this matrix and in
 release notes.
 
-## Local acceptance baseline — 2026-10-27
+## Data imports
 
-Measured on macOS 26.5.2, arm64, eight logical CPUs, using Rust 1.98.1 for both
-native and WASM, Node 25.8.2 and Chromium 153.0.8010.12. Each configuration ran
-three times with four workers and identity cutoff 0.30. The optional filter used
-k=3 and three shared words. Native measurements used the release-mode core
-benchmark; browser measurements used the existing Chromium/Web Worker harness.
-Input staging and module compilation are excluded. Timings include parsing,
-preparation/filtering and alignment, and exclude ordering, layout and rendering.
+Use **Add data** to import Newick trees or TSV/CSV annotations. Tree leaves must
+match every plotted cluster exactly once; ambiguous names can be mapped manually.
+Quoted Newick labels, non-negative branch lengths and internal support values
+are supported. Trees can be rotated and styled, and edits survive project saving.
+**Row order** switches between the default order, imported tree and computed
+similarity dendrogram. The latter represents gene-cluster similarity, not ancestry.
 
-The small input is the five frozen GenBank examples: 51 proteins and 1,001
-possible comparisons. The larger local `bgcs_gcf_export_2` snapshot has 169
-clusters, 1,465 proteins and 1,065,430 possible comparisons. Input snapshot
-fingerprints are `2863f5a436df` and `e97ad6ab38ec`, respectively (SHA-256 over
-sorted filename/NUL/file-SHA-256/newline records). The larger dataset is not
-part of the distributed fixtures.
+For annotations, **Separate tracks** gives each selected column its own scale
+or legend and uses its header as the panel title. Use **One heatmap** for columns
+with comparable units, such as expression values or presence/absence. It shares
+one scale; values are not automatically normalized. Blank cells remain missing.
+See the [example table](../examples/annotations.md).
 
-| Input | Filter | Native median (s) | WASM median (s) | Retained links, both |
-| --- | --- | --- | --- | --- |
-| Five examples | Off | 0.034 | 0.108 | 79 |
-| Five examples | 3/3 | 0.095 | 0.170 | 79 |
-| 169-cluster GCF export | Off | 22.263 | 22.714 | 6,784 |
-| 169-cluster GCF export | 3/3 | 23.602 | 24.839 | 6,778 |
+## Release checks
 
-Native/WASM protein, candidate, alignment and retained-link counts agreed on every
-run. On the larger input the unfiltered path ran 648,549 alignments after the
-exact length bound; the filter selected 611,618 pairs and retained six fewer
-links. Filtering was slower on both measured inputs. Filtering remains opt-in in
-both frontends; the browser previously enabled it by default.
-
-Native peak RSS on the larger input was 34.0 MiB unfiltered and 45.9 MiB filtered.
-Sampled Node/Chromium process-tree RSS reached approximately 960 and 913 MiB.
-Those browser totals include browser overhead and double-count shared pages;
-they are not unique physical-memory measurements or directly comparable to the
-native process. Larger inputs remain unmeasured.
-
-A full unfiltered CLI run on the larger input, writing a session, editable
-project, portable HTML, link summary and distance CSV, took 22.84 seconds
-and peaked at 71.6 MiB RSS. The packaged browser app took 27.31 seconds
-from clicking Analyse to displaying the same 169-cluster, 6,784-link figure
-(single end-to-end observations).
-
-Verified locally:
-
-- Packaged application workflows in Chromium, Firefox and WebKit, including
-  separate TSV tracks, a multi-column CSV presence/absence heatmap and project
-  persistence through edits and reopening.
-- The extracted optimized macOS archive: native viewer, editing, annotation
-  import, project reopening, similarity CSV and SVG export on the larger input.
-- Portable HTML rendering directly from disk.
-- Extracted core/CLI Cargo archives: build, installation, exports and every
-  embedded viewer asset under Cargo 1.98.
-
-Remaining release gates:
-
-- Confirm Linux/Windows native archives, actual Safari and the hosted Pages
-  deployment in their release environments, following [releasing.md](releasing.md).
-  Local WebKit checks cover engine behavior; Safari verification remains pending.
+CI checks native Linux/macOS/Windows builds, source packages and the packaged web
+app. Manual verification of downloaded releases on supported systems and the
+hosted app in actual Safari remains part of the [release procedure](releasing.md).

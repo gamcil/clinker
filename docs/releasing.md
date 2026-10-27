@@ -43,9 +43,6 @@ When ready to make Rust the main repository version:
    create `v0.1.0` only when ready to publish. Set a different version before
    tagging if required.
 
-Preparing this commit does not push a branch, merge, alter repository settings,
-create a tag or publish a release. Those actions remain the actual cutover.
-
 ## Publish
 
 Create and push `vX.Y.Z` on a commit already merged into `master`, with `X.Y.Z`

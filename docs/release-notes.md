@@ -23,5 +23,5 @@ benefit depends on the input, and it can discard distant homologues.
 
 CLI and browser projects retain the computed Ward dendrogram when similarity
 ordering runs. Choose Row order → Similarity dendrogram to display it; saved
-tree edits can be restored in either viewer. See the [acceptance baseline and
-remaining release gates](features.md#local-acceptance-baseline--2026-10-27).
+tree edits can be restored in either viewer. See the
+[remaining release checks](features.md#release-checks).

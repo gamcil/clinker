@@ -2,8 +2,7 @@
 
 The Python implementation is maintained on `python-maintenance`. Its baseline
 is the existing `v0.0.32` release, commit
-`a126ee5306982858809981b79d6af3663cd2c56c`. The Python source and packaging on
-`rust-port` matched that release when the maintenance branch was created.
+`a126ee5306982858809981b79d6af3663cd2c56c`.
 
 Keep future Python fixes, dependency updates, package version changes and PyPI
 releases on that branch. Rust development remains on `rust-port` while the code base is finalized;
@@ -62,6 +61,4 @@ not act as a publishing approval. Confirm the Actions run and PyPI artifacts
 before announcing the release. Failed validation must be corrected before
 publishing. Existing PyPI versions cannot be replaced by rerunning the workflow.
 
-Branch creation and this workflow migration do not bump the version, create a
-release tag or upload a package. The existing PyPI secret and GitHub execution
-still need to be confirmed during the first actual maintenance release.
+Confirm PyPI credentials and the workflow during the first maintenance release.

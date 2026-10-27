@@ -1,38 +1,24 @@
 # clinker-cli
 
-Native clinker analysis and an embedded interactive gene cluster viewer.
-The executable is named `clinker`.
-
-After the Rust crates are published:
-
-```sh
-cargo install --locked clinker-cli
-```
-
-From a source checkout:
+Native gene-cluster comparison and an embedded interactive viewer. Install from
+a source checkout:
 
 ```sh
 cargo install --locked --path crates/clinker-cli
-```
-
-```sh
 clinker clusters/*.gbk --plot
 clinker cluster.gff3 --plot figure.html
 clinker clusters/*.gbk --project comparison.json
 clinker --open-project comparison.json
 ```
 
-Bare `--plot` opens the local viewer and keeps the CLI running until Ctrl+C.
-`--no-browser` prints the loopback URL without launching a browser. A filename
-after `--plot` writes renderer JSON or a portable, renderer-only HTML figure.
-Projects retain analysis data, annotations, trees, appearance and figure edits.
-GFF3 inputs need embedded FASTA or a same-stem companion FASTA file.
+Bare `--plot` opens the viewer until Ctrl+C; `--no-browser` prints its local URL.
+A `.html` or `.json` filename writes a portable figure or raw renderer data.
+Projects preserve analysis, annotations, trees and figure edits. GFF3 inputs
+require embedded FASTA or a same-stem companion file.
 
-The complete viewer and licence notices ship inside this source package and are
-embedded by a Rust-only build script. Cargo builds/installations never invoke
-Node.js, npm or wasm-pack, and never download frontend assets. The viewer renders
-native results without WASM analysis. Third-party viewer licences are included
-under `assets/`.
+Cargo builds embed the included viewer without Node.js or frontend downloads.
+Third-party licences are under `assets/`. After registry publication, install
+with `cargo install --locked clinker-cli`.
 
-See the [clinker repository](https://github.com/gamcil/clinker) for release
-archives, detailed usage, development documentation and citation information.
+See the [repository CLI guide](https://github.com/gamcil/clinker/blob/rust-port/docs/cli.md)
+for all options and supported platforms.

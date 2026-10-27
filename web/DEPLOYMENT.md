@@ -26,9 +26,3 @@ SVG and Similarity CSV are output formats, not restorable projects. Python
 session files and standalone CLI analysis sessions cannot be opened here.
 
 The archive includes the clinker, clustermap.js and D3 licence notices.
-
-The repository workflow deploys the tested static app from `rust-port` to GitHub
-Pages after native, source-package and browser checks pass. Other branches
-and release tags run checks without replacing the hosted site. Deployment stays
-on `rust-port` until the later merge into `master`. See the
-[release and cutover procedure](../docs/releasing.md).

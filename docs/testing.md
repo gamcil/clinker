@@ -32,13 +32,3 @@ exhaustive renderer, dragging and tree-operation checks belong upstream.
 - Run Chromium browser workflows on ordinary pushes and pull requests. Release
   tags and manual workflow runs also exercise Firefox and WebKit. Native builds
   and filesystem regressions continue on Linux, macOS and Windows.
-
-## Clustermap follow-up
-
-Apply the same ownership rules in the upstream repository. Consolidation targets
-include `chart-api.test.js` method inventories, `chart-runtime.test.js` internal
-shape assertions and `editor-entry.test.js` exact export lists. Retain package
-entry/import compatibility checks and substantive geometry, interaction,
-renderer and editor regressions. Its full browser matrix can use the same
-release/manual cadence. These upstream changes are separate from Clinker's
-dependency integration and should be made in clustermap directly.

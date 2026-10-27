@@ -54,10 +54,8 @@ cargo install --locked --debug --path "${cli[0]}" --config "$patch" --target-dir
 ```
 
 Cargo updates the extracted CLI lockfile for the core path override during the
-test step; installation then uses that lockfile with `--locked`. Dependencies
-come from the extracted archives and registry, without a synthetic workspace or
-changes to the checkout. The fresh temporary target directory avoids reusing
-older builds of same-version archives.
+test step; installation then uses that lockfile with `--locked`. Builds use a
+fresh temporary directory and leave the checkout unchanged.
 
 `--no-verify` skips Cargo's automatic registry verification of the unpublished
 peer; the extracted-package tests perform verification instead. After the core

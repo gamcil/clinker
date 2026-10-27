@@ -1,8 +1,7 @@
 # Saved projects and analysis sessions
 
 The browser and native CLI use the `clinker-project` version **2** envelope for
-editable figures with their analysis data. This retains the existing browser
-format; no migration or version bump is needed for saved version 2 projects.
+editable figures with their analysis data.
 
 ```json
 {
