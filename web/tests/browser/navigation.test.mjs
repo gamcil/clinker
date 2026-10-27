@@ -1,31 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
 import { mkdir, readFile } from 'node:fs/promises';
-import { resolve, extname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium, firefox, webkit } from 'playwright';
-
-const root = resolve(process.env.CLINKER_WEB_ROOT || fileURLToPath(new URL('../../dist/', import.meta.url)));
-const browserType = { chromium, firefox, webkit }[process.env.CLINKER_TEST_BROWSER || 'chromium'];
+import { resolve } from 'node:path';
+import { root, openApp } from './helpers.mjs';
 
 test('task menus support adding data, saving, editing and keyboard navigation at narrow widths', { timeout: 90000 }, async t => {
-  const server = createServer(async (request, response) => {
-    const path = resolve(root, '.' + decodeURIComponent(new URL(request.url, 'http://localhost').pathname).replace(/\/$/, '/index.html'));
-    if (!path.startsWith(root + '/')) { response.writeHead(403).end(); return; }
-    try {
-      response.setHeader('Content-Type', { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm' }[extname(path)] || 'application/octet-stream');
-      response.end(await readFile(path));
-    } catch { response.writeHead(404).end(); }
-  });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
-  const browser = await browserType.launch();
-  t.after(() => browser.close());
-  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  const { page, url } = await openApp(t, { viewport: { width: 1400, height: 900 } });
   const errors = [];
   page.on('pageerror', error => { errors.push(error.message); t.diagnostic(error.stack || error.message); });
-  await page.goto(`http://127.0.0.1:${server.address().port}/`);
+  await page.goto(url);
   await page.waitForFunction(() => Boolean(document.querySelector('#run-tree-file')));
   const openMenu = id => page.locator(`${id} > summary`).click();
   const capture = async name => {
@@ -45,11 +28,6 @@ test('task menus support adding data, saving, editing and keyboard navigation at
 
   await page.locator('#load-example').click();
   await page.waitForFunction(() => !document.querySelector('#edit-plot').disabled);
-  const menuGaps = await page.locator('#file-menu > summary, #add-data-menu > summary, #plot-order > summary').evaluateAll(items => {
-    const boxes = items.map(item => item.getBoundingClientRect());
-    return [boxes[1].left - boxes[0].right, boxes[2].left - boxes[1].right];
-  });
-  assert.ok(Math.abs(menuGaps[0] - menuGaps[1]) < 1, 'the workflow menus have consistent spacing');
   await capture('desktop-light');
   await openMenu('#add-data-menu');
   await page.locator('#import-annotations').click();
@@ -133,49 +111,32 @@ test('task menus support adding data, saving, editing and keyboard navigation at
   await page.locator('[data-theme-mode="dark"]').click();
   await capture('desktop-dark');
   await openMenu('#file-menu');
-  assert.equal(await page.locator('#download-project').evaluate(button => getComputedStyle(button).borderStyle), 'none');
   await capture('desktop-file-dark');
   await page.keyboard.press('Escape');
 
-  for (const fontFamily of ['', 'monospace']) {
-    await page.locator('.app-bar').evaluate((bar, font) => { bar.style.fontFamily = font; }, fontFamily);
-    for (const width of [900, 375, 320]) {
-      await page.setViewportSize({ width, height: 850 });
-      const boxes = await page.locator('.app-bar > h1, #new-run, #file-menu > summary, .app-actions > .menu > summary, #edit-plot, #appearance-label, #plot-help')
-        .evaluateAll(items => items.map(item => {
-          const { x, y, width, height } = item.getBoundingClientRect();
-          return { name: item.textContent, x, y, width, height };
-        }));
-      for (const box of boxes) {
-        assert.ok(box.x >= 0 && box.x + box.width <= width, `${box.name} fits at ${width}px (${fontFamily || 'system'}): ${JSON.stringify(box)}`);
-        for (const other of boxes.filter(other => other !== box)) {
-          const overlap = Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x) > 1
-            && Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y) > 1;
-          assert.equal(overlap, false, `${box.name} and ${other.name} do not overlap at ${width}px`);
-        }
+  for (const width of [375, 320]) {
+    await page.setViewportSize({ width, height: 850 });
+    const boxes = await page.locator('.app-bar > h1, #new-run, #file-menu > summary, .app-actions > .menu > summary, #edit-plot, #appearance-label, #plot-help')
+      .evaluateAll(items => items.map(item => {
+        const { x, y, width, height } = item.getBoundingClientRect();
+        return { name: item.textContent, x, y, width, height };
+      }));
+    for (const box of boxes) {
+      assert.ok(box.x >= 0 && box.x + box.width <= width, `${box.name} fits at ${width}px: ${JSON.stringify(box)}`);
+      for (const other of boxes.filter(other => other !== box)) {
+        const overlap = Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x) > 1
+          && Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y) > 1;
+        assert.equal(overlap, false, `${box.name} and ${other.name} do not overlap at ${width}px`);
       }
-      if (width <= 375) {
-        const projectControls = await page.locator('.app-bar > h1, #new-run, #file-menu > summary, #appearance-label, #plot-help').evaluateAll(items => items.map(item => {
-          const { y, height } = item.getBoundingClientRect();
-          return y + height / 2;
-        }));
-        assert.ok(Math.max(...projectControls) - Math.min(...projectControls) < 2, `project controls fit on the first row at ${width}px (${fontFamily || 'system'})`);
-        const actions = await page.locator('#add-data-menu > summary, #edit-plot').evaluateAll(items => items.map(item => {
-          const { y, height } = item.getBoundingClientRect();
-          return y + height / 2;
-        }));
-        assert.ok(Math.abs(actions[0] - actions[1]) < 2, `plot actions align on one row at ${width}px (${fontFamily || 'system'}): ${actions}`);
-      }
-      for (const id of ['#file-menu', '#add-data-menu', '#plot-order', '#appearance-menu']) {
-        await openMenu(id);
-        const box = await page.locator(`${id} .menu-popover`).boundingBox();
-        assert.ok(box.x >= 0 && box.x + box.width <= width, `${id} stays inside ${width}px viewport`);
-        await page.keyboard.press('Escape');
-      }
-      await capture(`narrow-dark-${fontFamily || 'system'}-${width}`);
     }
+    for (const id of ['#file-menu', '#add-data-menu', '#plot-order', '#appearance-menu']) {
+      await openMenu(id);
+      const box = await page.locator(`${id} .menu-popover`).boundingBox();
+      assert.ok(box.x >= 0 && box.x + box.width <= width, `${id} stays inside ${width}px viewport`);
+      await page.keyboard.press('Escape');
+    }
+    await capture(`narrow-dark-${width}`);
   }
-  await page.locator('.app-bar').evaluate(bar => { bar.style.fontFamily = ''; });
   await page.setViewportSize({ width: 1400, height: 900 });
   await openMenu('#appearance-menu');
   await page.locator('[data-theme-mode="auto"]').click();

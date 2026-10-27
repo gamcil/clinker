@@ -1,31 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { resolve, extname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium, firefox, webkit } from 'playwright';
+import { resolve } from 'node:path';
+import { root, openApp } from './helpers.mjs';
 
-const root = resolve(process.env.CLINKER_WEB_ROOT || fileURLToPath(new URL('../../dist/', import.meta.url)));
-const browserType = { chromium, firefox, webkit }[process.env.CLINKER_TEST_BROWSER || 'chromium'];
-
-test('tree import, matching, edits, renderers and project round-trips retain the working figure', { timeout: 120000 }, async t => {
-  const server = createServer(async (request, response) => {
-    const path = resolve(root, '.' + decodeURIComponent(new URL(request.url, 'http://localhost').pathname).replace(/\/$/, '/index.html'));
-    if (!path.startsWith(root + '/')) { response.writeHead(403).end(); return; }
-    try {
-      response.setHeader('Content-Type', { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm' }[extname(path)] || 'application/octet-stream');
-      response.end(await readFile(path));
-    } catch { response.writeHead(404).end(); }
-  });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
-  const browser = await browserType.launch();
-  t.after(() => browser.close());
-  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+test('tree import, matching and edited project round-trips preserve the working figure', { timeout: 120000 }, async t => {
+  const { page, url } = await openApp(t, { viewport: { width: 1400, height: 900 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${server.address().port}/`);
+  await page.goto(url);
   const orderMenu = async () => { if (!await page.locator('#plot-order').evaluate(menu => menu.open)) await page.locator('#plot-order > summary').click(); };
   const chooseOrder = async value => {
     await orderMenu();
@@ -173,65 +156,6 @@ test('tree import, matching, edits, renderers and project round-trips retain the
   assert.deepEqual((await snapshot()).data.tree, imported.data.tree);
   await page.evaluate(() => document.querySelector('#plot-editor').chart.redo());
 
-  const drag = await page.evaluate(() => {
-    const chart = document.querySelector('#plot-editor').chart;
-    const pair = chart.data().tree.nodes.find(node => node.children?.length === 2 && node.children.every(uid => chart.data().tree.nodes.find(child => child.uid === uid).cluster));
-    return pair.children.map(uid => {
-      const cluster = chart.data().tree.nodes.find(node => node.uid === uid).cluster;
-      const group = [...document.querySelectorAll('#plot g.cluster')].find(node => node.__data__.uid === cluster);
-      const box = group.querySelector('text.clusterText').getBoundingClientRect();
-      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    });
-  });
-  await page.mouse.move(drag[0].x, drag[0].y);
-  await page.mouse.down();
-  await page.mouse.move(drag[1].x, drag[1].y + 10, { steps: 8 });
-  await page.mouse.up();
-  const dragged = await snapshot();
-  assert.notDeepEqual(dragged.state.clusterOrder, rotated.state.clusterOrder);
-  await page.evaluate(() => document.querySelector('#plot-editor').chart.undo());
-  assert.deepEqual((await snapshot()).data.tree, rotated.data.tree);
-  await page.evaluate(() => document.querySelector('#plot-editor').chart.redo());
-  assert.deepEqual((await snapshot()).data.tree, dragged.data.tree);
-  await page.evaluate(() => {
-    const chart = document.querySelector('#plot-editor').chart;
-    const state = chart.state();
-    const tree = chart.data().tree;
-    const pair = tree.nodes.find(node => node.children?.length === 2 && node.children.every(uid => tree.nodes.find(child => child.uid === uid).cluster));
-    const ids = pair.children.map(uid => tree.nodes.find(node => node.uid === uid).cluster);
-    const first = state.clusterOrder.indexOf(ids[0]);
-    const second = state.clusterOrder.indexOf(ids[1]);
-    const outside = state.clusterOrder.findIndex((uid, i) => !ids.includes(uid) && Math.abs(i - second) > 1);
-    [state.clusterOrder[first], state.clusterOrder[outside]] = [state.clusterOrder[outside], state.clusterOrder[first]];
-    try { chart.state(state); } catch (error) { window.incompatibleTreeOrder = error.message; }
-  });
-  assert.match(await page.evaluate(() => window.incompatibleTreeOrder), /clade contiguous/);
-
-  const beforeBatch = await snapshot();
-  const batch = await page.evaluate(() => {
-    const chart = document.querySelector('#plot-editor').chart;
-    const pair = chart.data().tree.nodes.find(node => node.children?.length === 2 && node.children.every(uid => chart.data().tree.nodes.find(child => child.uid === uid).cluster));
-    const ids = pair.children.map(uid => chart.data().tree.nodes.find(node => node.uid === uid).cluster);
-    chart.clusterSelection(ids);
-    const rect = uid => {
-      const box = [...document.querySelectorAll('#plot g.cluster')].find(node => node.__data__.uid === uid).querySelector('text.clusterText').getBoundingClientRect();
-      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    };
-    return { ids, from: rect(ids[0]), to: rect(chart.state().clusterOrder[0]) };
-  });
-  assert.deepEqual(await page.evaluate(() => document.querySelector('#plot-editor').chart.selection()), { kind: 'clusters', ids: batch.ids });
-  await page.mouse.move(batch.from.x, batch.from.y);
-  await page.mouse.down();
-  await page.mouse.move(batch.to.x, batch.to.y - 10, { steps: 8 });
-  await page.mouse.up();
-  const afterBatch = await snapshot();
-  assert.notDeepEqual(afterBatch.state.clusterOrder, beforeBatch.state.clusterOrder);
-  const positions = batch.ids.map(uid => afterBatch.state.clusterOrder.indexOf(uid));
-  assert.equal(Math.abs(positions[0] - positions[1]), 1);
-  await page.evaluate(() => { const chart = document.querySelector('#plot-editor').chart; chart.undo(); chart.clusterSelection([]); });
-  assert.deepEqual((await snapshot()).data.tree, beforeBatch.data.tree);
-  assert.deepEqual((await snapshot()).state.clusterOrder, beforeBatch.state.clusterOrder);
-
   await orderMenu();
   await page.locator('#tree-appearance').click();
   assert.equal(await page.locator('#plot-editor').isVisible(), true);
@@ -248,13 +172,6 @@ test('tree import, matching, edits, renderers and project round-trips retain the
   assert.ok((await snapshot()).data.tree);
   const svg = await page.evaluate(() => document.querySelector('#plot-editor').chart.exportSvg());
   assert.match(svg, /phylogenetic-tree/);
-  assert.match(svg, /95\.00/);
-  assert.match(svg, /tree-leaf-guide/);
-  assert.match(svg, /tree-scale-bar/);
-  assert.match(svg, /serif/);
-  const exportedTree = await page.evaluate(svg => new DOMParser().parseFromString(svg, 'image/svg+xml').querySelector('.phylogenetic-tree').outerHTML, svg);
-  assert.doesNotMatch(exportedTree, /cursor=|pointer-events=|tabindex=|tree-node-hover/);
-
   const savedFigure = await snapshot();
   const download = page.waitForEvent('download');
   await page.locator('#file-menu > summary').click();

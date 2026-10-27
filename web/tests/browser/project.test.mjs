@@ -1,31 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { resolve, extname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { chromium, firefox, webkit } from 'playwright';
-
-const root = resolve(process.env.CLINKER_WEB_ROOT || fileURLToPath(new URL('../../dist/', import.meta.url)));
-const browserName = process.env.CLINKER_TEST_BROWSER || 'chromium';
-const browserType = { chromium, firefox, webkit }[browserName];
-if (!browserType) throw new Error(`Unknown test browser: ${browserName}`);
+import { resolve } from 'node:path';
+import { root, openApp } from './helpers.mjs';
 
 test('analysis, cancellation, failure recovery and project exports preserve the displayed figure', { timeout: 120000 }, async t => {
-  const server = createServer(async (request, response) => {
-    const path = resolve(root, '.' + decodeURIComponent(new URL(request.url, 'http://localhost').pathname).replace(/\/$/, '/index.html'));
-    if (!path.startsWith(root + '/')) { response.writeHead(403).end(); return; }
-    try {
-      const bytes = await readFile(path);
-      response.setHeader('Content-Type', { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm' }[extname(path)] || 'application/octet-stream');
-      response.end(bytes);
-    } catch { response.writeHead(404).end(); }
-  });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); });
-  const browser = await browserType.launch({ headless: true });
-  t.after(() => browser.close());
-  const page = await browser.newPage();
+  const { page, url } = await openApp(t);
   await page.addInitScript(() => {
     window.inputAudit = { reads: [], aborts: 0 };
     const readAsText = FileReader.prototype.readAsText;
@@ -56,7 +36,7 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`http://127.0.0.1:${server.address().port}/`);
+  await page.goto(url);
   const helpButton = page.getByRole('button', { name: 'Plot help', exact: true });
   const help = page.getByRole('dialog', { name: 'Plot help' });
   await helpButton.click();

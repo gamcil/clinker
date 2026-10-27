@@ -27,6 +27,9 @@ Run all commands below from the repository root. To run all tests:
 cargo test --workspace
 ```
 
+See [regression testing](testing.md) for test ownership, the representative
+workflows to retain and the browser CI cadence.
+
 Run the CLI against an existing fixture:
 
 ```bash

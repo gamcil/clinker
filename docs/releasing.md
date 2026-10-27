@@ -15,8 +15,9 @@ archives for tags matching `v[0-9]*`.
   instructions in [cli.md](cli.md) and [web/DEPLOYMENT.md](../web/DEPLOYMENT.md).
 - Confirm the checks and hosted Pages build succeed for the intended commit.
 - Manually check the hosted app in current Safari. Automated upload, analysis,
-  cancellation, editing, project reopening and export checks run in Chromium,
-  Firefox and WebKit; WebKit coverage does not replace testing actual Safari.
+  cancellation, editing, project reopening and export checks run in Chromium on
+  ordinary pushes. Run the workflow manually to check Firefox and WebKit before
+  tagging; release tags also run all three. WebKit does not replace actual Safari.
 - Confirm native tests and archive extraction checks pass on Windows, Linux
   and Apple Silicon macOS. Every native job builds an optimized binary, packages
   it, extracts the archive and runs that extracted executable. Check a downloaded
