@@ -17,3 +17,11 @@ session compatibility and adding input files to
 an edited browser project are outside this release. Similarity CSV scores come
 from the retained analysis; visual edits do not rerun it. Translation fallback
 does not infer alternative initiation or recoding exceptions.
+
+Approximate prefiltering is opt-in in both the browser and CLI. Its performance
+benefit depends on the input, and it can discard distant homologues.
+
+New CLI projects retain computed row order but do not yet include the computed
+Ward dendrogram. Browser-generated dendrograms and saved tree edits can be
+restored in either viewer. See the [acceptance baseline and remaining release
+gates](features.md#local-acceptance-baseline--2026-10-27).

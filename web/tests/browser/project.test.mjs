@@ -102,6 +102,27 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
     return { gene: gene.uid, state: chart.state(), names: Object.fromEntries(chart.data().clusters.map(c => [c.uid, c.name])) };
   });
   const figure = () => page.evaluate(() => document.querySelector('#plot-editor').chart.project());
+  const sources = await page.evaluate(() => document.querySelector('#plot-editor').chart.data().clusters.map(cluster => cluster.source_file));
+  async function importAnnotations(name, text, mode) {
+    await page.locator('#add-data-menu > summary').click();
+    await page.locator('#import-annotations').click();
+    await page.locator('#annotation-file').setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
+    await page.waitForFunction(() => !document.querySelector('#apply-annotations').disabled);
+    if (mode) await page.locator('#annotation-mode').selectOption(mode);
+    await page.locator('#apply-annotations').click();
+    await page.waitForFunction(() => !document.querySelector('#annotation-dialog').open);
+  }
+  await importAnnotations('metadata.tsv', 'source_file\torganism\tgene_count\n'
+    + sources.map((source, index) => `${source}\tSpecies ${index}\t${index + 10}`).join('\n'));
+  const tracks = (await figure()).data.annotationPanels;
+  assert.deepEqual(tracks.map(panel => [panel.title, panel.type]), [['organism', 'heatmap'], ['gene_count', 'bar']]);
+  assert.ok(tracks.every(panel => panel.columns.length === 1 && panel.showColumnLabels === false));
+  await importAnnotations('presence.csv', 'source_file,gene_a,gene_b\n'
+    + sources.map((source, index) => `${source},${index % 2},1`).join('\n'), 'matrix');
+  const matrixPanel = (await figure()).data.annotationPanels.at(-1);
+  assert.equal(matrixPanel.type, 'heatmap');
+  assert.deepEqual(matrixPanel.columns, ['gene_a', 'gene_b']);
+  assert.deepEqual(matrixPanel.scale.domain, ['0', '1']);
   const beforeDelete = await figure();
   const selectedLocus = beforeDelete.data.clusters[0].loci[0].uid;
   await page.evaluate(uid => document.querySelector('#plot-editor').chart.locusSelection([uid]), selectedLocus);
