@@ -12,7 +12,7 @@ files, inspect homology links, and export figures as SVG.
 - **Native CLI:** run the same Rust analysis core from the command line and
   generate plot data or a portable HTML figure. See [CLI usage](docs/cli.md).
 
-This branch contains the Rust implementation. The original Python package and
+This repository contains the Rust implementation. The original Python package and
 its PyPI releases are maintained on
 [`python-maintenance`](https://github.com/gamcil/clinker/tree/python-maintenance).
 See [Python maintenance releases](docs/python-maintenance.md) for that process.
@@ -66,8 +66,8 @@ The native CLI embeds the shared local viewer. Bare `--plot` opens it;
 `--open-project comparison.json` restores an edited project. Use `--no-browser`
 to print the local URL without launching a browser. See [distribution packaging](docs/packaging.md)
 for source crates, native archives and independent install checks. Portable HTML
-remains a separate renderer-only export. The default-branch and release cutover
-remain the final migration step.
+remains a separate renderer-only export. The [repository cutover](docs/releasing.md#repository-cutover)
+procedure covers merging to `master`, Pages deployment and the first Rust release.
 
 ## Citation
 

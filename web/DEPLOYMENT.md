@@ -21,8 +21,13 @@ rendering remains available when GPU rendering is unavailable. The automated
 browser checks cover Chromium, Firefox and WebKit. A final check in actual
 Safari remains useful because Playwright WebKit is not the Safari application.
 
-Save work with **Export → Project** and reopen it with **Open project**.
+Save work with **File → Save project** and reopen it with **File → Open project**.
 SVG and Similarity CSV are output formats, not restorable projects. Python
 session files and standalone CLI analysis sessions cannot be opened here.
 
 The archive includes the clinker, clustermap.js and D3 licence notices.
+
+The repository workflow deploys the tested static app from `master` to GitHub
+Pages after native, source-package and browser checks pass. Feature branches
+and release tags run checks without replacing the hosted site. See the
+[release and cutover procedure](../docs/releasing.md).

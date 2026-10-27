@@ -1,8 +1,8 @@
 # Rust release procedure
 
 The hosted application is the primary interface. The same workflow validates
-pushes and pull requests, deploys `rust-port` to Pages, and builds release
-archives for tags matching `rust-v*`.
+pushes and pull requests, deploys `master` to Pages, and builds release
+archives for tags matching `v[0-9]*`.
 
 ## Before tagging
 
@@ -22,15 +22,31 @@ archives for tags matching `rust-v*`.
   it, extracts the archive and runs that extracted executable. Check a downloaded
   release on each supported OS as well.
 
-The deployment branch remains `rust-port`. Moving the final application to
-`master` requires updating the two Pages conditions in the workflow and the
-branch name in this document. Do not change that routing just to make a tag.
+## Repository cutover
+
+The workflow is configured for `master`; it stops deploying `rust-port` once
+these changes are pushed there. The currently hosted site remains in place
+until a successful `master` deployment replaces it.
+
+1. Push the prepared Rust branch and confirm all native, source-package and web
+   checks pass on GitHub.
+2. Merge it into `master`. Keep `python-maintenance` as the Python/PyPI branch.
+3. Confirm GitHub's default branch is `master`, Pages uses GitHub Actions, and
+   the `github-pages` environment permits deployment from `master`.
+4. Confirm the merged commit passes CI and deploys the intended hosted app.
+5. Review the first Rust release at the existing workspace version `0.1.0`;
+   create `v0.1.0` only when ready to publish. Set a different version before
+   tagging if required.
+
+Preparing this commit does not push a branch, merge, alter repository settings,
+create a tag or publish a release. Those actions remain the actual cutover.
 
 ## Publish
 
-Create and push `rust-vX.Y.Z` on the intended commit, with `X.Y.Z` exactly
-matching the workspace version. A tag push publishes a GitHub release after
-native tests, lint, source-package installation checks, WASM tests, and packaged
+Create and push `vX.Y.Z` on a commit already merged into `master`, with `X.Y.Z`
+exactly matching the workspace version. CI checks both version and ancestry.
+A tag push publishes a GitHub release after native tests, lint, source-package
+installation checks, WASM tests, and packaged
 browser tests pass. It does not deploy Pages. The release contains three native
 archives, `clinker-web.tar.gz`, the core/CLI `.crate` archives, and `SHA256SUMS`.
 Rust releases are excluded from Python package publishing.
@@ -44,8 +60,8 @@ Python maintenance is isolated on `python-maintenance`, starting from the
 Python `v0.0.32` release. Its publishing workflow accepts only pushed
 `python-v*` tags from that branch's history, with a matching Python package
 version. It does not subscribe to GitHub release events. See
-[Python maintenance releases](python-maintenance.md). Keep the existing
-`rust-v*` tag convention until the later Rust-first release cutover.
+[Python maintenance releases](python-maintenance.md). Existing Python `v0.0.*`
+tags remain historical; do not move or recreate them.
 
 Download the artifacts, verify their checksums, and check that the static web
 archive works when served over HTTP. GitHub execution, cross-platform archive

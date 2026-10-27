@@ -6,8 +6,8 @@ is the existing `v0.0.32` release, commit
 `rust-port` matched that release when the maintenance branch was created.
 
 Keep future Python fixes, dependency updates, package version changes and PyPI
-releases on that branch. Rust development continues on `rust-port` until the
-Rust-first repository cutover. The Rust branch no longer contains the Python
+releases on that branch. The Rust implementation is prepared on `rust-port` for
+merging into `master`. The Rust branch no longer contains the Python
 implementation, packaging files, Dockerfile, or PyPI workflow. Check out
 `python-maintenance` before building or publishing a Python package.
 
@@ -30,8 +30,8 @@ checks their metadata with Twine, and uploads them using the existing
 `PYPI_TOKEN` repository secret. The token is supplied only to the upload step.
 
 Python release tags use `python-vX.Y.Z`. Existing `v0.0.*` tags remain historical;
-do not move or recreate them. Rust currently uses `rust-vX.Y.Z`; it may adopt
-`vX.Y.Z` at the later Rust release cutover without matching this Python workflow.
+do not move or recreate them. Rust releases use `vX.Y.Z` from `master`, starting
+with the planned `v0.1.0`. These tags do not match the maintenance branch's Python workflow.
 Avoid creating new releases from historical commits containing the old broad
 release-triggered workflow: workflow files are versioned with those commits.
 

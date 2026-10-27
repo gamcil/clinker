@@ -169,11 +169,11 @@ separate portable HTML exporter uses only its renderer and D3 bundles.
 still needed before the Rust application can replace the Python package. CI
 tests native builds on Linux, macOS, and Windows and assembles the WASM web
 application. The combined validation and Pages workflow runs on pushes and pull
-requests; successful runs on `rust-port` also deploy the tested web build to
-GitHub Pages. Tags of the form `rust-vX.Y.Z` run the same checks and publish
+requests; successful runs on `master` also deploy the tested web build to
+GitHub Pages. Tags of the form `vX.Y.Z` run the same checks and publish
 native CLI archives, core/CLI source crates and the tested static web archive
 only after every check passes. The tag version must match the Cargo workspace
-version. Source packages are built and installed outside the checkout before
-release; see [distribution packaging](packaging.md).
+version and its commit must already be merged into `master`. Source packages
+are built and installed outside the checkout before release; see [distribution packaging](packaging.md).
 
 Release instructions and remaining manual checks are in [releasing.md](releasing.md).

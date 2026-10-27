@@ -3,7 +3,7 @@ name: Rust checks and Pages
 on:
   push:
     branches: ["**"]
-    tags: ["rust-v*"]
+    tags: ["v[0-9]*"]
     paths:
       - "Cargo.toml"
       - "Cargo.lock"
@@ -59,17 +59,21 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Release tags must be reachable from master.
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
           targets: ${{ matrix.target }}
-      - name: Match release tag to workspace version
-        if: runner.os == 'Linux' && startsWith(github.ref, 'refs/tags/rust-v')
+      - name: Validate release version and branch
+        if: runner.os == 'Linux' && startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
-          tag_version="${GITHUB_REF_NAME#rust-v}"
+          tag_version="${GITHUB_REF_NAME#v}"
           workspace_version=$(cargo metadata --locked --no-deps --format-version 1 | jq -r '.packages[0].version')
           test "$tag_version" = "$workspace_version"
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/master
       - uses: Swatinem/rust-cache@v2
       - name: Check formatting
         if: runner.os == 'Linux'
@@ -112,7 +116,7 @@ jobs:
           & "./${env:CLINKER_BINARY}.exe" --version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v7
-        if: startsWith(github.ref, 'refs/tags/rust-v')
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           name: ${{ matrix.archive }}
           path: release/${{ matrix.archive }}
@@ -130,7 +134,7 @@ jobs:
       - name: Build and install extracted source packages
         run: node scripts/check-packages.mjs
       - uses: actions/upload-artifact@v7
-        if: startsWith(github.ref, 'refs/tags/rust-v')
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           name: clinker-source-crates
           path: target/package-check/package/*.crate
@@ -178,26 +182,24 @@ jobs:
       - name: Verify embedded CLI plot assets
         run: npm --prefix web run check:assets
       - name: Package tested web release
-        if: startsWith(github.ref, 'refs/tags/rust-v')
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           mkdir -p release
           tar -C "$RUNNER_TEMP" -czf release/clinker-web.tar.gz clinker-web
       - uses: actions/upload-artifact@v7
-        if: startsWith(github.ref, 'refs/tags/rust-v')
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           name: clinker-web.tar.gz
           path: release/clinker-web.tar.gz
           if-no-files-found: error
       - name: Upload Pages artifact
-        # TODO: change to master once Rust port is final
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/rust-port'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         uses: actions/upload-pages-artifact@v5
         with:
           path: ${{ runner.temp }}/clinker-web
 
   deploy:
-    # TODO: change to master once Rust port is final
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/rust-port'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
     needs: [native, web, packages]
     runs-on: ubuntu-latest
     permissions:
@@ -217,7 +219,7 @@ jobs:
         uses: actions/deploy-pages@v5
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/rust-v')
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: [native, web, packages]
     runs-on: ubuntu-latest
     permissions:
