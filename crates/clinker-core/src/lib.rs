@@ -27,8 +27,8 @@ pub use alignment::{
 #[cfg(not(target_arch = "wasm32"))]
 pub use analyse::analyse_with_jobs;
 pub use analyse::{
-    AlignmentStats, Analysis, AnalysisError, AnalysisOptions, GeneRef, InputFile, Link,
-    ProteinPair, ProteinTileMatch, analyse, analyse_with_parse_options, can_reach_identity,
+    AlignmentStats, Analysis, AnalysisError, AnalysisOptions, AnalysisOptionsError, GeneRef,
+    InputFile, Link, ProteinPair, ProteinTileMatch, analyse, analyse_with_parse_options,
     parse_input_files, parse_input_files_with_options, parse_input_files_with_progress,
 };
 pub use figure::{FigureProgress, FigureStage, PreparedFigure, RowOrder};
@@ -51,7 +51,8 @@ pub use session::{
 pub use synteny::ClusterPairSimilarity;
 pub use validation::ValidationError;
 
-pub use prefilter::{
-    KmerPrefilter, cluster_kmer_candidate_pairs_with_progress, kmer_candidate_pairs,
-    kmer_candidate_pairs_with_progress,
-};
+pub(crate) use analyse::can_reach_identity;
+pub use prefilter::KmerPrefilter;
+pub(crate) use prefilter::cluster_kmer_candidate_pairs_with_progress;
+#[cfg(test)]
+use prefilter::{kmer_candidate_pairs, kmer_candidate_pairs_with_progress};

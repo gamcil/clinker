@@ -201,7 +201,7 @@ impl BrowserFileParser {
             |completed, total| {
                 report_progress_event_if_due(progress, "filter", completed, total, &mut last_report)
             },
-        );
+        )?;
         serde_wasm_bindgen::to_value(&parsed)
             .map_err(|error| JsValue::from_str(&format!("could not encode parsed files: {error}")))
     }
@@ -394,13 +394,16 @@ impl AlignmentWorker {
             .iter()
             .map(|p| p.translation.as_bytes())
             .collect::<Vec<_>>();
-        let result = self.aligner.analyse_pairs(
-            &sequences,
-            &sequences,
-            batch.pairs(&pairs),
-            identity_cutoff,
-            |processed| report_progress(progress, processed),
-        );
+        let result = self
+            .aligner
+            .analyse_pairs(
+                &sequences,
+                &sequences,
+                batch.pairs(&pairs),
+                identity_cutoff,
+                |processed| report_progress(progress, processed),
+            )
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
         encode_batch(result, &proteins, batch.pair_count())
     }
 }
@@ -669,7 +672,7 @@ fn prepare_browser_files_with_filter_progress<F>(
     clusters: Vec<Cluster>,
     prefilter: &BrowserAnalysisSettings,
     mut progress: F,
-) -> ParsedBrowserFiles
+) -> Result<ParsedBrowserFiles, JsValue>
 where
     F: FnMut(usize, usize),
 {
@@ -685,7 +688,8 @@ where
             }),
         },
         &mut progress,
-    );
+    )
+    .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let proteins = prepared
         .references
         .iter()
@@ -698,13 +702,13 @@ where
                 .clone(),
         })
         .collect();
-    ParsedBrowserFiles {
+    Ok(ParsedBrowserFiles {
         layout,
         proteins,
         candidate_pairs: prepared.candidates,
         alignment_batches: prepared.batches,
         alignment_counts: prepared.counts,
-    }
+    })
 }
 
 fn layout_from_clusters(clusters: &[Cluster]) -> BrowserLayout {

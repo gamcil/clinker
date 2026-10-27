@@ -3,8 +3,8 @@ use std::ops::Range;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AnalysisOptions, Cluster, GeneRef, Link, ProteinPair, ProteinTileMatch, align::ProteinAligner,
-    can_reach_identity, cluster_kmer_candidate_pairs_with_progress,
+    AnalysisOptions, AnalysisOptionsError, Cluster, GeneRef, Link, ProteinPair, ProteinTileMatch,
+    align::ProteinAligner, can_reach_identity, cluster_kmer_candidate_pairs_with_progress,
 };
 
 const TILE_SIDE: usize = 40;
@@ -124,7 +124,8 @@ impl<'a> PreparedAlignment<'a> {
         first_new_cluster: usize,
         options: AnalysisOptions,
         progress: impl FnMut(usize, usize),
-    ) -> Self {
+    ) -> Result<Self, AnalysisOptionsError> {
+        options.validate()?;
         let mut proteins = Vec::new();
         let mut references = Vec::new();
         let mut sizes = Vec::with_capacity(clusters.len());
@@ -168,13 +169,13 @@ impl<'a> PreparedAlignment<'a> {
             planned_pairs: candidates.as_ref().map_or(possible_pairs, Vec::len),
             batch_count: batches.len(),
         };
-        Self {
+        Ok(Self {
             proteins,
             references,
             candidates,
             batches,
             counts,
-        }
+        })
     }
 
     pub(crate) fn run(
@@ -182,14 +183,14 @@ impl<'a> PreparedAlignment<'a> {
         batch: &ProteinBatch,
         aligner: &mut ProteinBatchAligner,
         cutoff: f32,
-    ) -> (Vec<Link>, usize) {
+    ) -> Result<(Vec<Link>, usize), AnalysisOptionsError> {
         let result = aligner.analyse_pairs(
             &self.proteins,
             &self.proteins,
             batch.pairs(self.candidates.as_deref().unwrap_or_default()),
             cutoff,
             |_| {},
-        );
+        )?;
         let links = result
             .matches
             .into_iter()
@@ -200,7 +201,7 @@ impl<'a> PreparedAlignment<'a> {
                 similarity: matched.similarity,
             })
             .collect();
-        (links, result.aligned_pairs)
+        Ok((links, result.aligned_pairs))
     }
 }
 
@@ -229,7 +230,12 @@ impl ProteinBatchAligner {
         pairs: impl IntoIterator<Item = ProteinPair>,
         identity_cutoff: f32,
         mut progress: impl FnMut(usize),
-    ) -> ProteinBatchResult {
+    ) -> Result<ProteinBatchResult, AnalysisOptionsError> {
+        AnalysisOptions {
+            identity_cutoff,
+            prefilter: None,
+        }
+        .validate()?;
         let mut result = ProteinBatchResult::default();
         let mut processed = 0;
         for pair in pairs {
@@ -270,7 +276,7 @@ impl ProteinBatchAligner {
         if processed % 100 != 0 {
             progress(processed);
         }
-        result
+        Ok(result)
     }
 }
 
@@ -333,37 +339,48 @@ mod tests {
     #[test]
     fn reusable_buffers_grow_across_batches_and_count_skipped_pairs() {
         let mut aligner = ProteinBatchAligner::default();
+        assert!(
+            aligner
+                .analyse_pairs(&[b"MST"], &[b"MST"], [], f32::NAN, |_| panic!(
+                    "invalid cutoff must not start alignment"
+                ))
+                .is_err()
+        );
         for protein in [b"MST".as_slice(), b"MSTAVKLMDEFGH", b"MS"] {
-            let result = aligner.analyse_pairs(
-                &[protein],
-                &[protein],
-                [ProteinPair {
-                    query_index: 0,
-                    target_index: 0,
-                }],
-                0.3,
-                |_| {},
-            );
+            let result = aligner
+                .analyse_pairs(
+                    &[protein],
+                    &[protein],
+                    [ProteinPair {
+                        query_index: 0,
+                        target_index: 0,
+                    }],
+                    0.3,
+                    |_| {},
+                )
+                .unwrap();
             assert_eq!(result.aligned_pairs, 1);
             assert_eq!(result.matches[0].identity, 1.0);
         }
         let mut progress = Vec::new();
-        let result = aligner.analyse_pairs(
-            &[b"MST"],
-            &[b"MSTAVKLMDEFGH"],
-            [
-                ProteinPair {
-                    query_index: 0,
-                    target_index: 0,
-                },
-                ProteinPair {
-                    query_index: 9,
-                    target_index: 0,
-                },
-            ],
-            0.9,
-            |count| progress.push(count),
-        );
+        let result = aligner
+            .analyse_pairs(
+                &[b"MST"],
+                &[b"MSTAVKLMDEFGH"],
+                [
+                    ProteinPair {
+                        query_index: 0,
+                        target_index: 0,
+                    },
+                    ProteinPair {
+                        query_index: 9,
+                        target_index: 0,
+                    },
+                ],
+                0.9,
+                |count| progress.push(count),
+            )
+            .unwrap();
         assert_eq!(result.aligned_pairs, 0);
         assert!(result.matches.is_empty());
         assert_eq!(progress, [2]);

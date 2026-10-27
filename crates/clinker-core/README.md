@@ -22,6 +22,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 `analyse_with_jobs` to select concurrency. Parsing APIs share `ParseOptions`;
 `parse_input_files_with_progress` takes those options and a progress callback.
 
+Analysis entry points and worker preparation reject invalid identity cutoffs or
+prefilter settings with `AnalysisOptionsError`. Serial and native parallel
+append methods both take `AnalysisOptions` and return work statistics. Worker
+consumers use `PreparedAlignment` and `ProteinBatchAligner`; candidate-selection
+helpers remain internal.
+
 `AnalysisSession` retains analysis state for continuation. `ClinkerProject`
 combines that state with an editable figure; renderer-specific data remains JSON
 so it can preserve saved annotations, trees and editor state.

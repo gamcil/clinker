@@ -24,6 +24,28 @@ pub struct AnalysisOptions {
     pub prefilter: Option<KmerPrefilter>,
 }
 
+#[derive(Debug, Error)]
+pub enum AnalysisOptionsError {
+    #[error("identity cutoff must be between 0 and 1, got {0}")]
+    IdentityCutoff(f32),
+    #[error("prefilter requires k-mer size 1..=8 and a positive shared-word count")]
+    Prefilter,
+}
+
+impl AnalysisOptions {
+    pub fn validate(self) -> Result<(), AnalysisOptionsError> {
+        if !self.identity_cutoff.is_finite() || !(0.0..=1.0).contains(&self.identity_cutoff) {
+            return Err(AnalysisOptionsError::IdentityCutoff(self.identity_cutoff));
+        }
+        if let Some(filter) = self.prefilter
+            && (!(1..=8).contains(&filter.kmer_size) || filter.min_shared_kmers == 0)
+        {
+            return Err(AnalysisOptionsError::Prefilter);
+        }
+        Ok(())
+    }
+}
+
 /// Work performed by the alignment workflow, after length and optional k-mer filtering.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AlignmentStats {
@@ -131,6 +153,8 @@ impl Analysis {
 
 #[derive(Debug, Error)]
 pub enum AnalysisError {
+    #[error(transparent)]
+    Options(#[from] AnalysisOptionsError),
     #[error("failed to parse {file_name}: {source}")]
     Parse {
         file_name: String,
@@ -196,17 +220,17 @@ pub struct Analysis {
 impl Analysis {
     /// Append clusters and compare only pairs involving at least one newly
     /// appended cluster. Existing links and cluster indices remain stable.
-    pub fn append_clusters(&mut self, clusters: Vec<Cluster>, identity_cutoff: f32) {
+    pub fn append_clusters(
+        &mut self,
+        clusters: Vec<Cluster>,
+        options: AnalysisOptions,
+    ) -> Result<AlignmentStats, AnalysisError> {
+        options.validate()?;
         let first_new_cluster = self.clusters.len();
         self.clusters.extend(clusters);
-        self.links.extend(cross_cluster_links_from(
-            &self.clusters,
-            first_new_cluster,
-            AnalysisOptions {
-                identity_cutoff,
-                ..AnalysisOptions::default()
-            },
-        ));
+        let (links, stats) = cross_cluster_links_from(&self.clusters, first_new_cluster, options)?;
+        self.links.extend(links);
+        Ok(stats)
     }
 
     /// Append clusters using the same native scheduler with or without prefiltering.
@@ -217,11 +241,12 @@ impl Analysis {
         options: AnalysisOptions,
         jobs: usize,
     ) -> Result<AlignmentStats, AnalysisError> {
+        options.validate()?;
         let pool = alignment_pool(jobs)?;
         let first_new_cluster = self.clusters.len();
         self.clusters.extend(clusters);
         let (links, stats) =
-            cross_cluster_links_parallel_from(&self.clusters, first_new_cluster, options, &pool);
+            cross_cluster_links_parallel_from(&self.clusters, first_new_cluster, options, &pool)?;
         self.links.extend(links);
         Ok(stats)
     }
@@ -237,8 +262,9 @@ impl Analysis {
         options: AnalysisOptions,
         jobs: usize,
     ) -> Result<AlignmentStats, AnalysisError> {
+        options.validate()?;
         let pool = alignment_pool(jobs)?;
-        let (links, stats) = cross_cluster_links_parallel_from(&self.clusters, 0, options, &pool);
+        let (links, stats) = cross_cluster_links_parallel_from(&self.clusters, 0, options, &pool)?;
         self.links = links;
         Ok(stats)
     }
@@ -259,10 +285,11 @@ pub fn analyse_with_parse_options(
     options: AnalysisOptions,
     parse_options: &ParseOptions,
 ) -> Result<Analysis, AnalysisError> {
+    options.validate()?;
     let clusters = parse_input_files_with_options(files, parse_options)?;
 
     Ok(Analysis {
-        links: cross_cluster_links_from(&clusters, 0, options),
+        links: cross_cluster_links_from(&clusters, 0, options)?.0,
         clusters,
     })
 }
@@ -278,11 +305,12 @@ pub fn analyse_with_jobs(
     parse_options: &ParseOptions,
     jobs: usize,
 ) -> Result<Analysis, AnalysisError> {
+    options.validate()?;
     let clusters = parse_input_files_with_options(files, parse_options)?;
     let pool = alignment_pool(jobs)?;
 
     Ok(Analysis {
-        links: cross_cluster_links_parallel_from(&clusters, 0, options, &pool).0,
+        links: cross_cluster_links_parallel_from(&clusters, 0, options, &pool)?.0,
         clusters,
     })
 }
@@ -394,15 +422,16 @@ fn is_fasta(name: &str) -> bool {
 }
 
 fn collect_batch_links(
-    results: impl IntoIterator<Item = (Vec<Link>, usize)>,
+    results: impl IntoIterator<Item = Result<(Vec<Link>, usize), AnalysisOptionsError>>,
     counts: AlignmentCounts,
-) -> (Vec<Link>, AlignmentStats) {
+) -> Result<(Vec<Link>, AlignmentStats), AnalysisOptionsError> {
     let mut links = Vec::new();
     let mut stats = AlignmentStats {
         aligned_pairs: 0,
         counts,
     };
-    for (batch_links, aligned_pairs) in results {
+    for result in results {
+        let (batch_links, aligned_pairs) = result?;
         links.extend(batch_links);
         stats.aligned_pairs += aligned_pairs;
     }
@@ -417,15 +446,15 @@ fn collect_batch_links(
             link.target.gene,
         )
     });
-    (links, stats)
+    Ok((links, stats))
 }
 
 fn cross_cluster_links_from(
     clusters: &[Cluster],
     first_new_cluster: usize,
     options: AnalysisOptions,
-) -> Vec<Link> {
-    let inputs = PreparedAlignment::new(clusters, first_new_cluster, options, |_, _| {});
+) -> Result<(Vec<Link>, AlignmentStats), AnalysisOptionsError> {
+    let inputs = PreparedAlignment::new(clusters, first_new_cluster, options, |_, _| {})?;
     let mut aligner = ProteinBatchAligner::default();
     collect_batch_links(
         inputs
@@ -434,7 +463,6 @@ fn cross_cluster_links_from(
             .map(|batch| inputs.run(batch, &mut aligner, options.identity_cutoff)),
         inputs.counts,
     )
-    .0
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -443,8 +471,8 @@ fn cross_cluster_links_parallel_from(
     first_new_cluster: usize,
     options: AnalysisOptions,
     pool: &rayon::ThreadPool,
-) -> (Vec<Link>, AlignmentStats) {
-    let inputs = PreparedAlignment::new(clusters, first_new_cluster, options, |_, _| {});
+) -> Result<(Vec<Link>, AlignmentStats), AnalysisOptionsError> {
+    let inputs = PreparedAlignment::new(clusters, first_new_cluster, options, |_, _| {})?;
     let results = pool.install(|| {
         inputs
             .batches
@@ -471,7 +499,11 @@ fn alignment_pool(jobs: usize) -> Result<rayon::ThreadPool, rayon::ThreadPoolBui
 
 /// The largest possible global-alignment identity is the shorter sequence
 /// divided by the longer one. Rejecting pairs below this bound is exact.
-pub fn can_reach_identity(query_length: usize, target_length: usize, identity_cutoff: f32) -> bool {
+pub(crate) fn can_reach_identity(
+    query_length: usize,
+    target_length: usize,
+    identity_cutoff: f32,
+) -> bool {
     if identity_cutoff <= 0.0 {
         return true;
     }
@@ -487,7 +519,6 @@ mod tests {
         AnalysisOptions, InputFile, ProteinPair, analyse, can_reach_identity,
         parse_input_files_with_progress,
     };
-    #[cfg(not(target_arch = "wasm32"))]
     use crate::ParseOptions;
     use crate::{
         KmerPrefilter, ProteinBatch, kmer_candidate_pairs, kmer_candidate_pairs_with_progress,
@@ -593,12 +624,15 @@ ORIGIN
                 first_new,
                 AnalysisOptions::default(),
                 |_, _| {},
-            );
+            )
+            .unwrap();
             assert_eq!(prepared.counts.possible_pairs, expected);
             assert_eq!(prepared.counts.planned_pairs, expected);
             assert_eq!(prepared.counts.batch_count, prepared.batches.len());
         }
-        let unfiltered = super::cross_cluster_links_from(&clusters, 0, AnalysisOptions::default());
+        let unfiltered = super::cross_cluster_links_from(&clusters, 0, AnalysisOptions::default())
+            .unwrap()
+            .0;
         for prefilter in [
             KmerPrefilter::default(),
             KmerPrefilter {
@@ -614,7 +648,7 @@ ORIGIN
                 prefilter: Some(prefilter),
                 ..AnalysisOptions::default()
             };
-            let prepared = super::PreparedAlignment::new(&clusters, 0, options, |_, _| {});
+            let prepared = super::PreparedAlignment::new(&clusters, 0, options, |_, _| {}).unwrap();
             assert_eq!(
                 prepared.counts.planned_pairs,
                 prepared.candidates.as_ref().unwrap().len()
@@ -646,7 +680,9 @@ ORIGIN
                 .cloned()
                 .collect::<Vec<_>>();
             assert_eq!(
-                super::cross_cluster_links_from(&clusters, 0, options),
+                super::cross_cluster_links_from(&clusters, 0, options)
+                    .unwrap()
+                    .0,
                 expected
             );
             for jobs in [1, 2] {
@@ -704,6 +740,70 @@ ORIGIN
     }
 
     #[test]
+    fn invalid_options_are_rejected_before_work_or_mutation() {
+        let files = [
+            InputFile {
+                name: "first.gbk",
+                bytes: FORWARD_CDS,
+            },
+            InputFile {
+                name: "second.gbk",
+                bytes: REVERSE_CDS,
+            },
+        ];
+        let original = analyse(&files, AnalysisOptions::default()).unwrap();
+        let cutoffs = [f32::NAN, f32::INFINITY, -0.1, 1.1].map(|identity_cutoff| AnalysisOptions {
+            identity_cutoff,
+            ..AnalysisOptions::default()
+        });
+        let filters = [
+            KmerPrefilter {
+                kmer_size: 0,
+                min_shared_kmers: 3,
+            },
+            KmerPrefilter {
+                kmer_size: 9,
+                min_shared_kmers: 3,
+            },
+            KmerPrefilter {
+                kmer_size: 3,
+                min_shared_kmers: 0,
+            },
+        ]
+        .map(|prefilter| AnalysisOptions {
+            prefilter: Some(prefilter),
+            ..AnalysisOptions::default()
+        });
+        for options in cutoffs.into_iter().chain(filters) {
+            assert!(analyse(&files, options).is_err());
+            let mut reported = false;
+            assert!(
+                super::PreparedAlignment::new(&original.clusters, 0, options, |_, _| reported =
+                    true)
+                .is_err()
+            );
+            assert!(!reported);
+            let mut analysis = original.clone();
+            assert!(
+                analysis
+                    .append_clusters(original.clusters.clone(), options)
+                    .is_err()
+            );
+            assert_eq!(analysis, original);
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                assert!(
+                    analysis
+                        .append_clusters_with_jobs(original.clusters.clone(), options, 1)
+                        .is_err()
+                );
+                assert!(analysis.reanalyse(options, 1).is_err());
+                assert_eq!(analysis, original);
+            }
+        }
+    }
+
+    #[test]
     fn compares_a_bounded_cartesian_product_of_proteins() {
         let query: [&[u8]; 2] = [b"MST", b"AAA"];
         let target: [&[u8]; 2] = [b"GGG", b"MST"];
@@ -714,6 +814,7 @@ ORIGIN
         };
         let matches = super::ProteinBatchAligner::default()
             .analyse_pairs(&query, &target, batch.pairs(&[]), 0.99, |_| {})
+            .unwrap()
             .matches;
 
         assert_eq!(matches.len(), 1);
@@ -770,6 +871,7 @@ ORIGIN
                 0.99,
                 |_| {},
             )
+            .unwrap()
             .matches;
         assert!(matches.is_empty());
     }
@@ -782,13 +884,11 @@ ORIGIN
             query: 0..proteins.len(),
             target: 0..proteins.len(),
         };
-        let _ = super::ProteinBatchAligner::default().analyse_pairs(
-            &proteins,
-            &proteins,
-            batch.pairs(&[]),
-            0.99,
-            |processed| reports.push(processed),
-        );
+        let _ = super::ProteinBatchAligner::default()
+            .analyse_pairs(&proteins, &proteins, batch.pairs(&[]), 0.99, |processed| {
+                reports.push(processed)
+            })
+            .unwrap();
         assert_eq!(reports, vec![4]);
     }
 }

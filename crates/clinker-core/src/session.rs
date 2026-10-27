@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Analysis, AnalysisOptions, GeneGroupDefinition, KmerPrefilter, ValidationError};
+use crate::{
+    Analysis, AnalysisOptions, AnalysisOptionsError, GeneGroupDefinition, KmerPrefilter,
+    ValidationError,
+};
 
 pub const ANALYSIS_SESSION_FORMAT: &str = "clinker-analysis";
 pub const ANALYSIS_SESSION_VERSION: u32 = 1;
@@ -24,18 +27,15 @@ impl AlignmentSettings {
         }
     }
 
-    pub fn validate(self, identity_cutoff: f32) -> Result<(), SessionError> {
-        if !identity_cutoff.is_finite() || !(0.0..=1.0).contains(&identity_cutoff) {
-            return Err(SessionError::InvalidIdentity(identity_cutoff));
+    pub fn validate(self, identity_cutoff: f32) -> Result<(), AnalysisOptionsError> {
+        AnalysisOptions {
+            identity_cutoff,
+            prefilter: match self {
+                Self::Skipped => None,
+                Self::Aligned { prefilter } => prefilter,
+            },
         }
-        if let Self::Aligned {
-            prefilter: Some(filter),
-        } = self
-            && (!(1..=8).contains(&filter.kmer_size) || filter.min_shared_kmers == 0)
-        {
-            return Err(SessionError::InvalidPrefilter);
-        }
-        Ok(())
+        .validate()
     }
 }
 
@@ -152,10 +152,8 @@ pub enum SessionError {
     UnsupportedFormat(String),
     #[error("unsupported analysis-session version {0}")]
     UnsupportedVersion(u32),
-    #[error("session identity cutoff must be between 0 and 1, got {0}")]
-    InvalidIdentity(f32),
-    #[error("prefilter requires k-mer size 1..=8 and a positive shared-word count")]
-    InvalidPrefilter,
+    #[error(transparent)]
+    Options(#[from] AnalysisOptionsError),
     #[error(
         "session alignment settings are unknown; use --reanalyse before extending it or changing settings"
     )]
@@ -254,7 +252,9 @@ ORIGIN
         });
         assert!(matches!(
             inconsistent.validate(),
-            Err(SessionError::InvalidPrefilter)
+            Err(SessionError::Options(
+                crate::AnalysisOptionsError::Prefilter
+            ))
         ));
 
         assert_eq!(
@@ -286,7 +286,9 @@ ORIGIN
         }])
         .unwrap();
 
-        analysis.append_clusters(new_clusters, 0.3);
+        analysis
+            .append_clusters(new_clusters, AnalysisOptions::default())
+            .unwrap();
 
         assert_eq!(&analysis.links[..original_links.len()], original_links);
         assert_eq!(analysis.links.len(), 3);

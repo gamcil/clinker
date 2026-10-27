@@ -22,7 +22,8 @@ impl Default for KmerPrefilter {
     }
 }
 
-pub fn kmer_candidate_pairs(
+#[cfg(test)]
+pub(crate) fn kmer_candidate_pairs(
     query: &[&[u8]],
     target: &[&[u8]],
     identity_cutoff: f32,
@@ -32,7 +33,8 @@ pub fn kmer_candidate_pairs(
 }
 
 /// Report searched query-target pairs, including those rejected by the filter.
-pub fn kmer_candidate_pairs_with_progress(
+#[cfg(test)]
+pub(crate) fn kmer_candidate_pairs_with_progress(
     query: &[&[u8]],
     target: &[&[u8]],
     identity_cutoff: f32,
@@ -66,7 +68,7 @@ pub fn kmer_candidate_pairs_with_progress(
 /// cluster at a time. Output indices refer to `proteins`, sorted by cluster pair
 /// then protein indices, with the lower cluster ID as query. `clusters` must
 /// contain one ID per protein.
-pub fn cluster_kmer_candidate_pairs_with_progress(
+pub(crate) fn cluster_kmer_candidate_pairs_with_progress(
     proteins: &[&[u8]],
     clusters: &[usize],
     identity_cutoff: f32,
@@ -105,38 +107,27 @@ fn cluster_candidates<K: Copy + Ord + Hash + TryFrom<u64>>(
         })
         .sum();
     progress(0, total);
-    let enabled = (1..=8).contains(&prefilter.kmer_size) && prefilter.min_shared_kmers > 0;
-    let words = if enabled {
-        proteins
-            .iter()
-            .map(|protein| distinct_kmers::<K>(protein, prefilter.kmer_size))
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
+    let words = proteins
+        .iter()
+        .map(|protein| distinct_kmers::<K>(protein, prefilter.kmer_size))
+        .collect::<Vec<_>>();
     let mut candidates = Vec::new();
     let mut counts = vec![0; proteins.len()];
     let mut touched = Vec::new();
     let mut completed = 0;
     for (target_group, targets) in groups.iter().enumerate().skip(1) {
         let mut index = HashMap::<K, Vec<usize>>::new();
-        if enabled {
-            for &target in targets {
-                for &word in &words[target] {
-                    index.entry(word).or_default().push(target);
-                }
+        for &target in targets {
+            for &word in &words[target] {
+                index.entry(word).or_default().push(target);
             }
         }
         for queries in &groups[..target_group] {
             for &query in queries {
-                if enabled {
-                    count_shared_words(&words[query], &index, &mut counts, &mut touched);
-                } else {
-                    touched.extend_from_slice(targets);
-                }
+                count_shared_words(&words[query], &index, &mut counts, &mut touched);
                 for target in touched.drain(..) {
                     let shared = std::mem::take(&mut counts[target]);
-                    if (!enabled || shared >= prefilter.min_shared_kmers)
+                    if shared >= prefilter.min_shared_kmers
                         && can_reach_identity(
                             proteins[query].len(),
                             proteins[target].len(),
@@ -219,7 +210,7 @@ mod tests {
             b"ACCCCCCC",
         ];
         let clusters = [4, 1, 4, 7, 1, 7, 1];
-        for kmer_size in [0, 1, 3, 5, 6, 7, 8, 9] {
+        for kmer_size in [1, 3, 5, 6, 7, 8] {
             let settings = KmerPrefilter {
                 kmer_size,
                 min_shared_kmers: 2,
@@ -232,7 +223,6 @@ mod tests {
                     {
                         continue;
                     }
-                    let enabled = (1..=8).contains(&kmer_size);
                     let byte_words = |protein: &[u8]| {
                         let mut normalised = Vec::new();
                         normalise_protein(protein, &mut normalised);
@@ -241,14 +231,10 @@ mod tests {
                             .map(<[u8]>::to_vec)
                             .collect::<std::collections::BTreeSet<_>>()
                     };
-                    let shared = if enabled {
-                        byte_words(proteins[query])
-                            .intersection(&byte_words(proteins[target]))
-                            .count()
-                    } else {
-                        0
-                    };
-                    if !enabled || shared >= settings.min_shared_kmers {
+                    let shared = byte_words(proteins[query])
+                        .intersection(&byte_words(proteins[target]))
+                        .count();
+                    if shared >= settings.min_shared_kmers {
                         expected.push(ProteinPair {
                             query_index: query,
                             target_index: target,

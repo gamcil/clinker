@@ -42,6 +42,7 @@ test('incremental WASM parsing and post-processing preserve mixed-format input o
 
 test('prefilter and alignment agree on case and unsupported amino acids', () => {
   const files = [genbank('one.gbk', 'MOUSTAVKDLGYRQ'), genbank('two.gbk', 'mxxstavkdlgyrq')];
+  assert.throws(() => parse(files, { ...settings, enabled: true, kmerSize: 0 }), /prefilter requires/);
   for (const kmerSize of [5, 6, 7, 8]) {
     const filteredSettings = { ...settings, enabled: true, kmerSize, minSharedKmers: kmerSize === 5 ? 8 : 2 };
     const parsed = parse(files, filteredSettings);
@@ -108,6 +109,7 @@ test('post-processing retains Ward merges only when similarity ordering runs', (
 test('alignment workers reuse buffers for successive Cartesian and selected batches', () => {
   const worker = new AlignmentWorker();
   try {
+    assert.throws(() => worker.analyse_batch([], { kind: 'selected', pairs: { start: 0, end: 0 } }, [], NaN, () => {}), /identity cutoff/);
     for (const length of [3, 100, 5]) {
       const protein = { cluster: 0, locus: 0, gene: 0, translation: 'MSTAVKLMDEFGH'.repeat(8).slice(0, length) };
       const target = { ...protein, cluster: 1 };
