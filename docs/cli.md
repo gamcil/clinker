@@ -51,4 +51,14 @@ browser app through **File → Open project**. It retains the analysis data need
 for future exports. `--session` remains the native analysis continuation format;
 it does not store interactive figure edits. See [project formats](project-format.md).
 
+Output filenames and directories are checked before analysis. Destinations must
+be distinct from each other and from input files. Existing exports require
+`--force`; output symlinks and read-only files are rejected. Updating an existing
+`--session` is intentional and does not require `--force`.
+
+Each output is staged in its destination directory before being published.
+Existing files are replaced atomically; new files never overwrite a file that
+appeared during the run. The session is saved after the exports. Writes are
+atomic per file, rather than a transaction across every output in a run.
+
 The archive includes the clinker, clustermap.js and D3 licence notices.

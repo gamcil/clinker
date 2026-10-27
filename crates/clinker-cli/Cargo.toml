@@ -21,6 +21,5 @@ csv = "1"
 serde_json = "1"
 tiny_http = "0.12"
 getrandom = "0.2"
-
-[dev-dependencies]
 tempfile = "3"
+same-file = "1"
