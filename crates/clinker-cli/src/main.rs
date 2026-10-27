@@ -1,3 +1,8 @@
+mod portable;
+mod viewer;
+
+use portable::html as portable_html;
+
 use std::{
     collections::BTreeMap,
     fs,
@@ -67,13 +72,21 @@ struct Args {
     #[arg(long, value_name = "PATH")]
     colour_map: Option<PathBuf>,
 
-    /// Write portable HTML (.html) or clustermap.js data (.json).
-    #[arg(short, long, value_name = "PATH")]
-    plot: Option<PathBuf>,
+    /// Open the local viewer, or write portable HTML / plot JSON when PATH is given.
+    #[arg(short, long, value_name = "PATH", num_args = 0..=1)]
+    plot: Option<Option<PathBuf>>,
 
     /// Write a complete editable project for the web or local viewer.
     #[arg(long, value_name = "PATH")]
     project: Option<PathBuf>,
+
+    /// Open an edited project in the local viewer without rerunning analysis.
+    #[arg(long, value_name = "PATH", conflicts_with_all = ["inputs", "session", "plot", "project"])]
+    open_project: Option<PathBuf>,
+
+    /// Print the local viewer URL without launching a browser.
+    #[arg(long)]
+    no_browser: bool,
 
     /// Write the retained-link summary to a file instead of standard output.
     #[arg(short, long, value_name = "PATH")]
@@ -110,6 +123,11 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
+    if let Some(path) = args.open_project.as_ref() {
+        let project = ClinkerProject::from_json(&fs::read(path)?)?;
+        return viewer::serve(&project, args.no_browser);
+    }
+
     let session_exists = args.session.as_ref().is_some_and(|path| path.exists());
     if args.inputs.is_empty() && !session_exists {
         return Err(io::Error::new(
@@ -231,6 +249,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{summary}");
     }
 
+    let mut local_project = None;
     if args.plot.is_some() || args.project.is_some() {
         let order = if args.use_file_order || args.no_align {
             (0..analysis.clusters.len()).collect()
@@ -239,7 +258,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let data =
             analysis.to_auto_arranged_plot_data_with_group_definitions(&order, group_definitions);
-        if let Some(path) = args.plot.as_ref() {
+        if let Some(path) = args.plot.as_ref().and_then(Option::as_ref) {
             let json = serde_json::to_string_pretty(&data)?;
             let output = match path
                 .extension()
@@ -263,6 +282,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let project = ClinkerProject::new(session.clone(), &data)?;
             write_output(path, &project.to_json()?, args.force)?;
         }
+        if matches!(args.plot, Some(None)) {
+            local_project = Some(ClinkerProject::new(session.clone(), &data)?);
+        }
     }
 
     if let Some(path) = args.matrix_out.as_ref() {
@@ -271,6 +293,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             format_distance_matrix(analysis).as_bytes(),
             args.force,
         )?;
+    }
+
+    if let Some(project) = local_project {
+        viewer::serve(&project, args.no_browser)?;
     }
 
     Ok(())
@@ -497,34 +523,6 @@ fn write_output(path: &Path, contents: &[u8], force: bool) -> io::Result<()> {
         ));
     }
     fs::write(path, contents)
-}
-
-fn portable_html(plot_json: &str) -> String {
-    const D3: &str = include_str!("../assets/d3.min.js");
-    const CLUSTERMAP: &str = include_str!("../assets/clustermap.min.js");
-    let safe_json = plot_json
-        .replace('&', "\\u0026")
-        .replace('<', "\\u003c")
-        .replace('>', "\\u003e")
-        .replace('\u{2028}', "\\u2028")
-        .replace('\u{2029}', "\\u2029");
-    let mut html = String::with_capacity(D3.len() + CLUSTERMAP.len() + safe_json.len() + 1_024);
-    html.push_str(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
-         <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
-         <title>clinker plot</title><style>html,body{width:100%;height:100%;margin:0;overflow:hidden;font-family:system-ui,sans-serif}\
-         #plot{position:relative;width:100%;height:100%;overflow:hidden}svg.clusterMap{display:block}</style></head><body>\
-         <div id=\"plot\"></div><script>",
-    );
-    html.push_str(D3);
-    html.push_str("</script><script>");
-    html.push_str(CLUSTERMAP);
-    html.push_str("</script><script>const data=");
-    html.push_str(&safe_json);
-    html.push_str(
-        ";const chart=ClusterMap.ClusterMap();d3.select('#plot').datum(data).call(chart);</script></body></html>",
-    );
-    html
 }
 
 fn format_distance_matrix(analysis: &clinker_core::Analysis) -> String {

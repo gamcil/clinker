@@ -1,0 +1,31 @@
+{
+  "format": "clinker-web-build",
+  "version": 1,
+  "target": "viewer",
+  "id": "3036a2e7614b18d3",
+  "files": {
+    "LICENSE": "deefd405630bdaf87fdc46e7390584475dbaa7b703e7872355b010998260c809",
+    "LICENSE.clustermap": "deefd405630bdaf87fdc46e7390584475dbaa7b703e7872355b010998260c809",
+    "LICENSE.d3": "3e6849627f74ff73c257a3ae1efb574015d94fc1035c05ec3c15805165efcbc4",
+    "annotation-import.mjs": "4d930b8f2a265688b4635c4fb4281203fc5b77888863544809d5949392d71f13",
+    "index.html": "d7b9fd4304396eb1dec2660172b3004c8f9587d6ad714b9965bacd98a35048fd",
+    "local.js": "c83cba45c394aee18e2aed6092a5eba039d1ee20a14500e6d3d6dddf6441c3de",
+    "style.css": "55322a0ce9016b12a7adad6936d18ac1bb2b8a563dccc36f8353c9ff7c12079e",
+    "tree-import.mjs": "434c8072c2be2a7b63442e6a6d0d1c64954fa1593324ab79e7180f097cd0786d",
+    "tree-input.mjs": "13debe36f72ab8ddec9812b981dadfdf1ce9b86d0013cdbcb132a04cf2d2304a",
+    "vendor/clustermap/annotationOverlay.mjs": "7d2ffaa0267d935667a272f49fee1840c6c2f158e0408d0dd3951721a17248a6",
+    "vendor/clustermap/clustermap.min.js": "3e3341ee946a159280e8394260de5057300f1aca8301fc6a404c6707a87f565f",
+    "vendor/clustermap/editor.mjs": "4c5195a31cfa341c0fb2e5b3ff7c25ab7a417d1369202e7b9d702676d9cf4db6",
+    "vendor/clustermap/editor/annotation-editor-20ae8582.mjs": "714ba63caeab019180edc05b42c183cda36b92eab7cecced6f387d1b5ab95ba0",
+    "vendor/clustermap/editor/appearance-panel-4c067c3b.mjs": "518faaf1446eb419cdf989ac6686490058322a0de51377f3731fa6385fc4f538",
+    "vendor/clustermap/editor/data-panel-85ae6763.mjs": "0d73132709a0d7742297c0b4504fe91e8a231328fb0d019f455e2484c53ae6d9",
+    "vendor/clustermap/editor/search-field-595834d9.mjs": "2e6c6ede634de46c595716f4c976bdec9308921303bc1130d3786ebc2048dddb",
+    "vendor/clustermap/editor/theme-8bd47f2f.mjs": "f060b212dc9f4a4486bb28fe2d4dbd10ebc4c1c31aefe444d8ccbd54307c930e",
+    "vendor/d3/d3.min.js": "f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539",
+    "viewer/controls.mjs": "97f80a330334162f4e3edad45dfad11ecce33ac870266f1425ad485eec795754",
+    "viewer/project.mjs": "7a115276284bdf4ba9f9315bb62b19dbf75dd4cac44d346459559ca9cf2a290e",
+    "viewer/tree.mjs": "7a9f697485f6a50938c35faffcb4aa5ecd78947ab8ff997c650c9964eeb97312",
+    "viewer/viewer.mjs": "d1f61032afea283c09da37c03bedab2d9e4224e762d412b3c7a372944a45420c",
+    "workflow.mjs": "83c99ea656f2b2da94470c812704297305393340b4b7b5f75c304e73afe6c146"
+  }
+}

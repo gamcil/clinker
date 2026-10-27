@@ -67,8 +67,9 @@ New CLI projects use default figure appearance and omit saved camera state.
 `--session` continues to read/write `clinker-analysis` version 1 for native
 analysis continuation. `--project` writes an editable project; it does not change
 the session persistence format. Standalone `--plot *.json` remains raw renderer
-data and is not an editable project. Portable `--plot *.html` still uses the
-existing native HTML exporter; the shared native local viewer is the next step.
+data and is not an editable project. Portable `--plot *.html` uses the separate renderer-only native HTML exporter.
+Bare `--plot` opens the shared local viewer, and `--open-project comparison.json`
+restores a saved project there without redoing analysis.
 
 `ClinkerProject::from_json` and `to_json` provide the native project reader and
-writer for that viewer without recomputing an edited figure.
+writer for the native local viewer without recomputing an edited figure.

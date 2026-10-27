@@ -8,7 +8,8 @@
     "check:assets": "node scripts/sync-assets.mjs --check",
     "test": "node --test tests/*.test.mjs",
     "test:wasm": "node --test tests/wasm/*.test.mjs",
-    "test:browser": "node --test tests/browser/*.test.mjs"
+    "test:browser": "node --test tests/browser/*.test.mjs",
+    "build:viewer": "node scripts/build-viewer.mjs"
   },
   "dependencies": {
     "clustermap.js": "https://codeload.github.com/gamcil/clustermap.js/tar.gz/f75cf112b7aee0c6315e1054c12645705578f6d9",

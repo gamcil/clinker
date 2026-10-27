@@ -70,6 +70,7 @@ options apply to new comparisons; existing links are retained.
 Write data for the JavaScript renderer or a portable offline HTML figure:
 
 ```bash
+cargo run -p clinker-cli -- input-a.gbk input-b.gbk --plot
 cargo run -p clinker-cli -- input-a.gbk input-b.gbk --plot plot-data.json
 cargo run -p clinker-cli -- input-a.gbk input-b.gbk --plot figure.html
 ```
@@ -155,8 +156,12 @@ grouping, ordering, and layout locally through `clinker-core` compiled to WASM.
 
 `web/src/viewer/` holds the shared figure lifecycle and project/tree data helpers.
 The browser entry supplies analysis results and application controls; the viewer
-does not start workers or import the analysis entry. The native local viewer
-will use this same component with native results.
+does not start workers or import the analysis entry. The native local entry uses the same component with native results and starts
+no WASM workers. Common menus, themes and exports are in `viewer/controls.mjs`.
+The local shell is built from the shared HTML with the analysis form omitted.
+A committed complete snapshot in `crates/clinker-cli/assets/viewer/` is embedded
+by a Rust-only build script; no frontend tool runs during Cargo builds. The
+separate portable HTML exporter uses only its renderer and D3 bundles.
 
 ## Features and releases
 

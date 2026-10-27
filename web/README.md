@@ -84,8 +84,10 @@ event listener; hosts remain responsible for their own controls and listeners.
 
 `src/app.js` owns uploads, worker analysis, run status, application menus and
 storage preferences. Tree/annotation import dialogs remain host workflows and
-use the viewer's chart. The native local entry will reuse the viewer without
-importing the browser analysis entry or running WASM analysis.
+use the viewer's chart. The native `src/local.js` entry reuses the viewer and `viewer/controls.mjs`
+without importing the browser analysis entry or running WASM analysis. The shared
+HTML uses run-panel markers so the native shell omits analysis controls. Tree
+input fields are optional there; tree import still operates on displayed data.
 
 ## Analysis workflow
 
@@ -302,13 +304,14 @@ archives use this same package.
 - `src/`: authored HTML, CSS, modules and workers. Edit these files.
 - `scripts/`: build assembly, the shared dependency inventory, asset sync and packaging.
 - `.build/pkg/`: intermediate wasm-pack output, recreated by `build.sh`.
+- `.build/viewer/`: the complete native viewer output; no WASM or example inputs.
 - `dist/`: the complete static application. Every build replaces it with a fresh
   tree containing app modules, `vendor/`, `pkg/`, examples and licence notices.
 - `tests/`: unit checks import `src/`; WASM and browser checks use `dist/`.
 
 `build.sh` installs the lockfile dependencies, compiles WASM, and runs
-`scripts/build.mjs`. The assembler derives a deterministic build ID from all
-runtime inputs, the lockfile and the build scripts. It adds this ID to authored
+`scripts/build.mjs`. The assemblers derive a deterministic build ID for each entry from its
+runtime inputs, the lockfile and the relevant build scripts. It adds this ID to authored
 module, stylesheet, worker and WASM URLs, replacing manual date-based versions.
 Upstream content-hashed chunks keep their original names and paths. No bundler
 or external styling dependency is added.
@@ -325,5 +328,11 @@ sh web/package.sh /tmp/clinker-site
 npm --prefix web run check:assets
 ```
 
-Cargo builds remain independent of this process and use the CLI's committed
-bundles. The shared CLI/local viewer is a subsequent migration step.
+`npm run build:viewer` builds just the local viewer without compiling WASM.
+`npm run sync:assets` builds it and replaces the complete committed CLI snapshot;
+`npm run check:assets` rebuilds and compares it. Neither command starts an
+analysis worker. The local viewer is served by the CLI's loopback server, not a
+standalone static host, because its project/similarity endpoints are native.
+
+Cargo builds remain independent of frontend tools and use the CLI's committed
+snapshot. Portable HTML uses its renderer bundles through a separate exporter.

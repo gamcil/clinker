@@ -22,7 +22,7 @@ function frameTree(chart) {
   chart.clearHistory();
 }
 
-export function mountTreeImport({ button, getChart, getRunInputs, onRunChange, onAppearance, onChange }) {
+export function mountTreeImport({ button, getChart, getRunInputs, onRunChange = () => {}, onAppearance, onChange }) {
   const dialog = document.querySelector('#tree-dialog');
   const apply = dialog.querySelector('#apply-tree');
   const remove = document.querySelector('#remove-tree');
@@ -39,10 +39,11 @@ export function mountTreeImport({ button, getChart, getRunInputs, onRunChange, o
   let targetData;
   let inspectionVersion = 0;
   let continuation = null;
-  const runInput = mountTreeInput(document.querySelector('#run-tree-fields'), {
+  const runContainer = document.querySelector('#run-tree-fields');
+  const runInput = runContainer ? mountTreeInput(runContainer, {
     inline: true,
     onChange: () => onRunChange(runInput.ready()),
-  });
+  }) : null;
   const plotInput = mountTreeInput(document.querySelector('#dialog-tree-fields'), {
     onChange: () => { apply.disabled = !plotInput.snapshot() || !plotInput.ready(); },
     isCurrent: () => !!continuation || (target === getChart() && targetData === target.data()),
@@ -129,6 +130,7 @@ export function mountTreeImport({ button, getChart, getRunInputs, onRunChange, o
     getChart().config({ tree: { useBranchLengths: scaled.checked } });
   });
   const inputsChanged = async () => {
+    if (!runInput) return;
     const version = ++inspectionVersion;
     runInput.setContext({ clusters: [], loading: true });
     try {
@@ -194,7 +196,7 @@ export function mountTreeImport({ button, getChart, getRunInputs, onRunChange, o
     const trigger = button.closest('details');
     if (!trigger?.closest('[inert]')) trigger?.querySelector('summary').focus();
   });
-  runInput.reset();
+  runInput?.reset();
   bind();
   return {
     close: () => { if (dialog.open) dialog.close(); },
@@ -213,10 +215,11 @@ export function mountTreeImport({ button, getChart, getRunInputs, onRunChange, o
     },
     setDendrogram: tree => { dendrogram = tree || null; syncOrder(); },
     runTree: () => {
+      if (!runInput) return null;
       if (!runInput.ready()) throw new Error('Resolve the tree input before starting analysis.');
       return runInput.snapshot();
     },
-    runReady: runInput.ready,
+    runReady: () => !runInput || runInput.ready(),
     inputsChanged,
     resolveRunTree: async (clusters, draft, separateRecords, workflow) => {
       if (!draft) return null;

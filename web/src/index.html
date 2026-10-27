@@ -62,6 +62,7 @@
       <div class="plot-stage clinker-plot-workspace">
         <div id="plot"></div>
         <p id="plot-status" class="plot-status" role="status" hidden></p>
+        <!-- run-panel:start -->
         <section id="run-panel" class="run-panel" aria-labelledby="run-panel-title">
           <div class="run-card">
             <div class="run-card-heading">
@@ -188,7 +189,6 @@
               <button id="load-example" type="button" class="app-button">Try example</button>
               <button id="open-project-start" type="button" class="app-button">Open project</button>
             </div>
-            <input id="clinker-file" type="file" accept="application/json,.json" hidden class="app-field">
             <div id="run-feedback" class="run-feedback" aria-live="polite" hidden>
               <ol id="run-steps" class="run-steps" hidden>
                 <li data-run-step="parse" data-state="waiting">
@@ -245,8 +245,10 @@
             <p class="run-privacy">Files stay in your browser.</p>
           </div>
         </section>
+        <!-- run-panel:end -->
         <clinker-editor id="plot-editor" resizable hidden></clinker-editor>
       </div>
+      <input id="clinker-file" type="file" accept="application/json,.json" hidden class="app-field">
     </main>
     <dialog id="help-dialog" class="app-dialog help-dialog" aria-labelledby="help-title" aria-describedby="help-intro">
       <header class="help-heading">
@@ -328,8 +330,8 @@
         </div>
         <section class="help-about" aria-labelledby="help-about">
           <h3 id="help-about">About clinker</h3>
-          <p>clinker compares gene clusters, groups homologous proteins and arranges the results as an interactive figure. Its analysis engine is written in Rust and is also available as a command-line application. The web app runs that engine through WebAssembly, using block-aligner for SIMD-accelerated global protein alignments.</p>
-          <p>Analysis runs in background browser workers while you view and edit the plot. Your input files and analysis stay on your device; no upload or analysis server is required. Save a project to keep your work between visits.</p>
+          <p>clinker compares gene clusters, groups homologous proteins and arranges the results as an interactive figure. It is available in a browser and as a command-line application.</p>
+          <p>Your input files and analysis stay on your device. Save a project to keep your edits and continue later; work is not saved automatically.</p>
         </section>
       </div>
     </dialog>

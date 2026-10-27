@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>clinker</title>
+    <link rel="stylesheet" href="style.css?v=3036a2e7614b18d3">
+    <script src="vendor/d3/d3.min.js?v=3036a2e7614b18d3"></script>
+    <script src="vendor/clustermap/clustermap.min.js?v=3036a2e7614b18d3"></script>
+  </head>
+  <body class="clinker-app">
+    <main class="app-main">
+      <header class="app-bar">
+        <h1 class="app-logo">clinker</h1>
+        <details id="file-menu" class="menu file-menu">
+          <summary class="app-disclosure">File</summary>
+          <div class="menu-popover">
+            <button id="load-clinker-file" type="button" class="app-button">Open project…</button>
+            <span class="menu-section-divider" aria-hidden="true"></span>
+            <button id="download-project" type="button" disabled class="app-button">Save project</button>
+            <span class="menu-section-divider" aria-hidden="true"></span>
+            <button id="download-svg" type="button" disabled class="app-button">Export figure (SVG)</button>
+            <button id="download-matrix" type="button" disabled class="app-button">Export similarity table (CSV)</button>
+          </div>
+        </details>
+        <nav id="plot-actions" class="app-actions" aria-label="Plot actions" hidden>
+          <details id="add-data-menu" class="menu">
+            <summary class="app-disclosure">Add data</summary>
+            <div class="menu-popover">
+              <button id="manage-tree" type="button" aria-haspopup="dialog" aria-controls="tree-dialog" disabled class="app-button">Import tree (Newick)…</button>
+              <button id="import-annotations" type="button" aria-haspopup="dialog" aria-controls="annotation-dialog" disabled class="app-button">Import annotations (TSV / CSV)…</button>
+            </div>
+          </details>
+          <details id="plot-order" class="menu">
+            <summary class="app-disclosure"><span>Row order<span class="order-colon">:</span></span> <span id="plot-order-label" class="menu-current-value">Default</span></summary>
+            <div class="menu-popover">
+              <button type="button" data-order="computed" aria-pressed="true" class="app-button">Default order</button>
+              <button type="button" data-order="clustering" aria-pressed="false" hidden class="app-button">Similarity dendrogram</button>
+              <button type="button" data-order="tree" aria-pressed="false" hidden class="app-button">Imported tree</button>
+              <label id="clustering-scale-control" class="menu-checkbox" hidden><input id="clustering-scaled" type="checkbox" checked class="app-field">Scale by merge height</label>
+              <span id="tree-controls-divider" class="menu-section-divider" aria-hidden="true" hidden></span>
+              <button id="tree-appearance" type="button" hidden class="app-button">Tree appearance…</button>
+              <button id="remove-tree" type="button" hidden class="app-button">Remove tree</button>
+            </div>
+          </details>
+        </nav>
+        <div class="about-help">
+          <button id="edit-plot" class="app-button edit-figure-action" type="button" disabled hidden aria-controls="plot-editor" aria-expanded="false">Edit figure</button>
+          <details id="appearance-menu" class="menu menu-end">
+            <summary id="appearance-label" title="Interface theme: System" class="app-disclosure">Theme</summary>
+            <div class="menu-popover" role="group" aria-label="Interface appearance">
+              <span class="menu-caption">Interface theme</span>
+              <button type="button" data-theme-mode="auto" aria-pressed="true" class="app-button">System</button>
+              <button type="button" data-theme-mode="light" aria-pressed="false" class="app-button">Light</button>
+              <button type="button" data-theme-mode="dark" aria-pressed="false" class="app-button">Dark</button>
+            </div>
+          </details>
+          <button id="plot-help" class="app-button about-button" type="button" aria-label="Plot help" aria-haspopup="dialog" aria-controls="help-dialog" title="Plot help">?</button>
+        </div>
+      </header>
+      <div class="plot-stage clinker-plot-workspace">
+        <div id="plot"></div>
+        <p id="plot-status" class="plot-status" role="status" hidden></p>
+        <clinker-editor id="plot-editor" resizable hidden></clinker-editor>
+      </div>
+      <input id="clinker-file" type="file" accept="application/json,.json" hidden class="app-field">
+    </main>
+    <dialog id="help-dialog" class="app-dialog help-dialog" aria-labelledby="help-title" aria-describedby="help-intro">
+      <header class="help-heading">
+        <div class="help-heading-row">
+          <div>
+            <h2 id="help-title">Plot help</h2>
+              <p id="help-intro">Add trees and annotation tables with Add data, arrange cluster rows with Row order, and open Edit figure for data and appearance settings. File contains project saving and figure exports. Theme changes the interface appearance; System follows your device.</p>
+          </div>
+          <form method="dialog"><button class="app-button help-close" aria-label="Close help" autofocus>×</button></form>
+        </div>
+        <nav class="help-topics" aria-label="Help topics">
+          <button type="button" data-help-section="help-navigate" class="app-button">Move around</button>
+          <button type="button" data-help-section="help-selection" class="app-button">Select loci</button>
+          <button type="button" data-help-section="help-arrange" class="app-button">Arrange and trim</button>
+          <button type="button" data-help-section="help-genes" class="app-button">Genes and legend</button>
+          <button type="button" data-help-section="help-editor" class="app-button">Batch editing</button>
+          <button type="button" data-help-section="help-save" class="app-button">Save your work</button>
+          <button type="button" data-help-section="help-about" class="app-button">About clinker</button>
+        </nav>
+      </header>
+      <div class="help-body" tabindex="0" role="region" aria-label="Plot controls and shortcuts">
+        <div class="help-grid">
+          <section aria-labelledby="help-navigate">
+            <h3 id="help-navigate">Move around</h3>
+            <dl>
+              <div><dt>Scroll or pinch</dt><dd>Zoom in and out around the pointer.</dd></div>
+              <div><dt>Drag empty space</dt><dd>Pan the figure. In Canvas/GPU mode, hold <kbd>Space</kbd> while dragging to pan over plotted items too.</dd></div>
+              <div><dt>Minimap</dt><dd>Click or drag in the overview to move to another part of a large plot.</dd></div>
+            </dl>
+          </section>
+          <section aria-labelledby="help-selection">
+            <h3 id="help-selection">Select loci</h3>
+            <p>A locus is one sequence within a cluster. Selection highlights it and opens a batch-action toolbar.</p>
+            <dl>
+              <div><dt><kbd>Shift</kbd> + click</dt><dd>Add or remove a locus from the selection. Clicking a gene with Shift selects its locus.</dd></div>
+              <div><dt><kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>Shift</kbd> + click</dt><dd>Add all loci in the cluster rows between the previous selection and this one.</dd></div>
+              <div><dt><kbd>Alt</kbd> / <kbd>⌥</kbd> + <kbd>Shift</kbd> + click</dt><dd>Remove that range of cluster rows from the selection.</dd></div>
+              <div><dt><kbd>Esc</kbd> or Clear</dt><dd>Clear plot selection when you are not typing in a field.</dd></div>
+            </dl>
+          </section>
+          <section aria-labelledby="help-arrange">
+            <h3 id="help-arrange">Arrange and trim</h3>
+            <dl>
+              <div><dt>Drag a cluster label</dt><dd>Reorder rows vertically. Dragging a selected cluster moves the selected rows as a block. An attached tree limits movement to orders that keep each clade together.</dd></div>
+              <div><dt>Tree</dt><dd>Choose a Newick tree with a new comparison or attach one using Add data → Import tree. Click an internal node to rotate its children. Use Row order to switch between the default order, an imported tree and the similarity dendrogram. The dendrogram shows gene-cluster similarity, not evolutionary ancestry. Right-click an internal node to style branches or clades and add text annotations. Edit figure contains tree appearance and dendrogram clade-colouring settings; hiding a tree retains its ordering constraints.</dd></div>
+              <div><dt>Drag a locus track</dt><dd>Move it horizontally. Dragging a selected locus moves all selected loci together.</dd></div>
+              <div><dt>Double-click a locus</dt><dd>Flip its orientation.</dd></div>
+              <div><dt>Drag the end handles</dt><dd>Hover over a locus to reveal handles, then drag an end to adjust its displayed bounds.</dd></div>
+              <div><dt>Selection toolbar</dt><dd>Flip selected loci, trim them to their outermost displayed genes, or restore their full bounds.</dd></div>
+            </dl>
+          </section>
+          <section aria-labelledby="help-genes">
+            <h3 id="help-genes">Genes and legend</h3>
+            <dl>
+              <div><dt>Click a gene</dt><dd>Anchor the figure on that gene, bringing linked genes into alignment.</dd></div>
+              <div><dt>Right-click a gene</dt><dd>Open its label, colour and anchoring controls.</dd></div>
+              <div><dt>Click legend text or colour</dt><dd>Rename a group or change its colour. Right-click its text for more group controls.</dd></div>
+              <div><dt>Click the scale bar</dt><dd>Change the length represented by the bar.</dd></div>
+            </dl>
+          </section>
+          <section aria-labelledby="help-editor">
+            <h3 id="help-editor">Batch editing</h3>
+            <dl>
+              <div><dt>Edit figure</dt><dd>Open the bottom panel to edit genes, groups, links, annotation panels and appearance settings. Choose Close editor to return to the full figure.</dd></div>
+              <div><dt>Select rows or checkboxes</dt><dd>Apply actions to multiple records. In the Genes tree, a cluster or locus checkbox selects its genes; <kbd>Shift</kbd>-click selects a range of rows.</dd></div>
+              <div><dt>Group actions</dt><dd>Assign genes to groups, create or merge groups, and set shared labels, colours or visibility. Drag a group’s reorder grip, or focus it and use <kbd>↑</kbd> / <kbd>↓</kbd>, to reorder the legend.</dd></div>
+              <div><dt>Undo / Redo</dt><dd>Use the buttons at the top of the editor to reverse or reapply figure edits. <kbd>Enter</kbd> commits an inline field; <kbd>Esc</kbd> cancels it.</dd></div>
+            </dl>
+          </section>
+          <section aria-labelledby="help-save">
+            <h3 id="help-save">Save your work</h3>
+            <dl>
+              <div><dt>Add data → Import annotations</dt><dd>Load a TSV or CSV with one row per cluster and a header row. File and matching options lets you change the cluster identifier column; unmatched rows can be assigned or skipped. Separate tracks gives each selected column its own scale or legend. One heatmap combines selected columns with a shared scale for comparable measurements such as gene expression or 0/1 presence and absence. Values are not normalised. Review the scale beside each column before importing. Identifier and high-cardinality columns start skipped. Imported panels are saved with the project.</dd></div>
+              <div><dt>File → Save project</dt><dd>Save the analysis, appearance and edits. Use File → Open project to continue later; work is not saved automatically.</dd></div>
+              <div><dt>File → Export figure (SVG)</dt><dd>Download the figure for publication or further editing.</dd></div>
+              <div><dt>File → Export similarity table (CSV)</dt><dd>Download analysis scores with current cluster names and plot order. Visual edits do not recompute scores.</dd></div>
+            </dl>
+          </section>
+        </div>
+        <section class="help-about" aria-labelledby="help-about">
+          <h3 id="help-about">About clinker</h3>
+          <p>clinker compares gene clusters, groups homologous proteins and arranges the results as an interactive figure. It is available in a browser and as a command-line application.</p>
+          <p>Your input files and analysis stay on your device. Save a project to keep your edits and continue later; work is not saved automatically.</p>
+        </section>
+      </div>
+    </dialog>
+    <dialog id="tree-dialog" class="app-dialog help-dialog import-dialog tree-dialog" aria-labelledby="tree-title">
+      <header class="help-heading">
+        <div class="help-heading-row">
+          <h2 id="tree-title">Import tree</h2>
+          <form method="dialog"><button class="app-button help-close" aria-label="Close tree import">×</button></form>
+        </div>
+      </header>
+      <div class="help-body tree-import-body">
+        <div id="dialog-tree-fields"></div>
+        <p id="tree-import-note" class="tree-import-note" hidden>Importing a tree clears undo history.</p>
+      </div>
+      <footer class="tree-import-actions">
+        <form method="dialog"><button type="submit" class="app-button">Cancel</button></form>
+        <button id="apply-tree" class="app-button primary" type="button" disabled>Apply tree</button>
+      </footer>
+    </dialog>
+    <dialog id="annotation-dialog" class="app-dialog help-dialog import-dialog annotation-dialog" aria-labelledby="annotation-title">
+      <header class="help-heading">
+        <div class="help-heading-row">
+          <h2 id="annotation-title">Import annotations</h2>
+          <form method="dialog"><button class="app-button help-close" aria-label="Close annotation import">×</button></form>
+        </div>
+      </header>
+      <div class="help-body annotation-import-body">
+        <div class="import-file-picker"><button id="choose-annotation-file" type="button" class="app-button">Choose TSV / CSV file</button><span id="annotation-file-name">None selected</span><input id="annotation-file" class="app-field visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
+        <details id="annotation-parsing-options" class="annotation-import-advanced">
+          <summary class="app-disclosure">File and matching options</summary>
+          <div class="import-options">
+          <label>Delimiter<select id="annotation-delimiter" class="app-field"><option value="auto">Automatic</option><option value=",">Comma</option><option value="&#9;">Tab</option></select></label>
+          <label>Match rows using<select id="annotation-key-column" disabled class="app-field"></select></label>
+          </div>
+        </details>
+        <p id="annotation-match-summary" class="annotation-match-summary" role="status">Choose a TSV or CSV file to begin.</p>
+        <div id="annotation-match-review" class="annotation-match-review" hidden>
+          <p>Choose a plotted cluster for unmatched or ambiguous rows, or skip them.</p>
+          <div class="annotation-table-scroll"><table><thead><tr><th>Table key</th><th>Plotted cluster</th></tr></thead><tbody id="annotation-match-rows"></tbody></table></div>
+        </div>
+        <div id="annotation-column-settings" class="annotation-column-settings" hidden>
+          <div class="annotation-layout-choice">
+            <label>Display<select id="annotation-mode" aria-describedby="annotation-column-note" class="app-field"><option value="tracks">Separate tracks</option><option value="matrix">One heatmap</option></select></label>
+            <p id="annotation-column-note" class="annotation-column-note">Each column has its own scale.</p>
+          </div>
+          <details id="annotation-matrix-options" class="annotation-import-advanced" hidden>
+            <summary class="app-disclosure">Heatmap options</summary>
+            <div class="import-options">
+            <label>Colour scale<select id="annotation-matrix-scale" class="app-field"><option value="auto">Automatic</option><option value="continuous">Numeric (continuous)</option><option value="binary">Presence / absence (0 / 1)</option><option value="categorical">Categories</option></select></label>
+            <label>Panel title (optional)<input id="annotation-matrix-title" type="text" placeholder="e.g. Gene expression" class="app-field"></label>
+            </div>
+          </details>
+          <div class="annotation-table-scroll"><table><thead><tr><th>Column</th><th>Display</th><th>Scale</th></tr></thead><tbody id="annotation-columns"></tbody></table></div>
+        </div>
+        <div id="annotation-preview" class="annotation-preview" hidden>
+          <p id="annotation-preview-summary" role="status"></p>
+        </div>
+      </div>
+      <footer class="tree-import-actions">
+        <form method="dialog"><button type="submit" class="app-button">Cancel</button></form>
+        <button id="apply-annotations" class="app-button primary" type="button" disabled>Import tracks</button>
+      </footer>
+    </dialog>
+    <template id="tree-input-template">
+        <div class="import-file-picker tree-file-picker">
+          <span class="tree-inline-label">Tree <span>(optional)</span></span>
+          <button id="choose-tree-file" type="button" autofocus class="app-button">Choose Newick file</button>
+          <span id="tree-file-name">None selected</span>
+          <button id="tree-clear" class="app-button quiet-action" type="button" hidden>Remove</button>
+          <input id="tree-file" class="app-field visually-hidden" tabindex="-1" type="file" accept=".nwk,.newick,.tree,.tre,.txt" aria-label="Newick file">
+        </div>
+        <p id="tree-import-status" class="tree-import-status" role="status" hidden></p>
+        <details id="tree-matching" class="tree-matching" hidden>
+          <summary class="app-disclosure">Leaf matching</summary>
+          <p class="tree-import-note">Exact cluster names, sequence IDs and input filenames are matched automatically. Choose a different cluster to resolve a mismatch.</p>
+          <div class="tree-matching-table"><table><thead><tr><th>Tree leaf</th><th>Plotted cluster</th></tr></thead></table><div class="tree-matching-scroll"><table><tbody id="tree-matching-rows"></tbody></table></div></div>
+          <p id="tree-missing" class="tree-match-error"></p>
+        </details>
+        <section id="tree-root-metadata" class="tree-root-metadata" hidden>
+          <p>This tree has a root branch length or support value, which cannot be displayed.</p>
+          <label class="tree-root-option"><input id="tree-ignore-root" type="checkbox" class="app-field">Discard root branch length and support</label>
+        </section>
+        <details id="tree-options" class="tree-options">
+          <summary class="app-disclosure">Import options</summary>
+          <div class="import-options tree-import-options">
+            <label>Numeric node labels<select id="tree-internal-labels" class="app-field"><option value="support">Support values</option><option value="names">Node names</option></select></label>
+            <label>Support scale<select id="tree-support-scale" class="app-field"><option value="unspecified">Unspecified</option><option value="percent">Percent (0–100)</option><option value="proportion">Proportion (0–1)</option></select></label>
+          </div>
+        </details>
+    </template>
+    <script type="module" src="local.js?v=3036a2e7614b18d3"></script>
+  </body>
+</html>

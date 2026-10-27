@@ -33,18 +33,18 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 | Human-readable or delimited link summary | Yes | Yes | Not applicable | Formatter and CLI tests |
 | Similarity/distance matrix export | Yes | CSV | CSV | Matrix tests and CLI smoke test |
 | clustermap.js plot-data output | Yes | JSON | In project | Plot-data tests |
-| Portable interactive figure | Yes | HTML | Static application | CLI and browser smoke tests |
-| Save and reopen complete analysis state | Yes | Session; project export | Project | Core session round-trip, CLI append workflow, and browser smoke test; new CLI project export needs regression coverage |
+| Portable interactive figure | Yes | HTML and local viewer | Static application | CLI and browser smoke tests |
+| Save and reopen complete analysis state | Yes | Session; project export | Project | Core session round-trip, CLI append workflow, and browser smoke test; native project/viewer flow checked separately |
 | Add new files to a saved session | Yes | Yes | Future enhancement | Core and CLI workflow tests |
-| SVG export and interactive plot editing | Plot contract | Not applicable | Yes | Browser integration coverage |
-| Import a Newick tree or display the Ward clustering dendrogram, preserving interactive tree edits | Not applicable | Not exposed | Yes | Parser/matching fixtures and browser project/export tests |
-| Offline analysis without Python or a server | Yes | Yes | Yes | Native and WASM builds |
+| SVG export and interactive plot editing | Plot contract | Local viewer | Yes | Browser integration coverage and native viewer checks |
+| Import Newick trees and preserve interactive tree edits | Tree data | Local viewer | Yes | Parser/matching fixtures and browser project/export tests |
+| Display the computed Ward dendrogram | Hierarchy | Not yet attached to newly generated native projects; restored from saved projects | Yes | Browser tree tests |
+| Offline analysis without Python or an external service | Yes | Yes | Yes | Native and WASM builds |
 
-## Features still needed for replacement
+## Replacement workflow status
 
-| Established workflow | Current gap | Suggested priority |
-| --- | --- | --- |
-| Open an interactive plot when `--plot` has no path | CLI currently requires an output path | Low; the static web app covers this workflow |
+The native `--plot` option now opens the embedded viewer when no path is given.
+Remaining migration work concerns distribution packaging and release cutover.
 
 ## Future additions
 
