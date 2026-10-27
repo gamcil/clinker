@@ -197,6 +197,8 @@ ORIGIN
     assert_eq!(locus.genes.len(), 1);
     assert_eq!(locus.genes[0].label, "inside");
     assert_eq!((locus.genes[0].start, locus.genes[0].end), (6, 12));
+    let invalid = String::from_utf8(bytes.to_vec()).unwrap().replace("ORIGIN", "     CDS             20..30\n                     /locus_tag=\"invalid\"\n                     /translation=\"M\"\nORIGIN");
+    assert!(parse_genbank_with_options("range.gbk", invalid.as_bytes(), &options).is_err());
 }
 
 #[test]

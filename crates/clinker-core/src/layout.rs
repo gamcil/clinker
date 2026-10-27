@@ -222,7 +222,7 @@ fn typical_gene_span(cluster: &crate::Cluster) -> f64 {
         .loci
         .iter()
         .flat_map(|locus| &locus.genes)
-        .filter_map(|gene| (gene.end > gene.start).then_some(gene.end - gene.start))
+        .filter_map(|gene| gene.end.checked_sub(gene.start).filter(|span| *span > 0))
         .collect::<Vec<_>>();
     spans.sort_unstable();
     spans.get(spans.len() / 2).copied().unwrap_or(1) as f64
@@ -237,8 +237,9 @@ fn positioned_genes(
     // The renderer normalizes every locus to a zero origin, so offsets must
     // use the same locus-local coordinate system rather than GenBank's raw
     // record coordinates.
-    let centre =
-        |gene: &crate::Gene| (gene.start + gene.end) as f64 / 2.0 - locus_data.start as f64;
+    let centre = |gene: &crate::Gene| {
+        (gene.start - locus_data.start) as f64 + (gene.end - gene.start) as f64 / 2.0
+    };
     let display_position = |gene: &crate::Gene| {
         if reversed {
             (locus_data.end - locus_data.start) as f64 - centre(gene)
@@ -376,17 +377,17 @@ mod tests {
             organism: None,
             loci: (0..loci)
                 .map(|locus| {
-                    let start = locus * 100;
+                    let start = locus as u64 * 100;
                     Locus {
                         name: "locus".into(),
                         start,
-                        end: start + genes,
+                        end: start + genes as u64,
                         genes: (0..genes)
                             .map(|gene| Gene {
                                 label: gene.to_string(),
                                 names: Vec::new(),
-                                start: start + gene,
-                                end: start + gene + 1,
+                                start: start + gene as u64,
+                                end: start + gene as u64 + 1,
                                 strand: 1,
                                 translation: "M".into(),
                             })

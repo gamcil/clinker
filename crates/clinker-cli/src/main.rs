@@ -290,13 +290,13 @@ fn parse_ranges(values: &[String]) -> Result<BTreeMap<String, SequenceRange>, io
                     format!("invalid range {value:?}; expected RECORD:START-END"),
                 )
             })?;
-            let start = start.parse::<usize>().map_err(|_| {
+            let start = start.parse::<u64>().map_err(|_| {
                 io::Error::new(
                     ErrorKind::InvalidInput,
                     format!("range start in {value:?} must be a positive integer"),
                 )
             })?;
-            let end = end.parse::<usize>().map_err(|_| {
+            let end = end.parse::<u64>().map_err(|_| {
                 io::Error::new(
                     ErrorKind::InvalidInput,
                     format!("range end in {value:?} must be a positive integer"),

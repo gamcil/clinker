@@ -13,7 +13,7 @@ use bio::{
 use thiserror::Error;
 
 use crate::protein::{normalise_translation, translate_cds};
-use crate::{Cluster, Gene, Locus, ParseOptions, SequenceRange};
+use crate::{Cluster, Gene, Locus, MAX_SEQUENCE_COORDINATE, ParseOptions, SequenceRange};
 
 #[derive(Debug, Error)]
 pub enum GffError {
@@ -25,24 +25,26 @@ pub enum GffError {
     MissingFasta,
     #[error("FASTA input contains no records")]
     MissingFastaRecords,
+    #[error("coordinates for record {0} exceed the supported limit {MAX_SEQUENCE_COORDINATE}")]
+    CoordinateOverflow(String),
     #[error("GFF3 record {record} has no matching FASTA sequence")]
     MissingSequence { record: String },
     #[error("CDS {label} has invalid coordinates {start}..{end} for record {record}")]
     InvalidCoordinates {
         record: String,
         label: String,
-        start: usize,
-        end: usize,
+        start: u64,
+        end: u64,
     },
     #[error(
         "range {start}..{end} for record {record} is outside its available sequence coordinates {available_start}..{available_end}"
     )]
     InvalidRange {
         record: String,
-        start: usize,
-        end: usize,
-        available_start: usize,
-        available_end: usize,
+        start: u64,
+        end: u64,
+        available_start: u64,
+        available_end: u64,
     },
     #[error("could not translate CDS {label}: {message}")]
     Translation { label: String, message: String },
@@ -59,7 +61,7 @@ struct FeatureGroup {
 #[derive(Debug, Clone, Copy)]
 struct Region {
     /// Zero-based coordinate represented by the first base in the FASTA record.
-    sequence_origin: usize,
+    sequence_origin: u64,
     /// Zero-based, end-exclusive coordinates selected for this locus.
     selected: SequenceRange,
 }
@@ -77,14 +79,14 @@ pub fn parse_gff3(
         .or(embedded_fasta)
         .ok_or(GffError::MissingFasta)?;
     let sequences = parse_fasta(fasta_bytes)?;
-    let directives = sequence_regions(annotation);
+    let directives = sequence_regions(annotation)?;
     let features = parse_features(annotation)?;
     let mut loci = Vec::new();
     for (record_name, sequence) in &sequences {
         let record_features = features.get(record_name);
         let region = region_for(
             record_name,
-            sequence.len(),
+            sequence.len() as u64,
             directives.get(record_name).copied(),
             options.ranges.get(record_name).copied(),
         )?;
@@ -167,16 +169,31 @@ fn gene_from_group(
     region: Region,
     group: &FeatureGroup,
 ) -> Result<Option<Gene>, GffError> {
+    for record in &group.records {
+        let (start, end) = (*record.start(), *record.end());
+        if start == 0
+            || start > end
+            || start - 1 < region.sequence_origin
+            || end > region.sequence_origin + sequence.len() as u64
+        {
+            return Err(GffError::InvalidCoordinates {
+                record: record_name.to_owned(),
+                label: group.label.clone(),
+                start,
+                end,
+            });
+        }
+    }
     let raw_cds_start = group
         .records
         .iter()
-        .map(|record| *record.start() as usize)
+        .map(|record| *record.start())
         .min()
         .unwrap_or(0);
     let cds_end = group
         .records
         .iter()
-        .map(|record| *record.end() as usize)
+        .map(|record| *record.end())
         .max()
         .unwrap_or(0);
     if raw_cds_start == 0 || raw_cds_start > cds_end {
@@ -188,14 +205,6 @@ fn gene_from_group(
         });
     }
     let cds_start = raw_cds_start - 1;
-    if cds_start < region.sequence_origin || cds_end > region.sequence_origin + sequence.len() {
-        return Err(GffError::InvalidCoordinates {
-            record: record_name.to_owned(),
-            label: group.label.clone(),
-            start: cds_start,
-            end: cds_end,
-        });
-    }
     if cds_start < region.selected.start || cds_end > region.selected.end {
         return Ok(None);
     }
@@ -227,30 +236,14 @@ fn gene_from_group(
     let supplied_translation = attribute(first, "translation");
     let mut coding_sequence = Vec::new();
     for record in ordered {
-        let raw_start = *record.start() as usize;
-        let end = *record.end() as usize;
-        if raw_start == 0 || raw_start > end {
-            return Err(GffError::InvalidCoordinates {
-                record: record_name.to_owned(),
-                label: group.label.clone(),
-                start: raw_start,
-                end,
-            });
-        }
-        let start = raw_start - 1;
-        if start < region.sequence_origin
-            || end > region.sequence_origin + sequence.len()
-            || start >= end
-        {
-            return Err(GffError::InvalidCoordinates {
-                record: record_name.to_owned(),
-                label: group.label.clone(),
-                start,
-                end,
-            });
-        }
+        let start = *record.start() - 1;
+        let end = *record.end();
         if supplied_translation.is_none() {
-            let part = &sequence[start - region.sequence_origin..end - region.sequence_origin];
+            let start = usize::try_from(start - region.sequence_origin)
+                .expect("offset is bounded by FASTA length");
+            let end = usize::try_from(end - region.sequence_origin)
+                .expect("offset is bounded by FASTA length");
+            let part = &sequence[start..end];
             if strand == -1 {
                 coding_sequence.extend(dna::revcomp(part));
             } else {
@@ -308,16 +301,23 @@ fn parse_fasta(bytes: &[u8]) -> Result<BTreeMap<String, Vec<u8>>, GffError> {
 
 fn region_for(
     record: &str,
-    sequence_length: usize,
-    directive: Option<(usize, usize)>,
+    sequence_length: u64,
+    directive: Option<(u64, u64)>,
     selected: Option<SequenceRange>,
 ) -> Result<Region, GffError> {
+    if directive.is_some_and(|(_, end)| end > MAX_SEQUENCE_COORDINATE) {
+        return Err(GffError::CoordinateOverflow(record.to_owned()));
+    }
     let sequence_origin = directive
         .filter(|(start, end)| end - start + 1 == sequence_length)
         .map_or(0, |(start, _)| start - 1);
+    let end = sequence_origin
+        .checked_add(sequence_length)
+        .filter(|end| *end <= MAX_SEQUENCE_COORDINATE)
+        .ok_or_else(|| GffError::CoordinateOverflow(record.to_owned()))?;
     let available = SequenceRange {
         start: sequence_origin,
-        end: sequence_origin + sequence_length,
+        end,
     };
     let directive_range = directive.map(|(start, end)| SequenceRange {
         start: start - 1,
@@ -357,18 +357,29 @@ fn split_embedded_fasta(bytes: &[u8]) -> (&[u8], Option<&[u8]>) {
     (&bytes[..start], Some(&bytes[fasta_start..]))
 }
 
-fn sequence_regions(bytes: &[u8]) -> BTreeMap<String, (usize, usize)> {
-    String::from_utf8_lossy(bytes)
-        .lines()
-        .filter_map(|line| line.strip_prefix("##sequence-region"))
-        .filter_map(|value| {
-            let mut fields = value.split_whitespace();
-            let name = fields.next()?.to_owned();
-            let start = fields.next()?.parse().ok()?;
-            let end = fields.next()?.parse().ok()?;
-            (start > 0 && end >= start).then_some((name, (start, end)))
-        })
-        .collect()
+fn sequence_regions(bytes: &[u8]) -> Result<BTreeMap<String, (u64, u64)>, GffError> {
+    let mut regions = BTreeMap::new();
+    for line in String::from_utf8_lossy(bytes).lines() {
+        let mut fields = line.split_whitespace();
+        if fields.next() != Some("##sequence-region") {
+            continue;
+        }
+        let invalid = || GffError::Gff(format!("invalid sequence-region directive: {line}"));
+        let name = fields.next().ok_or_else(invalid)?;
+        let start = fields
+            .next()
+            .and_then(|value| value.parse::<u64>().ok())
+            .ok_or_else(invalid)?;
+        let end = fields
+            .next()
+            .and_then(|value| value.parse::<u64>().ok())
+            .ok_or_else(invalid)?;
+        if start == 0 || end < start || fields.next().is_some() {
+            return Err(invalid());
+        }
+        regions.insert(name.to_owned(), (start, end));
+    }
+    Ok(regions)
 }
 
 fn attribute(record: &gff::Record, key: &str) -> Option<String> {

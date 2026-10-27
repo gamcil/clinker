@@ -20,12 +20,15 @@ test('incremental WASM parsing and post-processing preserve mixed-format input o
     { name: 'features.gff3', bytes: fixture('features.gff3') },
     genbank('last.gbk', 'MSTAVKDLGYRQAA'),
     { name: 'features.fna', bytes: fixture('features.fna') },
+    { name: 'offset.gff3', bytes: new TextEncoder().encode('##sequence-region seq 5000000001 5000000009\nseq\t.\tCDS\t5000000001\t5000000009\t.\t+\t0\tID=large\n##FASTA\n>seq\nATGGCTTAA\n') },
   ]);
-  assert.deepEqual(parsed.layout.clusters.map(c => c.source_file), ['features.gff3', 'last.gbk']);
+  assert.deepEqual(parsed.layout.clusters.map(c => c.source_file), ['features.gff3', 'last.gbk', 'offset.gff3']);
   const invalid = [{ query: { cluster: 0, locus: 99, gene: 0 }, target: { cluster: 1, locus: 0, gene: 0 }, identity: 1, similarity: 1 }];
   assert.throws(() => post_process(parsed.layout, parsed.proteins, invalid, [], 0.3, true, () => {}), /invalid query reference/);
   const result = post_process(parsed.layout, parsed.proteins, [], [], 0.3, true, () => {});
-  assert.deepEqual(result.plotData.clusters.map(c => c.source_file), ['features.gff3', 'last.gbk']);
+  assert.deepEqual(result.plotData.clusters.map(c => c.source_file), ['features.gff3', 'last.gbk', 'offset.gff3']);
+  assert.equal(result.plotData.clusters[2].loci[0].start, 5000000000);
+  assert.equal(result.plotData.clusters[2].loci[0].genes[0].end, 5000000009);
   const reopened = open_session(JSON.parse(JSON.stringify(result.analysisSession)));
   assert.deepEqual(reopened.similarityMatrix, result.similarityMatrix);
   assert.deepEqual(reopened.analysisSession, result.analysisSession);

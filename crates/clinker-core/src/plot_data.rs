@@ -30,8 +30,8 @@ pub struct PlotCluster {
 pub struct PlotLocus {
     pub uid: String,
     pub name: String,
-    pub start: usize,
-    pub end: usize,
+    pub start: u64,
+    pub end: u64,
     /// Initial horizontal placement in sequence-coordinate units.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub offset: Option<f64>,
@@ -43,8 +43,8 @@ pub struct PlotGene {
     pub uid: String,
     pub label: String,
     pub names: BTreeMap<String, String>,
-    pub start: usize,
-    pub end: usize,
+    pub start: u64,
+    pub end: u64,
     pub strand: i8,
 }
 
@@ -240,9 +240,11 @@ impl Analysis {
                         .expect("layout contains each locus exactly once");
                     locus.offset = placement.offset;
                     if placement.reversed {
-                        let sum = locus.start + locus.end;
                         for gene in &mut locus.genes {
-                            let (start, end) = (sum - gene.end, sum - gene.start);
+                            let (start, end) = (
+                                locus.start + (locus.end - gene.end),
+                                locus.start + (locus.end - gene.start),
+                            );
                             gene.start = start;
                             gene.end = end;
                             gene.strand = -gene.strand;

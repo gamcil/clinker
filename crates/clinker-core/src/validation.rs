@@ -2,13 +2,13 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use crate::{Analysis, GeneRef};
+use crate::{Analysis, GeneRef, MAX_SEQUENCE_COORDINATE};
 
 #[derive(Debug, Error)]
 pub enum ValidationError {
     #[error("cluster {0} contains no loci")]
     EmptyCluster(usize),
-    #[error("locus ({cluster}, {locus}) must have start < end")]
+    #[error("locus ({cluster}, {locus}) must have start < end <= {MAX_SEQUENCE_COORDINATE}")]
     LocusCoordinates { cluster: usize, locus: usize },
     #[error("gene {0:?} must have start < end and be contained within its locus")]
     GeneCoordinates(GeneRef),
@@ -33,7 +33,7 @@ impl Analysis {
                 return Err(ValidationError::EmptyCluster(cluster_index));
             }
             for (locus_index, locus) in cluster.loci.iter().enumerate() {
-                if locus.start >= locus.end {
+                if locus.start >= locus.end || locus.end > MAX_SEQUENCE_COORDINATE {
                     return Err(ValidationError::LocusCoordinates {
                         cluster: cluster_index,
                         locus: locus_index,

@@ -188,6 +188,94 @@ fn applies_absolute_ranges_to_offset_sequences() {
 }
 
 #[test]
+fn large_absolute_coordinates_survive_parsing_arrangement_and_project_round_trips() {
+    use clinker_core::{
+        Analysis, AnalysisSession, ClinkerProject, GeneRef, Link, MAX_SEQUENCE_COORDINATE,
+    };
+    for origin in [
+        3_000_000_000_u64,
+        5_000_000_000,
+        MAX_SEQUENCE_COORDINATE - 18,
+    ] {
+        let annotation = format!(
+            "##gff-version 3\n##sequence-region seq {} {}\nseq\t.\tCDS\t{}\t{}\t.\t+\t0\tID=first\nseq\t.\tCDS\t{}\t{}\t.\t+\t0\tID=second\n",
+            origin + 1,
+            origin + 18,
+            origin + 1,
+            origin + 9,
+            origin + 10,
+            origin + 18
+        );
+        let clusters = [
+            b">seq\nATGGCTTAAATGAAATAA\n".as_slice(),
+            b">seq\nATGAAATAAATGGCTTAA\n",
+        ]
+        .into_iter()
+        .map(|fasta| {
+            parse_gff3(
+                "large.gff3",
+                annotation.as_bytes(),
+                Some(fasta),
+                &GenBankOptions::default(),
+            )
+            .unwrap()
+        })
+        .collect();
+        let reference = |cluster, gene| GeneRef {
+            cluster,
+            locus: 0,
+            gene,
+        };
+        let analysis = Analysis {
+            clusters,
+            links: vec![
+                Link {
+                    query: reference(0, 0),
+                    target: reference(1, 1),
+                    identity: 1.0,
+                    similarity: 1.0,
+                },
+                Link {
+                    query: reference(0, 1),
+                    target: reference(1, 0),
+                    identity: 1.0,
+                    similarity: 1.0,
+                },
+            ],
+        };
+        let data = analysis.to_auto_arranged_plot_data(&[0, 1]).unwrap();
+        let reversed = &data.clusters[1].loci[0];
+        assert_eq!(reversed.offset, Some(0.0));
+        assert_eq!(
+            (
+                reversed.genes[0].start,
+                reversed.genes[0].end,
+                reversed.genes[0].strand
+            ),
+            (origin, origin + 9, -1)
+        );
+        let session = AnalysisSession::new(analysis, 0.3, Vec::new()).unwrap();
+        let project = ClinkerProject::new(session, &data).unwrap();
+        assert_eq!(
+            ClinkerProject::from_json(&project.to_json().unwrap()).unwrap(),
+            project
+        );
+    }
+    for end in [MAX_SEQUENCE_COORDINATE + 1, u64::MAX] {
+        let annotation = format!("##sequence-region seq 1 {end}\n");
+        assert!(
+            parse_gff3(
+                "large.gff3",
+                annotation.as_bytes(),
+                Some(b">seq\nATGGCTTAA\n"),
+                &GenBankOptions::default()
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn uses_sequence_region_as_the_default_range_for_a_full_fasta_record() {
     let input = b"##gff-version 3\n##sequence-region seq 10 18\nseq\t.\tCDS\t10\t18\t.\t+\t0\tID=selected\n";
     let fasta = b">seq\nCCCCCCCCCATGGCTTAACCCCCCCCCCCC\n";

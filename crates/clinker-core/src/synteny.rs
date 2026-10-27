@@ -291,15 +291,15 @@ mod tests {
             loci: vec![Locus {
                 name: name.into(),
                 start: 0,
-                end: lengths.iter().sum(),
+                end: lengths.iter().map(|length| *length as u64).sum(),
                 genes: lengths
                     .iter()
                     .enumerate()
                     .map(|(index, length)| Gene {
                         label: format!("{name}-{index}"),
                         names: Vec::new(),
-                        start: index,
-                        end: index + 1,
+                        start: index as u64,
+                        end: index as u64 + 1,
                         strand: 1,
                         translation: "M".repeat(*length),
                     })

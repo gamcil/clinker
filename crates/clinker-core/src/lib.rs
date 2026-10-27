@@ -33,7 +33,7 @@ pub use analyse::{
 };
 pub use groups::{GeneGroup, build_gene_groups, build_gene_groups_with_progress};
 pub use hierarchy::ClusterOrdering;
-pub use model::{Cluster, Gene, Locus};
+pub use model::{Cluster, Gene, Locus, MAX_SEQUENCE_COORDINATE};
 pub use parse_genbank::{
     GenBankOptions, ParseError, ParseOptions, SequenceRange, parse_genbank,
     parse_genbank_with_options,

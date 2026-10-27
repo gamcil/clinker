@@ -7,7 +7,7 @@ use gb_io::{
 use thiserror::Error;
 
 use crate::protein::{normalise_translation, translate_cds};
-use crate::{Cluster, Gene, Locus};
+use crate::{Cluster, Gene, Locus, MAX_SEQUENCE_COORDINATE};
 
 #[derive(Debug, Error)]
 pub enum ParseError {
@@ -17,6 +17,8 @@ pub enum ParseError {
     MissingRecordName,
     #[error("GenBank input contains no records")]
     MissingRecords,
+    #[error("record {record} has invalid sequence length {length}")]
+    InvalidRecordLength { record: String, length: i64 },
     #[error("could not determine coordinates for CDS feature {label}: {source}")]
     FeatureLocation {
         label: String,
@@ -28,17 +30,17 @@ pub enum ParseError {
     #[error("range {start}..{end} for record {record} is outside its sequence length {length}")]
     InvalidRange {
         record: String,
-        start: usize,
-        end: usize,
-        length: usize,
+        start: u64,
+        end: u64,
+        length: u64,
     },
 }
 
 /// A zero-based, end-exclusive interval within a GenBank record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SequenceRange {
-    pub start: usize,
-    pub end: usize,
+    pub start: u64,
+    pub end: u64,
 }
 
 /// Input parsing behavior shared by native and browser frontends.
@@ -100,7 +102,7 @@ pub fn parse_genbank_with_options(
             && !options.ranges.contains_key(&name)
             && let Some(origin) = circular_origin_shift(&record)
         {
-            record = record.set_origin(origin as i64);
+            record = record.set_origin(origin);
         }
         let locus = locus_from_record(record, name.clone(), options.ranges.get(&name))?;
         loci.push((name, organism, locus));
@@ -142,7 +144,13 @@ fn locus_from_record(
     name: String,
     range: Option<&SequenceRange>,
 ) -> Result<Locus, ParseError> {
-    let length = record.len() as usize;
+    let length = u64::try_from(record.len())
+        .ok()
+        .filter(|length| *length > 0 && *length <= MAX_SEQUENCE_COORDINATE)
+        .ok_or_else(|| ParseError::InvalidRecordLength {
+            record: name.clone(),
+            length: record.len(),
+        })?;
     let range = range.copied().unwrap_or(SequenceRange {
         start: 0,
         end: length,
@@ -156,18 +164,23 @@ fn locus_from_record(
         });
     }
 
-    let contained = |feature: &&Feature| {
-        location_bounds(&feature.location)
-            .is_ok_and(|(start, end)| start >= range.start as i64 && end <= range.end as i64)
-    };
-    let genes = record
+    let mut genes = Vec::new();
+    for feature in record
         .features
         .iter()
         .filter(|feature| feature.kind.eq_ignore_ascii_case("CDS"))
-        .filter(contained)
-        .enumerate()
-        .map(|(index, feature)| gene_from_feature(&record, feature, index))
-        .collect::<Result<Vec<_>, _>>()?;
+    {
+        let index = genes.len();
+        let bounds = location_interval(&feature.location, length).map_err(|source| {
+            ParseError::FeatureLocation {
+                label: label_for(feature, index),
+                source,
+            }
+        })?;
+        if bounds.0 >= range.start && bounds.1 <= range.end {
+            genes.push(gene_from_feature(&record, feature, index, bounds)?);
+        }
+    }
     Ok(Locus {
         name,
         start: range.start,
@@ -176,7 +189,7 @@ fn locus_from_record(
     })
 }
 
-fn circular_origin_shift(record: &Seq) -> Option<usize> {
+fn circular_origin_shift(record: &Seq) -> Option<i64> {
     if !record.is_circular() {
         return None;
     }
@@ -190,15 +203,17 @@ fn circular_origin_shift(record: &Seq) -> Option<usize> {
         .find_map(|feature| {
             let parts = location_parts(&feature.location);
             let touches_start = parts.iter().any(|&(start, _)| start == 0);
-            let end_part = parts.iter().find(|&&(_, end)| end == length);
-            (touches_start && end_part.is_some()).then(|| end_part.unwrap().0 as usize)
+            let end_part = parts
+                .iter()
+                .find(|&&(start, end)| end == length && start >= 0 && start < length);
+            (touches_start && end_part.is_some()).then(|| end_part.unwrap().0)
         })
 }
 
 fn location_parts(location: &Location) -> Vec<(i64, i64)> {
     match location {
         Location::Range((start, _), (end, _)) => vec![(*start, *end)],
-        Location::Between(start, end) => vec![(*start, end + 1)],
+        Location::Between(..) => location_bounds(location).into_iter().collect(),
         Location::Complement(inner) => location_parts(inner),
         Location::Join(parts)
         | Location::Order(parts)
@@ -209,7 +224,12 @@ fn location_parts(location: &Location) -> Vec<(i64, i64)> {
     }
 }
 
-fn gene_from_feature(record: &Seq, feature: &Feature, index: usize) -> Result<Gene, ParseError> {
+fn gene_from_feature(
+    record: &Seq,
+    feature: &Feature,
+    index: usize,
+    (start, end): (u64, u64),
+) -> Result<Gene, ParseError> {
     let names = feature
         .qualifiers
         .iter()
@@ -220,16 +240,10 @@ fn gene_from_feature(record: &Seq, feature: &Feature, index: usize) -> Result<Ge
         })
         .collect::<Vec<_>>();
     let label = label_for(feature, index);
-    let cds_bounds =
-        location_bounds(&feature.location).map_err(|source| ParseError::FeatureLocation {
-            label: label.clone(),
-            source,
-        })?;
     // A CDS may cover only part of its parent gene (for example when UTRs are
     // annotated). Protein glyphs represent the translated feature, so using
     // the enclosing gene can introduce apparent overlaps with neighbouring
     // CDS features. Keep their geometry tied to the CDS itself.
-    let (start, end) = cds_bounds;
     let translation = if let Some(translation) = feature.qualifier_values("translation").next() {
         normalise_translation(translation)
     } else {
@@ -267,17 +281,31 @@ fn gene_from_feature(record: &Seq, feature: &Feature, index: usize) -> Result<Ge
     Ok(Gene {
         label,
         names,
-        start: start as usize,
-        end: end as usize,
+        start,
+        end,
         strand,
         translation,
     })
 }
 
+fn location_interval(location: &Location, length: u64) -> Result<(u64, u64), LocationError> {
+    let (start, end) = location_bounds(location)?;
+    if let (Ok(start), Ok(end)) = (u64::try_from(start), u64::try_from(end))
+        && start < end
+        && end <= length
+    {
+        return Ok((start, end));
+    }
+    Err(LocationError::OutOfBounds(location.clone()))
+}
+
 fn location_bounds(location: &Location) -> Result<(i64, i64), LocationError> {
     match location {
         Location::Range((start, _), (end, _)) => Ok((*start, *end)),
-        Location::Between(start, end) => Ok((*start, end + 1)),
+        Location::Between(start, end) => end
+            .checked_add(1)
+            .map(|end| (*start, end))
+            .ok_or_else(|| LocationError::OutOfBounds(location.clone())),
         Location::Complement(inner) => location_bounds(inner),
         Location::Join(parts)
         | Location::Order(parts)

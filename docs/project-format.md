@@ -53,6 +53,10 @@ Analysis validation checks coordinate containment, strands, gene references,
 canonical cross-cluster links, score consistency and duplicate pairs. Plot
 conversion also requires a complete cluster-order permutation and returns a
 Rust error for invalid data. These checks do not change the saved JSON format.
+Sequence positions are zero-based, end-exclusive `u64` coordinates in Rust,
+independent of native/WASM pointer width. Collection and buffer indexes remain
+`usize`. Coordinates cannot exceed `2^53 - 1`, the largest exact integer in the
+JavaScript renderer; saved values remain ordinary JSON numbers.
 Renderer-specific validation remains in the shared JavaScript viewer. Native
 code must not deserialize those fields into a narrower schema that drops edits.
 

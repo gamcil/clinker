@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+/// Largest sequence coordinate represented exactly by the JavaScript renderer.
+pub const MAX_SEQUENCE_COORDINATE: u64 = (1 << 53) - 1;
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Cluster {
     pub name: String,
@@ -13,8 +16,8 @@ pub struct Cluster {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct Locus {
     pub name: String,
-    pub start: usize,
-    pub end: usize,
+    pub start: u64,
+    pub end: u64,
     pub genes: Vec<Gene>,
 }
 
@@ -22,8 +25,8 @@ pub struct Locus {
 pub struct Gene {
     pub label: String,
     pub names: Vec<(String, String)>,
-    pub start: usize,
-    pub end: usize,
+    pub start: u64,
+    pub end: u64,
     pub strand: i8,
     pub translation: String,
 }

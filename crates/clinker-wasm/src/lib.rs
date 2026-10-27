@@ -65,8 +65,8 @@ struct BrowserGenBankOptions {
 #[derive(Debug, Deserialize)]
 struct BrowserSequenceRange {
     record: String,
-    start: usize,
-    end: usize,
+    start: u64,
+    end: u64,
 }
 
 fn default_set_origin() -> bool {
@@ -209,8 +209,8 @@ struct BrowserLayoutCluster {
 #[derive(Debug, Deserialize, Serialize)]
 struct BrowserLayoutLocus {
     name: String,
-    start: usize,
-    end: usize,
+    start: u64,
+    end: u64,
     genes: Vec<BrowserLayoutGene>,
 }
 
@@ -218,8 +218,8 @@ struct BrowserLayoutLocus {
 struct BrowserLayoutGene {
     label: String,
     names: Vec<(String, String)>,
-    start: usize,
-    end: usize,
+    start: u64,
+    end: u64,
     strand: i8,
 }
 
