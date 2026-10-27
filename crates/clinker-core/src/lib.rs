@@ -42,7 +42,8 @@ pub use parse_gff::{GffError, parse_gff3};
 pub use plot_data::{GeneGroupDefinition, PlotCluster, PlotData, PlotGroup, build_plot_groups};
 pub use project::{ClinkerProject, PROJECT_FORMAT, PROJECT_VERSION, ProjectError};
 pub use session::{
-    ANALYSIS_SESSION_FORMAT, ANALYSIS_SESSION_VERSION, AnalysisSession, SessionError,
+    ANALYSIS_SESSION_FORMAT, ANALYSIS_SESSION_VERSION, AlignmentSettings, AnalysisSession,
+    SessionError,
 };
 pub use synteny::ClusterPairSimilarity;
 pub use validation::ValidationError;

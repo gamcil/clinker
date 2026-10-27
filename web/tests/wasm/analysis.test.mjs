@@ -24,11 +24,17 @@ test('incremental WASM parsing and post-processing preserve mixed-format input o
   ]);
   assert.deepEqual(parsed.layout.clusters.map(c => c.source_file), ['features.gff3', 'last.gbk', 'offset.gff3']);
   const invalid = [{ query: { cluster: 0, locus: 99, gene: 0 }, target: { cluster: 1, locus: 0, gene: 0 }, identity: 1, similarity: 1 }];
-  assert.throws(() => post_process(parsed.layout, parsed.proteins, invalid, [], 0.3, true, () => {}), /invalid query reference/);
-  const result = post_process(parsed.layout, parsed.proteins, [], [], 0.3, true, () => {});
+  assert.throws(() => post_process(parsed.layout, parsed.proteins, invalid, [], settings, true, () => {}), /invalid query reference/);
+  const result = post_process(parsed.layout, parsed.proteins, [], [], settings, true, () => {});
   assert.deepEqual(result.plotData.clusters.map(c => c.source_file), ['features.gff3', 'last.gbk', 'offset.gff3']);
   assert.equal(result.plotData.clusters[2].loci[0].start, 5000000000);
   assert.equal(result.plotData.clusters[2].loci[0].genes[0].end, 5000000009);
+  assert.deepEqual(result.analysisSession.alignment, { mode: 'aligned', prefilter: undefined });
+  const skipped = post_process(parsed.layout, parsed.proteins, [], [], { ...settings, noAlign: true }, true, () => {});
+  assert.equal(skipped.analysisSession.alignment.mode, 'skipped');
+  const legacy = JSON.parse(JSON.stringify(result.analysisSession));
+  delete legacy.alignment;
+  assert.equal(open_session(legacy).analysisSession.alignment, undefined);
   const reopened = open_session(JSON.parse(JSON.stringify(result.analysisSession)));
   assert.deepEqual(reopened.similarityMatrix, result.similarityMatrix);
   assert.deepEqual(reopened.analysisSession, result.analysisSession);
@@ -37,7 +43,10 @@ test('incremental WASM parsing and post-processing preserve mixed-format input o
 test('prefilter and alignment agree on case and unsupported amino acids', () => {
   const files = [genbank('one.gbk', 'MOUSTAVKDLGYRQ'), genbank('two.gbk', 'mxxstavkdlgyrq')];
   for (const kmerSize of [5, 6, 7, 8]) {
-    const parsed = parse(files, { ...settings, enabled: true, kmerSize, minSharedKmers: kmerSize === 5 ? 8 : 2 });
+    const filteredSettings = { ...settings, enabled: true, kmerSize, minSharedKmers: kmerSize === 5 ? 8 : 2 };
+    const parsed = parse(files, filteredSettings);
+    const result = post_process(parsed.layout, parsed.proteins, [], [], filteredSettings, true, () => {});
+    assert.deepEqual(result.analysisSession.alignment, { mode: 'aligned', prefilter: { kmerSize, minSharedKmers: filteredSettings.minSharedKmers } });
     assert.deepEqual(parsed.candidatePairs, [{ queryIndex: 0, targetIndex: 1 }]);
   }
   const parsed = parse(files);
@@ -71,7 +80,7 @@ test('incremental parsing applies frame, split CDS phase and genetic code to der
     { name: 'partial.gff3', bytes: new TextEncoder().encode(gff) },
   ]);
   assert.deepEqual(parsed.proteins.map(p => p.translation), ['MW', 'MW', 'MW']);
-  const result = post_process(parsed.layout, parsed.proteins, [], [], 0.3, true, () => {});
+  const result = post_process(parsed.layout, parsed.proteins, [], [], settings, true, () => {});
   assert.deepEqual(result.analysisSession.analysis.clusters.flatMap(c => c.loci.flatMap(l => l.genes.map(g => g.translation))), ['MW', 'MW', 'MW']);
 });
 
@@ -80,7 +89,7 @@ test('post-processing retains Ward merges only when similarity ordering runs', (
   const parsed = parse([genbank('a.gbk', 'MSTAVKDLGYRQAA'), genbank('b.gbk', 'MSTAVKDLGYRQAA'), genbank('c.gbk', 'MSTAVKDLGYRQAA')]);
   const ref = cluster => ({ cluster, locus: 0, gene: 0 });
   const links = [{ query: ref(0), target: ref(1), identity: 0.95, similarity: 0.95 }, { query: ref(1), target: ref(2), identity: 0.7, similarity: 0.7 }];
-  const result = post_process(parsed.layout, parsed.proteins, links, [], 0.3, false, () => {});
+  const result = post_process(parsed.layout, parsed.proteins, links, [], settings, false, () => {});
   assert.equal(result.clusteringMerges.length, 2);
   assert.equal(result.clusteringHeights.length, 2);
   assert.ok(result.clusteringHeights.every(height => Number.isFinite(height) && height > 0));
@@ -92,7 +101,7 @@ test('post-processing retains Ward merges only when similarity ordering runs', (
     else stack.push(...[...result.clusteringMerges[node - 3]].reverse());
   }
   assert.deepEqual(leaves, result.clusterOrder);
-  assert.deepEqual(post_process(parsed.layout, parsed.proteins, links, [], 0.3, true, () => {}).clusteringMerges, []);
+  assert.deepEqual(post_process(parsed.layout, parsed.proteins, links, [], settings, true, () => {}).clusteringMerges, []);
 });
 
 

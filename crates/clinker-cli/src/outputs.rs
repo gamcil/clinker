@@ -46,7 +46,10 @@ impl Outputs {
         let plot_path = args.plot.as_ref().and_then(Option::as_deref);
         let plot_format = plot_path.map(PlotFormat::from_path).transpose()?;
         let save_session = args.session.is_some()
-            && (!session_exists || !sources.is_empty() || args.gene_functions.is_some());
+            && (!session_exists
+                || args.reanalyse
+                || !sources.is_empty()
+                || args.gene_functions.is_some());
         let protected = sources
             .iter()
             .flat_map(InputSource::paths)

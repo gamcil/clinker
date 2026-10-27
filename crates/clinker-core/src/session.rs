@@ -1,10 +1,43 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Analysis, GeneGroupDefinition, ValidationError};
+use crate::{Analysis, AnalysisOptions, GeneGroupDefinition, KmerPrefilter, ValidationError};
 
 pub const ANALYSIS_SESSION_FORMAT: &str = "clinker-analysis";
 pub const ANALYSIS_SESSION_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(tag = "mode", rename_all = "camelCase", deny_unknown_fields)]
+pub enum AlignmentSettings {
+    Skipped,
+    Aligned { prefilter: Option<KmerPrefilter> },
+}
+
+impl AlignmentSettings {
+    pub fn options(self, identity_cutoff: f32) -> Option<AnalysisOptions> {
+        match self {
+            Self::Skipped => None,
+            Self::Aligned { prefilter } => Some(AnalysisOptions {
+                identity_cutoff,
+                prefilter,
+            }),
+        }
+    }
+
+    pub fn validate(self, identity_cutoff: f32) -> Result<(), SessionError> {
+        if !identity_cutoff.is_finite() || !(0.0..=1.0).contains(&identity_cutoff) {
+            return Err(SessionError::InvalidIdentity(identity_cutoff));
+        }
+        if let Self::Aligned {
+            prefilter: Some(filter),
+        } = self
+            && (!(1..=8).contains(&filter.kmer_size) || filter.min_shared_kmers == 0)
+        {
+            return Err(SessionError::InvalidPrefilter);
+        }
+        Ok(())
+    }
+}
 
 /// Versioned analysis state used to resume work or add more input clusters.
 ///
@@ -14,7 +47,9 @@ pub const ANALYSIS_SESSION_VERSION: u32 = 1;
 pub struct AnalysisSession {
     format: String,
     version: u32,
-    pub identity_cutoff: f32,
+    identity_cutoff: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    alignment: Option<AlignmentSettings>,
     pub analysis: Analysis,
     #[serde(default)]
     pub group_definitions: Vec<GeneGroupDefinition>,
@@ -24,12 +59,14 @@ impl AnalysisSession {
     pub fn new(
         analysis: Analysis,
         identity_cutoff: f32,
+        alignment: AlignmentSettings,
         group_definitions: Vec<GeneGroupDefinition>,
     ) -> Result<Self, SessionError> {
         let session = Self {
             format: ANALYSIS_SESSION_FORMAT.to_owned(),
             version: ANALYSIS_SESSION_VERSION,
             identity_cutoff,
+            alignment: Some(alignment),
             analysis,
             group_definitions,
         };
@@ -56,6 +93,27 @@ impl AnalysisSession {
         self.version
     }
 
+    pub fn identity_cutoff(&self) -> f32 {
+        self.identity_cutoff
+    }
+
+    pub fn alignment(&self) -> Option<AlignmentSettings> {
+        self.alignment
+    }
+
+    pub fn ensure_settings(
+        &self,
+        identity_cutoff: f32,
+        alignment: AlignmentSettings,
+    ) -> Result<(), SessionError> {
+        alignment.validate(identity_cutoff)?;
+        let saved = self.alignment.ok_or(SessionError::UnknownSettings)?;
+        if saved != alignment || identity_cutoff != self.identity_cutoff {
+            return Err(SessionError::SettingsChanged);
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), SessionError> {
         if self.format != ANALYSIS_SESSION_FORMAT {
             return Err(SessionError::UnsupportedFormat(self.format.clone()));
@@ -63,8 +121,23 @@ impl AnalysisSession {
         if self.version != ANALYSIS_SESSION_VERSION {
             return Err(SessionError::UnsupportedVersion(self.version));
         }
-        if !self.identity_cutoff.is_finite() || !(0.0..=1.0).contains(&self.identity_cutoff) {
-            return Err(SessionError::InvalidIdentity(self.identity_cutoff));
+        self.alignment
+            .unwrap_or(AlignmentSettings::Skipped)
+            .validate(self.identity_cutoff)?;
+        match self.alignment {
+            Some(AlignmentSettings::Skipped) if !self.analysis.links.is_empty() => {
+                return Err(SessionError::InconsistentAlignment);
+            }
+            Some(AlignmentSettings::Aligned { .. })
+                if self
+                    .analysis
+                    .links
+                    .iter()
+                    .any(|link| link.identity < self.identity_cutoff) =>
+            {
+                return Err(SessionError::InconsistentAlignment);
+            }
+            _ => {}
         }
         self.analysis.validate()?;
         Ok(())
@@ -81,6 +154,18 @@ pub enum SessionError {
     UnsupportedVersion(u32),
     #[error("session identity cutoff must be between 0 and 1, got {0}")]
     InvalidIdentity(f32),
+    #[error("prefilter requires k-mer size 1..=8 and a positive shared-word count")]
+    InvalidPrefilter,
+    #[error(
+        "session alignment settings are unknown; use --reanalyse before extending it or changing settings"
+    )]
+    UnknownSettings,
+    #[error(
+        "requested analysis settings differ from the session; use --reanalyse to rebuild all comparisons"
+    )]
+    SettingsChanged,
+    #[error("session links do not agree with its saved alignment settings")]
+    InconsistentAlignment,
     #[error(transparent)]
     Analysis(#[from] ValidationError),
 }
@@ -143,6 +228,7 @@ ORIGIN
         let expected = AnalysisSession::new(
             analysis,
             0.3,
+            crate::AlignmentSettings::Aligned { prefilter: None },
             vec![GeneGroupDefinition {
                 label: "Example".into(),
                 genes: vec!["first".into()],
@@ -156,6 +242,23 @@ ORIGIN
 
         assert_eq!(actual, expected);
         assert_eq!(actual.format(), ANALYSIS_SESSION_FORMAT);
+        let mut inconsistent = actual.clone();
+        inconsistent.alignment = Some(crate::AlignmentSettings::Skipped);
+        assert!(matches!(
+            inconsistent.validate(),
+            Err(SessionError::InconsistentAlignment)
+        ));
+        inconsistent.alignment = Some(crate::AlignmentSettings::Aligned {
+            prefilter: Some(crate::KmerPrefilter {
+                kmer_size: 0,
+                min_shared_kmers: 3,
+            }),
+        });
+        assert!(matches!(
+            inconsistent.validate(),
+            Err(SessionError::InvalidPrefilter)
+        ));
+
         assert_eq!(
             actual.analysis.clusters[0].loci[0].genes[0].translation,
             "MKT"
@@ -209,7 +312,13 @@ ORIGIN
             AnalysisOptions::default(),
         )
         .unwrap();
-        let original = AnalysisSession::new(analysis, 0.3, Vec::new()).unwrap();
+        let original = AnalysisSession::new(
+            analysis,
+            0.3,
+            crate::AlignmentSettings::Aligned { prefilter: None },
+            Vec::new(),
+        )
+        .unwrap();
         let edits: &[fn(&mut crate::Analysis)] = &[
             |a| a.clusters[0].loci.clear(),
             |a| a.clusters[0].loci[0].end = 0,

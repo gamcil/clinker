@@ -6,7 +6,8 @@ use std::{
 use crate::{ProteinPair, can_reach_identity, protein::normalise_protein};
 
 /// Approximate selection by distinct protein words; candidates still need alignment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct KmerPrefilter {
     pub kmer_size: usize,
     pub min_shared_kmers: usize,

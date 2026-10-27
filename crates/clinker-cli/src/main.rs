@@ -15,8 +15,8 @@ use std::{
 
 use clap::Parser;
 use clinker_core::{
-    Analysis, AnalysisOptions, AnalysisSession, ClinkerProject, GeneGroupDefinition, KmerPrefilter,
-    ParseOptions, SequenceRange,
+    AlignmentSettings, Analysis, AnalysisSession, ClinkerProject, GeneGroupDefinition,
+    KmerPrefilter, ParseOptions, SequenceRange,
 };
 
 /// Analyse GenBank or GFF3 input with clinker.
@@ -38,13 +38,21 @@ struct Args {
     #[arg(long, conflicts_with = "no_align")]
     prefilter: bool,
 
-    /// Protein k-mer size for --prefilter.
-    #[arg(long, default_value_t = 3, requires = "prefilter", value_parser = clap::value_parser!(u8).range(1..=8))]
-    kmer_size: u8,
+    /// Disable the saved approximate prefilter when reanalysing a session.
+    #[arg(long, conflicts_with_all = ["prefilter", "no_align"])]
+    no_prefilter: bool,
 
-    /// Minimum distinct shared k-mers for --prefilter.
-    #[arg(long, default_value_t = 3, requires = "prefilter", value_parser = clap::value_parser!(u32).range(1..))]
-    min_shared_kmers: u32,
+    /// Rebuild every comparison using saved translations and the requested settings.
+    #[arg(long, requires = "session", conflicts_with = "open_project")]
+    reanalyse: bool,
+
+    /// Protein k-mer size for --prefilter (default: 3 for new sessions).
+    #[arg(long, requires = "prefilter", value_parser = clap::value_parser!(u8).range(1..=8))]
+    kmer_size: Option<u8>,
+
+    /// Minimum distinct shared k-mers for --prefilter (default: 3 for new sessions).
+    #[arg(long, requires = "prefilter", value_parser = clap::value_parser!(u32).range(1..))]
+    min_shared_kmers: Option<u32>,
 
     /// Save analysis state here, or resume it when the path already exists.
     #[arg(short, long, value_name = "PATH")]
@@ -123,7 +131,48 @@ struct Args {
     force: bool,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn alignment_settings(args: &Args, saved: Option<AlignmentSettings>) -> AlignmentSettings {
+    if args.no_align {
+        return AlignmentSettings::Skipped;
+    }
+    if !args.reanalyse && !args.prefilter && !args.no_prefilter {
+        return saved.unwrap_or(AlignmentSettings::Aligned { prefilter: None });
+    }
+    let inherited = match saved {
+        Some(AlignmentSettings::Aligned { prefilter }) => prefilter,
+        _ => None,
+    };
+    let prefilter = if args.no_prefilter {
+        None
+    } else if args.prefilter {
+        let defaults = inherited.unwrap_or_default();
+        Some(KmerPrefilter {
+            kmer_size: args
+                .kmer_size
+                .map(usize::from)
+                .unwrap_or(defaults.kmer_size),
+            min_shared_kmers: args
+                .min_shared_kmers
+                .map(|value| value as usize)
+                .unwrap_or(defaults.min_shared_kmers),
+        })
+    } else {
+        inherited
+    };
+    AlignmentSettings::Aligned { prefilter }
+}
+
+fn main() -> std::process::ExitCode {
+    match run() {
+        Ok(()) => std::process::ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Error: {error}");
+            std::process::ExitCode::FAILURE
+        }
+    }
+}
+
+fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     if let Some(path) = args.open_project.as_ref() {
         let project = ClinkerProject::from_json(&fs::read(path)?)?;
@@ -135,6 +184,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(io::Error::new(
             ErrorKind::InvalidInput,
             "provide at least one GenBank/GFF3 file, directory, or an existing --session",
+        )
+        .into());
+    }
+    if args.reanalyse && !session_exists {
+        return Err(io::Error::new(
+            ErrorKind::InvalidInput,
+            "--reanalyse requires an existing session",
         )
         .into());
     }
@@ -155,10 +211,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let clusters = inputs::parse(&input_sources, &parse_options)?;
     let supplied_group_definitions =
         read_group_definitions(args.gene_functions.as_deref(), args.colour_map.as_deref())?;
-    let prefilter = args.prefilter.then_some(KmerPrefilter {
-        kmer_size: usize::from(args.kmer_size),
-        min_shared_kmers: args.min_shared_kmers as usize,
-    });
     let mut session = if session_exists {
         AnalysisSession::from_json(&fs::read(
             args.session.as_ref().expect("existing session path"),
@@ -170,30 +222,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 links: Vec::new(),
             },
             args.identity.unwrap_or(0.30),
+            alignment_settings(&args, None),
             Vec::new(),
         )?
     };
-    if !clusters.is_empty() {
-        let identity_cutoff = args.identity.unwrap_or(session.identity_cutoff);
-        if args.no_align {
-            session.analysis.append_clusters_without_alignment(clusters);
+    let identity_cutoff = args.identity.unwrap_or(session.identity_cutoff());
+    let alignment = alignment_settings(&args, session.alignment());
+    alignment.validate(identity_cutoff)?;
+    let explicit_settings =
+        args.identity.is_some() || args.prefilter || args.no_prefilter || args.no_align;
+    if session_exists && !args.reanalyse && (!clusters.is_empty() || explicit_settings) {
+        session.ensure_settings(identity_cutoff, alignment)?;
+    }
+    if args.reanalyse {
+        session.analysis.append_clusters_without_alignment(clusters);
+        if let Some(options) = alignment.options(identity_cutoff) {
+            session
+                .analysis
+                .reanalyse_with_options_and_jobs(options, args.jobs)?;
         } else {
-            session.analysis.append_clusters_with_options_and_jobs(
-                clusters,
-                AnalysisOptions {
-                    identity_cutoff,
-                    prefilter,
-                },
-                args.jobs,
-            )?;
+            session.analysis.links.clear();
         }
-        session.identity_cutoff = identity_cutoff;
+        session = AnalysisSession::new(
+            session.analysis,
+            identity_cutoff,
+            alignment,
+            session.group_definitions,
+        )?;
+    } else if !clusters.is_empty() {
+        if let Some(options) = alignment.options(identity_cutoff) {
+            session
+                .analysis
+                .append_clusters_with_options_and_jobs(clusters, options, args.jobs)?;
+        } else {
+            session.analysis.append_clusters_without_alignment(clusters);
+        }
     }
     if !session_exists || args.gene_functions.is_some() {
         session.group_definitions = supplied_group_definitions;
     }
     session.validate()?;
-    let identity_cutoff = session.identity_cutoff;
+    let identity_cutoff = session.identity_cutoff();
     let analysis = &session.analysis;
     let group_definitions = &session.group_definitions;
 
@@ -209,11 +278,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut local_project = None;
     if args.plot.is_some() || args.project.is_some() {
-        let order = if args.use_file_order || args.no_align {
-            (0..analysis.clusters.len()).collect()
-        } else {
-            analysis.cluster_order()
-        };
+        let order =
+            if args.use_file_order || session.alignment() == Some(AlignmentSettings::Skipped) {
+                (0..analysis.clusters.len()).collect()
+            } else {
+                analysis.cluster_order()
+            };
         let data = analysis
             .to_auto_arranged_plot_data_with_group_definitions(&order, group_definitions)?;
         if let Some(output) = &mut outputs.plot {
@@ -244,7 +314,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     outputs.commit(&session)?;
     if args.output.is_none() {
-        if args.no_align {
+        if session.alignment() == Some(AlignmentSettings::Skipped) {
             println!(
                 "Alignment disabled; parsed {} clusters",
                 analysis.clusters.len()

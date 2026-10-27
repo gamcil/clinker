@@ -51,6 +51,26 @@ browser app through **File → Open project**. It retains the analysis data need
 for future exports. `--session` remains the native analysis continuation format;
 it does not store interactive figure edits. See [project formats](project-format.md).
 
+When adding files with `--session`, omitted alignment flags inherit the saved
+identity cutoff, prefilter parameters and alignment mode. A session created with
+`--no-align` continues without alignment. `--jobs` can change freely.
+
+Changing analysis settings requires `--reanalyse`. This rebuilds all comparisons
+from saved protein translations, including any newly supplied inputs:
+
+```sh
+clinker --session analysis.json --reanalyse --identity 0.5
+clinker --session analysis.json --reanalyse --no-prefilter
+```
+
+Use `--prefilter` to enable filtering; omitted k-mer parameters retain saved
+values, or default to 3 for a new filter. Reanalysis also enables alignment for a
+session created with `--no-align`. Conversely, `--reanalyse --no-align` clears
+saved links and records a session with alignment disabled. Older sessions without
+alignment metadata can still be opened and exported, but require `--reanalyse` before adding files or
+changing settings. Their previous filtering history cannot be recovered;
+reanalysis defaults to no prefilter unless one is requested.
+
 Output filenames and directories are checked before analysis. Destinations must
 be distinct from each other and from input files. Existing exports require
 `--force`; output symlinks and read-only files are rejected. Updating an existing

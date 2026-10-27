@@ -6,10 +6,10 @@
 use std::collections::BTreeMap;
 
 use clinker_core::{
-    AlignmentCounts, Analysis, AnalysisOptions, AnalysisSession, Cluster, ClusterPairSimilarity,
-    GenBankOptions, Gene, GeneGroupDefinition, GeneRef, InputFile, KmerPrefilter, Link, Locus,
-    PlotData, PreparedAlignment, ProteinBatch, ProteinBatchAligner, ProteinBatchResult,
-    ProteinPair, SequenceRange, parse_input_files_with_options,
+    AlignmentCounts, AlignmentSettings, Analysis, AnalysisOptions, AnalysisSession, Cluster,
+    ClusterPairSimilarity, GenBankOptions, Gene, GeneGroupDefinition, GeneRef, InputFile,
+    KmerPrefilter, Link, Locus, PlotData, PreparedAlignment, ProteinBatch, ProteinBatchAligner,
+    ProteinBatchResult, ProteinPair, SequenceRange, parse_input_files_with_options,
 };
 use js_sys::Function;
 use serde::{Deserialize, Serialize};
@@ -41,16 +41,39 @@ struct ParsedBrowserFiles {
     alignment_counts: AlignmentCounts,
 }
 
-/// Optional approximate candidate selection for browser alignment work.
+/// Analysis and parsing settings supplied by the browser host.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct BrowserPrefilter {
+struct BrowserAnalysisSettings {
     enabled: bool,
+    #[serde(default)]
+    no_align: bool,
     kmer_size: usize,
     min_shared_kmers: usize,
     identity_cutoff: f32,
     #[serde(default)]
     genbank: BrowserGenBankOptions,
+}
+
+impl BrowserAnalysisSettings {
+    fn alignment(&self) -> AlignmentSettings {
+        if self.no_align {
+            AlignmentSettings::Skipped
+        } else {
+            AlignmentSettings::Aligned {
+                prefilter: self.enabled.then_some(KmerPrefilter {
+                    kmer_size: self.kmer_size,
+                    min_shared_kmers: self.min_shared_kmers,
+                }),
+            }
+        }
+    }
+
+    fn validate(&self) -> Result<(), JsValue> {
+        self.alignment()
+            .validate(self.identity_cutoff)
+            .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -112,7 +135,7 @@ pub struct BrowserFileParser {
     clusters: Vec<Cluster>,
     file_positions: BTreeMap<String, usize>,
     pending_files: Vec<BrowserFile>,
-    prefilter: BrowserPrefilter,
+    prefilter: BrowserAnalysisSettings,
     genbank_options: GenBankOptions,
 }
 
@@ -120,8 +143,9 @@ pub struct BrowserFileParser {
 impl BrowserFileParser {
     #[wasm_bindgen(constructor)]
     pub fn new(prefilter: JsValue) -> Result<BrowserFileParser, JsValue> {
-        let prefilter = serde_wasm_bindgen::from_value::<BrowserPrefilter>(prefilter)
+        let prefilter = serde_wasm_bindgen::from_value::<BrowserAnalysisSettings>(prefilter)
             .map_err(|error| JsValue::from_str(&format!("invalid prefilter settings: {error}")))?;
+        prefilter.validate()?;
         let genbank_options = GenBankOptions::from(&prefilter.genbank);
         Ok(Self {
             clusters: Vec::new(),
@@ -440,10 +464,13 @@ pub fn post_process(
     proteins: JsValue,
     links: JsValue,
     group_definitions: JsValue,
-    identity_cutoff: f32,
+    settings: JsValue,
     use_file_order: bool,
     progress: &Function,
 ) -> Result<JsValue, JsValue> {
+    let settings = serde_wasm_bindgen::from_value::<BrowserAnalysisSettings>(settings)
+        .map_err(|error| JsValue::from_str(&format!("invalid analysis settings: {error}")))?;
+    settings.validate()?;
     let layout = serde_wasm_bindgen::from_value::<BrowserLayout>(layout)
         .map_err(|error| JsValue::from_str(&format!("invalid layout data: {error}")))?;
     let proteins = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(proteins)
@@ -463,7 +490,7 @@ pub fn post_process(
     post_process_analysis(
         analysis,
         group_definitions,
-        identity_cutoff,
+        settings,
         use_file_order,
         progress,
     )
@@ -488,12 +515,17 @@ pub fn open_session(session: JsValue) -> Result<JsValue, JsValue> {
 fn post_process_analysis(
     analysis: Analysis,
     group_definitions: Vec<GeneGroupDefinition>,
-    identity_cutoff: f32,
+    settings: BrowserAnalysisSettings,
     use_file_order: bool,
     progress: &Function,
 ) -> Result<JsValue, JsValue> {
-    let analysis_session = AnalysisSession::new(analysis, identity_cutoff, group_definitions)
-        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let analysis_session = AnalysisSession::new(
+        analysis,
+        settings.identity_cutoff,
+        settings.alignment(),
+        group_definitions,
+    )
+    .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let analysis = &analysis_session.analysis;
     let group_definitions = &analysis_session.group_definitions;
     let cluster_count = analysis.clusters.len();
@@ -656,7 +688,7 @@ fn input_files(files: &[BrowserFile]) -> Vec<InputFile<'_>> {
 
 fn prepare_browser_files_with_filter_progress<F>(
     clusters: Vec<Cluster>,
-    prefilter: &BrowserPrefilter,
+    prefilter: &BrowserAnalysisSettings,
     mut progress: F,
 ) -> ParsedBrowserFiles
 where

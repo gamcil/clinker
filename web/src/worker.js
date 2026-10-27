@@ -79,7 +79,7 @@ self.onmessage = async ({ data }) => {
         data.proteins,
         data.links,
         data.groupDefinitions,
-        data.identity,
+        data.settings,
         data.useFileOrder,
         progress,
       );

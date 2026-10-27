@@ -812,7 +812,7 @@ function postProcess(
   proteins,
   links,
   groupDefinitions,
-  identity,
+  settings,
   useFileOrder,
   wasmModule,
   onProgress,
@@ -824,7 +824,7 @@ function postProcess(
     proteins,
     useFileOrder,
     wasmModule,
-    identity,
+    settings,
     reportProgress: true,
     links: links.map(link => ({
       query: link.query,
@@ -860,6 +860,7 @@ async function analyseFiles(files, workflow) {
   workflow.throwIfCancelled();
   const prefilter = {
     enabled: prefilterInput.checked && !noAlignInput.checked,
+    noAlign: noAlignInput.checked,
     kmerSize,
     minSharedKmers,
     identityCutoff: identity,
@@ -941,7 +942,7 @@ async function analyseFiles(files, workflow) {
     parsed.proteins,
     links,
     groupDefinitions,
-    identity,
+    prefilter,
     useFileOrder,
     parsed.wasmModule,
     ({ stage, completed, total }) => {

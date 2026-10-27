@@ -4,7 +4,7 @@ use std::{
     process::{Command, Output},
 };
 
-use clinker_core::{AnalysisSession, ClinkerProject};
+use clinker_core::{AlignmentSettings, AnalysisSession, ClinkerProject, KmerPrefilter};
 
 fn run(directory: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_clinker"))
@@ -117,6 +117,9 @@ fn sessions_extend_and_export_restorable_projects_figures_and_escaped_csv() {
         root,
         &["input.gbk", "--session", "session.json", "--jobs", "2"],
     );
+    assert_eq!(session(root).alignment(), Some(AlignmentSettings::Skipped));
+    assert!(session(root).analysis.links.is_empty());
+    succeeds(root, &["--session", "session.json", "--reanalyse"]);
     let mut saved = session(root);
     assert_eq!(saved.analysis.clusters.len(), 2);
     assert!(!saved.analysis.links.is_empty());
@@ -168,6 +171,101 @@ fn sessions_extend_and_export_restorable_projects_figures_and_escaped_csv() {
         ],
     );
     assert_eq!(session(root), saved);
+}
+
+#[test]
+fn session_settings_are_inherited_and_changes_rebuild_all_comparisons() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    genbank(root);
+    succeeds(
+        root,
+        &[
+            "input.gbk",
+            "--session",
+            "session.json",
+            "--prefilter",
+            "--kmer-size",
+            "5",
+            "--min-shared-kmers",
+            "8",
+        ],
+    );
+    succeeds(root, &["input.gbk", "--session", "session.json"]);
+    let saved = session(root);
+    assert_eq!(
+        saved.alignment(),
+        Some(AlignmentSettings::Aligned {
+            prefilter: Some(KmerPrefilter {
+                kmer_size: 5,
+                min_shared_kmers: 8
+            }),
+        })
+    );
+    // This low-complexity protein has only two distinct words: filtering removes its match.
+    assert!(saved.analysis.links.is_empty());
+    let previous = fs::read(root.join("session.json")).unwrap();
+    for extra in [
+        &["--identity", "0.8"][..],
+        &["--no-prefilter"][..],
+        &["--no-align"][..],
+    ] {
+        let mut args = vec!["input.gbk", "--session", "session.json"];
+        args.extend(extra);
+        let result = run(root, &args);
+        assert!(!result.status.success());
+        assert!(String::from_utf8_lossy(&result.stderr).contains("--reanalyse"));
+        assert_eq!(fs::read(root.join("session.json")).unwrap(), previous);
+    }
+    succeeds(
+        root,
+        &[
+            "--session",
+            "session.json",
+            "--reanalyse",
+            "--no-prefilter",
+            "--identity",
+            "0.8",
+        ],
+    );
+    let rebuilt = session(root);
+    assert_eq!(rebuilt.analysis.clusters.len(), 2);
+    assert_eq!(rebuilt.analysis.links.len(), 1);
+    assert_eq!(rebuilt.identity_cutoff(), 0.8);
+    assert_eq!(
+        rebuilt.alignment(),
+        Some(AlignmentSettings::Aligned { prefilter: None })
+    );
+    succeeds(
+        root,
+        &["input.gbk", "--session", "session.json", "--jobs", "2"],
+    );
+    assert_eq!(session(root).analysis.links.len(), 3);
+
+    let mut legacy = serde_json::to_value(session(root)).unwrap();
+    legacy.as_object_mut().unwrap().remove("alignment");
+    fs::write(
+        root.join("session.json"),
+        serde_json::to_vec(&legacy).unwrap(),
+    )
+    .unwrap();
+    succeeds(
+        root,
+        &["--session", "session.json", "--project", "legacy.json"],
+    );
+    assert_eq!(session(root).alignment(), None);
+    let rejected = run(root, &["input.gbk", "--session", "session.json"]);
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("--reanalyse"));
+    succeeds(root, &["--session", "session.json", "--reanalyse"]);
+    assert_eq!(session(root).analysis.links.len(), 3);
+    assert!(session(root).alignment().is_some());
+    succeeds(
+        root,
+        &["--session", "session.json", "--reanalyse", "--no-align"],
+    );
+    assert_eq!(session(root).alignment(), Some(AlignmentSettings::Skipped));
+    assert!(session(root).analysis.links.is_empty());
 }
 
 #[test]

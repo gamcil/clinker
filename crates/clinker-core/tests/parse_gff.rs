@@ -254,7 +254,13 @@ fn large_absolute_coordinates_survive_parsing_arrangement_and_project_round_trip
             ),
             (origin, origin + 9, -1)
         );
-        let session = AnalysisSession::new(analysis, 0.3, Vec::new()).unwrap();
+        let session = AnalysisSession::new(
+            analysis,
+            0.3,
+            clinker_core::AlignmentSettings::Aligned { prefilter: None },
+            Vec::new(),
+        )
+        .unwrap();
         let project = ClinkerProject::new(session, &data).unwrap();
         assert_eq!(
             ClinkerProject::from_json(&project.to_json().unwrap()).unwrap(),

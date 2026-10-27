@@ -111,6 +111,10 @@ cargo run -p clinker-cli -- --session analysis.json --plot figure.html
 cargo run -p clinker-cli -- input-c.gbk --session analysis.json
 ```
 
+Continuation inherits the session's alignment settings. Explicit changes require
+`--reanalyse`, which replaces all links using the retained translations. Legacy
+sessions without recorded alignment settings require reanalysis before extension.
+
 Analysis sessions retain protein translations and are therefore larger than
 plot-data JSON. They use a versioned `clinker-analysis` schema shared by the
 CLI and web application. When the web app exports a versioned

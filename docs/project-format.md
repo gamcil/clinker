@@ -74,7 +74,19 @@ New CLI projects use default figure appearance and omit saved camera state.
 
 `--session` continues to read/write `clinker-analysis` version 1 for native
 analysis continuation. `--project` writes an editable project; it does not change
-the session persistence format. Standalone `--plot *.json` remains raw renderer
+the session persistence format. New analysis sessions include an `alignment`
+object: `{ "mode": "skipped" }` or `{ "mode": "aligned", "prefilter": null }`.
+An enabled prefilter is stored as `{ "kmerSize": 3, "minSharedKmers": 3 }` in
+place of `null`. `identityCutoff` remains at the session's top level. Both native
+and browser analyses record these settings. Readers validate the metadata and
+its consistency with retained links.
+
+The optional field preserves version 1 compatibility: its absence means unknown
+alignment history. Readers preserve that absence when reopening or exporting a
+legacy session. Native continuation requires explicit reanalysis to establish
+known settings; it never assumes legacy links were generated without filtering.
+
+Standalone `--plot *.json` remains raw renderer
 data and is not an editable project. Portable `--plot *.html` uses the separate renderer-only native HTML exporter.
 Bare `--plot` opens the shared local viewer, and `--open-project comparison.json`
 restores a saved project there without redoing analysis.

@@ -250,6 +250,18 @@ impl Analysis {
     pub fn append_clusters_without_alignment(&mut self, clusters: Vec<Cluster>) {
         self.clusters.extend(clusters);
     }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn reanalyse_with_options_and_jobs(
+        &mut self,
+        options: AnalysisOptions,
+        jobs: usize,
+    ) -> Result<AlignmentStats, AnalysisError> {
+        let pool = alignment_pool(jobs)?;
+        let (links, stats) = cross_cluster_links_parallel_from(&self.clusters, 0, options, &pool);
+        self.links = links;
+        Ok(stats)
+    }
 }
 
 /// Parse supported annotation inputs and retain cross-cluster gene links at the identity
