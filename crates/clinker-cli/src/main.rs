@@ -3,7 +3,7 @@ mod outputs;
 mod portable;
 mod viewer;
 
-use outputs::{PendingOutput, PlotFormat};
+use outputs::{Outputs, PlotFormat};
 use portable::html as portable_html;
 
 use std::{
@@ -146,34 +146,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .into());
     }
-    let plot_format = args
-        .plot
-        .as_ref()
-        .and_then(Option::as_deref)
-        .map(PlotFormat::from_path)
-        .transpose()?;
-    let session_will_change = args.session.is_some()
-        && (!session_exists || !input_sources.is_empty() || args.gene_functions.is_some());
-    let destinations = [
-        args.output.as_deref().map(|path| (path, args.force)),
-        args.plot
-            .as_ref()
-            .and_then(Option::as_deref)
-            .map(|path| (path, args.force)),
-        args.project.as_deref().map(|path| (path, args.force)),
-        args.matrix_out.as_deref().map(|path| (path, args.force)),
-        args.session
-            .as_deref()
-            .filter(|_| session_will_change)
-            .map(|path| (path, session_exists)),
-    ];
-    let protected = input_sources
-        .iter()
-        .flat_map(inputs::InputSource::paths)
-        .chain(args.gene_functions.as_deref())
-        .chain(args.colour_map.as_deref())
-        .chain(args.session.as_deref().filter(|_| !session_will_change));
-    outputs::validate(destinations.into_iter().flatten(), protected)?;
+    let mut outputs = Outputs::prepare(&args, &input_sources, session_exists)?;
     let parse_options = ParseOptions {
         ranges: parse_ranges(&args.ranges)?,
         as_separate_clusters: args.as_separate_clusters,
@@ -182,47 +155,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let clusters = inputs::parse(&input_sources, &parse_options)?;
     let supplied_group_definitions =
         read_group_definitions(args.gene_functions.as_deref(), args.colour_map.as_deref())?;
-    let replace_group_definitions = args.gene_functions.is_some();
     let prefilter = args.prefilter.then_some(KmerPrefilter {
         kmer_size: usize::from(args.kmer_size),
         min_shared_kmers: args.min_shared_kmers as usize,
     });
-    let session = if session_exists {
-        let path = args
-            .session
-            .as_ref()
-            .expect("checked existing session path");
-        let mut session = AnalysisSession::from_json(&fs::read(path)?)?;
-        if !clusters.is_empty() {
-            let identity_cutoff = args.identity.unwrap_or(session.identity_cutoff);
-            if args.no_align {
-                session.analysis.append_clusters_without_alignment(clusters);
-            } else {
-                session.analysis.append_clusters_with_options_and_jobs(
-                    clusters,
-                    AnalysisOptions {
-                        identity_cutoff,
-                        prefilter,
-                    },
-                    args.jobs,
-                )?;
-            }
-            session.identity_cutoff = identity_cutoff;
-        }
-        if replace_group_definitions {
-            session.group_definitions = supplied_group_definitions;
-        }
-        session
+    let mut session = if session_exists {
+        AnalysisSession::from_json(&fs::read(
+            args.session.as_ref().expect("existing session path"),
+        )?)?
     } else {
-        let identity_cutoff = args.identity.unwrap_or(0.30);
-        let mut analysis = Analysis {
-            clusters: Vec::new(),
-            links: Vec::new(),
-        };
+        AnalysisSession::new(
+            Analysis {
+                clusters: Vec::new(),
+                links: Vec::new(),
+            },
+            args.identity.unwrap_or(0.30),
+            Vec::new(),
+        )?
+    };
+    if !clusters.is_empty() {
+        let identity_cutoff = args.identity.unwrap_or(session.identity_cutoff);
         if args.no_align {
-            analysis.append_clusters_without_alignment(clusters);
+            session.analysis.append_clusters_without_alignment(clusters);
         } else {
-            analysis.append_clusters_with_options_and_jobs(
+            session.analysis.append_clusters_with_options_and_jobs(
                 clusters,
                 AnalysisOptions {
                     identity_cutoff,
@@ -231,8 +187,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 args.jobs,
             )?;
         }
-        AnalysisSession::new(analysis, identity_cutoff, supplied_group_definitions)?
-    };
+        session.identity_cutoff = identity_cutoff;
+    }
+    if !session_exists || args.gene_functions.is_some() {
+        session.group_definitions = supplied_group_definitions;
+    }
     session.validate()?;
     let identity_cutoff = session.identity_cutoff;
     let analysis = &session.analysis;
@@ -244,9 +203,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         !args.hide_alignment_headers,
         !args.hide_link_headers,
     );
-    let mut pending = Vec::new();
-    if let Some(path) = args.output.as_ref() {
-        pending.push(PendingOutput::stage(path, summary.as_bytes(), args.force)?);
+    if let Some(output) = &mut outputs.summary {
+        output.write(summary.as_bytes())?;
     }
 
     let mut local_project = None;
@@ -258,40 +216,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let data =
             analysis.to_auto_arranged_plot_data_with_group_definitions(&order, group_definitions);
-        if let Some(path) = args.plot.as_ref().and_then(Option::as_ref) {
+        if let Some(output) = &mut outputs.plot {
             let json = serde_json::to_string_pretty(&data)?;
-            let output = match plot_format.expect("plot filename was validated") {
+            let contents = match outputs
+                .plot_format
+                .as_ref()
+                .expect("plot filename was validated")
+            {
                 PlotFormat::Json => json,
                 PlotFormat::Html => portable_html(&json),
             };
-            pending.push(PendingOutput::stage(path, output.as_bytes(), args.force)?);
+            output.write(contents.as_bytes())?;
         }
-        if let Some(path) = args.project.as_ref() {
+        if outputs.project.is_some() || matches!(args.plot, Some(None)) {
             let project = ClinkerProject::new(session.clone(), &data)?;
-            pending.push(PendingOutput::stage(path, &project.to_json()?, args.force)?);
-        }
-        if matches!(args.plot, Some(None)) {
-            local_project = Some(ClinkerProject::new(session.clone(), &data)?);
+            if let Some(output) = &mut outputs.project {
+                output.write(&project.to_json()?)?;
+            }
+            if matches!(args.plot, Some(None)) {
+                local_project = Some(project);
+            }
         }
     }
 
-    if let Some(path) = args.matrix_out.as_ref() {
-        pending.push(PendingOutput::stage(
-            path,
-            &outputs::distance_matrix(analysis)?,
-            args.force,
-        )?);
+    if let Some(output) = &mut outputs.matrix {
+        output.write(&outputs::distance_matrix(analysis)?)?;
     }
-    if session_will_change && let Some(path) = args.session.as_ref() {
-        pending.push(PendingOutput::stage(
-            path,
-            &session.to_json()?,
-            session_exists,
-        )?);
-    }
-    for output in pending {
-        output.commit()?;
-    }
+    outputs.commit(&session)?;
     if args.output.is_none() {
         if args.no_align {
             println!(

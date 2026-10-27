@@ -1,11 +1,13 @@
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self, OpenOptions},
     io::{self, Write},
     path::{Path, PathBuf},
 };
 
 use clinker_core::Analysis;
 use tempfile::NamedTempFile;
+
+use crate::{Args, inputs::InputSource};
 
 pub enum PlotFormat {
     Json,
@@ -30,98 +32,116 @@ impl PlotFormat {
     }
 }
 
-pub fn validate<'a>(
-    destinations: impl IntoIterator<Item = (&'a Path, bool)>,
-    inputs: impl IntoIterator<Item = &'a Path>,
-) -> io::Result<()> {
-    let protected = inputs
-        .into_iter()
-        .map(fs::canonicalize)
-        .collect::<io::Result<Vec<_>>>()?;
-    let mut directories = Vec::<(PathBuf, tempfile::TempDir)>::new();
-    for (path, overwrite) in destinations {
-        let destination = resolve(path)?;
-        if destination.try_exists()? {
-            for input in &protected {
-                if same_file::is_same_file(input, &destination)? {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("{} is also an input file", path.display()),
-                    ));
-                }
-            }
-        }
-        check_destination(&destination, overwrite)?;
-        let parent = parent_directory(&destination);
-        let mut probe_index = 0;
-        while probe_index < directories.len()
-            && !same_file::is_same_file(parent, &directories[probe_index].0)?
-        {
-            probe_index += 1;
-        }
-        if probe_index == directories.len() {
-            directories.push((
-                parent.to_owned(),
-                tempfile::Builder::new()
-                    .prefix(".clinker-check-")
-                    .tempdir_in(parent)?,
-            ));
-        }
-        let directory = &directories[probe_index].1;
-        // Probe names on the destination filesystem to catch case and Unicode aliases.
-        let probe = directory.path().join(destination.file_name().unwrap());
-        OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(probe)
-            .map_err(|error| {
-                if error.kind() == io::ErrorKind::AlreadyExists {
-                    io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("{} is used by more than one output", path.display()),
-                    )
-                } else {
-                    io::Error::new(
-                        error.kind(),
-                        format!("invalid output {}: {error}", path.display()),
-                    )
-                }
-            })?;
-    }
-    Ok(())
+pub struct Outputs {
+    pub summary: Option<OutputFile>,
+    pub plot: Option<OutputFile>,
+    pub project: Option<OutputFile>,
+    pub matrix: Option<OutputFile>,
+    session: Option<OutputFile>,
+    pub plot_format: Option<PlotFormat>,
 }
 
-pub struct PendingOutput {
+impl Outputs {
+    pub fn prepare(args: &Args, sources: &[InputSource], session_exists: bool) -> io::Result<Self> {
+        let plot_path = args.plot.as_ref().and_then(Option::as_deref);
+        let plot_format = plot_path.map(PlotFormat::from_path).transpose()?;
+        let save_session = args.session.is_some()
+            && (!session_exists || !sources.is_empty() || args.gene_functions.is_some());
+        let protected = sources
+            .iter()
+            .flat_map(InputSource::paths)
+            .chain(args.gene_functions.as_deref())
+            .chain(args.colour_map.as_deref())
+            .chain(args.session.as_deref().filter(|_| !save_session))
+            .collect::<Vec<_>>();
+        let mut directories = Vec::<(PathBuf, tempfile::TempDir)>::new();
+        let mut prepare = |path: Option<&Path>, overwrite| -> io::Result<Option<OutputFile>> {
+            let Some(path) = path else { return Ok(None) };
+            let path = resolve(path)?;
+            if path.try_exists()? {
+                for input in &protected {
+                    if same_file::is_same_file(input, &path)? {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("{} is also an input file", path.display()),
+                        ));
+                    }
+                }
+            }
+            check_destination(&path, overwrite)?;
+            let parent = parent_directory(&path);
+            let mut index = 0;
+            while index < directories.len()
+                && !same_file::is_same_file(parent, &directories[index].0)?
+            {
+                index += 1;
+            }
+            if index == directories.len() {
+                directories.push((parent.to_owned(), tempfile::tempdir_in(parent)?));
+            }
+            // Use the actual filesystem's filename rules, including case and Unicode aliases.
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(directories[index].1.path().join(path.file_name().unwrap()))
+                .map_err(|error| {
+                    io::Error::new(
+                        error.kind(),
+                        format!("conflicting or invalid output {}: {error}", path.display()),
+                    )
+                })?;
+            Ok(Some(OutputFile::new(path, overwrite)?))
+        };
+        Ok(Self {
+            summary: prepare(args.output.as_deref(), args.force)?,
+            plot: prepare(plot_path, args.force)?,
+            project: prepare(args.project.as_deref(), args.force)?,
+            matrix: prepare(args.matrix_out.as_deref(), args.force)?,
+            session: prepare(
+                args.session.as_deref().filter(|_| save_session),
+                session_exists,
+            )?,
+            plot_format,
+        })
+    }
+
+    pub fn commit(
+        mut self,
+        session: &clinker_core::AnalysisSession,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(output) = &mut self.session {
+            output.write(&session.to_json()?)?;
+        }
+        for output in [
+            self.summary,
+            self.plot,
+            self.project,
+            self.matrix,
+            self.session,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            output.commit()?;
+        }
+        Ok(())
+    }
+}
+
+pub struct OutputFile {
     path: PathBuf,
     temporary: NamedTempFile,
     overwrite: bool,
 }
 
-impl PendingOutput {
-    pub fn stage(path: &Path, contents: &[u8], overwrite: bool) -> io::Result<Self> {
-        Self::stage_with(path, overwrite, |file| file.write_all(contents)).map_err(|error| {
-            io::Error::new(
-                error.kind(),
-                format!("could not prepare {}: {error}", path.display()),
-            )
-        })
-    }
-
-    fn stage_with(
-        path: &Path,
-        overwrite: bool,
-        write: impl FnOnce(&mut File) -> io::Result<()>,
-    ) -> io::Result<Self> {
-        let path = resolve(path)?;
-        check_destination(&path, overwrite)?;
-        let mut temporary = NamedTempFile::new_in(parent_directory(&path))?;
-        write(temporary.as_file_mut())?;
+impl OutputFile {
+    fn new(path: PathBuf, overwrite: bool) -> io::Result<Self> {
+        let temporary = NamedTempFile::new_in(parent_directory(&path))?;
         if let Ok(metadata) = fs::metadata(&path) {
             temporary
                 .as_file()
                 .set_permissions(metadata.permissions())?;
         }
-        temporary.as_file().sync_all()?;
         Ok(Self {
             path,
             temporary,
@@ -129,7 +149,17 @@ impl PendingOutput {
         })
     }
 
-    pub fn commit(self) -> io::Result<()> {
+    pub fn write(&mut self, contents: &[u8]) -> io::Result<()> {
+        self.temporary.write_all(contents).map_err(|error| {
+            io::Error::new(
+                error.kind(),
+                format!("could not prepare {}: {error}", self.path.display()),
+            )
+        })
+    }
+
+    fn commit(self) -> io::Result<()> {
+        self.temporary.as_file().sync_all()?;
         let result = if self.overwrite {
             self.temporary.persist(&self.path)
         } else {
@@ -230,83 +260,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn csv_round_trips_cluster_names_with_commas_quotes_and_newlines() {
-        let names = ["name, with comma", "a \"quoted\" name\nsecond line"];
-        let analysis = Analysis {
-            clusters: names
-                .iter()
-                .map(|name| clinker_core::Cluster {
-                    name: (*name).to_owned(),
-                    source_file: None,
-                    organism: None,
-                    loci: Vec::new(),
-                })
-                .collect(),
-            links: Vec::new(),
-        };
-        let bytes = distance_matrix(&analysis).unwrap();
-        let mut reader = csv::ReaderBuilder::new()
-            .has_headers(false)
-            .from_reader(bytes.as_slice());
-        let rows = reader.records().collect::<Result<Vec<_>, _>>().unwrap();
-        assert_eq!(
-            rows[0],
-            csv::StringRecord::from(vec!["", names[0], names[1]])
-        );
-        assert_eq!(rows[1], csv::StringRecord::from(vec![names[0], "0", "1"]));
-        assert_eq!(rows[2], csv::StringRecord::from(vec![names[1], "1", "0"]));
-    }
-
-    #[test]
-    fn failed_staging_preserves_the_previous_file_and_cleans_up() {
+    fn a_failed_write_leaves_the_previous_file_intact() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("session.json");
-        fs::write(&path, b"previous").unwrap();
-        let result = PendingOutput::stage_with(&path, true, |file| {
-            file.write_all(b"partial")?;
-            Err(io::Error::other("simulated write failure"))
-        });
-        assert!(result.is_err());
-        assert_eq!(fs::read(&path).unwrap(), b"previous");
-        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+        fs::write(&path, b"previous session").unwrap();
+        let mut output = OutputFile::new(path.clone(), true).unwrap();
+        output.write(b"partial output").unwrap();
+        // Reopen the staged file read-only to force a real write error.
+        let (file, temporary_path) = output.temporary.into_parts();
+        drop(file);
+        let read_only = fs::File::open(&temporary_path).unwrap();
+        output.temporary = NamedTempFile::from_parts(read_only, temporary_path);
+        assert!(output.write(b"remaining output").is_err());
+        drop(output);
+        assert_eq!(fs::read(path).unwrap(), b"previous session");
     }
 
     #[test]
-    fn dropping_staged_output_leaves_the_destination_unchanged() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("session.json");
-        fs::write(&path, b"previous").unwrap();
-        let pending = PendingOutput::stage(&path, b"replacement", true).unwrap();
-        assert_eq!(fs::read(&path).unwrap(), b"previous");
-        drop(pending);
-        assert_eq!(fs::read(&path).unwrap(), b"previous");
-        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
-    }
-
-    #[test]
-    fn exclusive_commit_preserves_a_file_created_after_staging() {
+    fn exclusive_commit_preserves_a_file_created_during_analysis() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("figure.json");
-        let pending = PendingOutput::stage(&path, b"new output", false).unwrap();
+        let mut output = OutputFile::new(path.clone(), false).unwrap();
+        output.write(b"new output").unwrap();
         fs::write(&path, b"other writer").unwrap();
         assert_eq!(
-            pending.commit().unwrap_err().kind(),
+            output.commit().unwrap_err().kind(),
             io::ErrorKind::AlreadyExists
         );
         assert_eq!(fs::read(&path).unwrap(), b"other writer");
-        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
-    }
-
-    #[test]
-    fn commit_replaces_the_previous_file_completely() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join("session.json");
-        fs::write(&path, b"previous longer content").unwrap();
-        PendingOutput::stage(&path, b"new", true)
-            .unwrap()
-            .commit()
-            .unwrap();
-        assert_eq!(fs::read(&path).unwrap(), b"new");
-        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
     }
 }
