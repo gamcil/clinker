@@ -22,19 +22,21 @@ mod validation;
 
 pub use align::ProteinMatch;
 pub use alignment::{
-    AlignmentCounts, PreparedAlignment, ProteinBatch, ProteinBatchAligner, ProteinBatchResult,
+    AlignmentCounts, AlignmentStats, AnalysisOptions, AnalysisOptionsError, PreparedAlignment,
+    ProteinBatch, ProteinBatchAligner, ProteinBatchResult, ProteinPair, ProteinTileMatch,
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use analyse::analyse_with_jobs;
 pub use analyse::{
-    AlignmentStats, Analysis, AnalysisError, AnalysisOptions, AnalysisOptionsError, GeneRef,
-    InputFile, Link, ProteinPair, ProteinTileMatch, analyse, analyse_with_parse_options,
-    parse_input_files, parse_input_files_with_options, parse_input_files_with_progress,
+    AnalysisError, analyse, analyse_with_parse_options, parse_input_files,
+    parse_input_files_with_options, parse_input_files_with_progress,
 };
 pub use figure::{FigureProgress, FigureStage, PreparedFigure, RowOrder};
 pub use groups::{GeneGroup, build_gene_groups, build_gene_groups_with_progress};
 pub use hierarchy::ClusterOrdering;
-pub use model::{Cluster, Gene, Locus, MAX_SEQUENCE_COORDINATE};
+pub use model::{
+    Analysis, Cluster, Gene, GeneRef, InputFile, Link, Locus, MAX_SEQUENCE_COORDINATE,
+};
 pub use parse_genbank::{
     ParseError, ParseOptions, SequenceRange, parse_genbank, parse_genbank_with_options,
 };
@@ -51,7 +53,7 @@ pub use session::{
 pub use synteny::ClusterPairSimilarity;
 pub use validation::ValidationError;
 
-pub(crate) use analyse::can_reach_identity;
+pub(crate) use alignment::can_reach_identity;
 pub use prefilter::KmerPrefilter;
 pub(crate) use prefilter::cluster_kmer_candidate_pairs_with_progress;
 #[cfg(test)]

@@ -1,11 +1,92 @@
 use std::ops::Range;
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use crate::{
-    AnalysisOptions, AnalysisOptionsError, Cluster, GeneRef, Link, ProteinPair, ProteinTileMatch,
-    align::ProteinAligner, can_reach_identity, cluster_kmer_candidate_pairs_with_progress,
+    Cluster, GeneRef, KmerPrefilter, Link, align::ProteinAligner,
+    cluster_kmer_candidate_pairs_with_progress,
 };
+
+#[derive(Debug, Clone, Copy)]
+pub struct AnalysisOptions {
+    pub identity_cutoff: f32,
+    /// Optional approximate candidate selection before alignment.
+    pub prefilter: Option<KmerPrefilter>,
+}
+
+#[derive(Debug, Error)]
+pub enum AnalysisOptionsError {
+    #[error("identity cutoff must be between 0 and 1, got {0}")]
+    IdentityCutoff(f32),
+    #[error("prefilter requires k-mer size 1..=8 and a positive shared-word count")]
+    Prefilter,
+}
+
+impl AnalysisOptions {
+    pub fn validate(self) -> Result<(), AnalysisOptionsError> {
+        if !self.identity_cutoff.is_finite() || !(0.0..=1.0).contains(&self.identity_cutoff) {
+            return Err(AnalysisOptionsError::IdentityCutoff(self.identity_cutoff));
+        }
+        if let Some(filter) = self.prefilter
+            && (!(1..=8).contains(&filter.kmer_size) || filter.min_shared_kmers == 0)
+        {
+            return Err(AnalysisOptionsError::Prefilter);
+        }
+        Ok(())
+    }
+}
+
+/// Work performed by the alignment workflow, after length and optional k-mer filtering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AlignmentStats {
+    pub aligned_pairs: usize,
+    pub counts: AlignmentCounts,
+}
+
+impl Default for AnalysisOptions {
+    fn default() -> Self {
+        Self {
+            identity_cutoff: 0.30,
+            prefilter: None,
+        }
+    }
+}
+
+/// A retained match between two positions in a protein-comparison tile.
+///
+/// The indices refer to the caller-provided query and target slices rather
+/// than loci or clusters. Browser workers use this compact result while the
+/// coordinator retains the corresponding gene references.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ProteinTileMatch {
+    pub query_index: usize,
+    pub target_index: usize,
+    pub identity: f32,
+    pub similarity: f32,
+}
+
+/// A pair of positions in caller-provided protein slices.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProteinPair {
+    pub query_index: usize,
+    pub target_index: usize,
+}
+
+/// The largest possible global-alignment identity is the shorter sequence
+/// divided by the longer one. Rejecting pairs below this bound is exact.
+pub(crate) fn can_reach_identity(
+    query_length: usize,
+    target_length: usize,
+    identity_cutoff: f32,
+) -> bool {
+    if identity_cutoff <= 0.0 {
+        return true;
+    }
+    let longer = query_length.max(target_length);
+    longer != 0 && query_length.min(target_length) as f32 / longer as f32 >= identity_cutoff
+}
 
 const TILE_SIDE: usize = 40;
 const PAIRS_PER_BATCH: usize = TILE_SIDE * TILE_SIDE;
