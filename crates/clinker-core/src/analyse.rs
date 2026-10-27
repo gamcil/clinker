@@ -7,12 +7,14 @@ use rayon::prelude::*;
 
 use crate::{
     AlignmentCounts, AlignmentStats, Analysis, AnalysisOptions, AnalysisOptionsError, Cluster,
-    InputFile, Link, ParseOptions, PreparedAlignment, ProteinBatchAligner,
-    parse_genbank_with_options, parse_gff3,
+    InputFile, Link, ParseOptions, PreparedAlignment, ProteinBatchAligner, ValidationError,
+    parse_genbank_with_options, parse_gff3, validation::validate_clusters,
 };
 
 #[derive(Debug, Error)]
 pub enum AnalysisError {
+    #[error(transparent)]
+    Validation(#[from] ValidationError),
     #[error(transparent)]
     Options(#[from] AnalysisOptionsError),
     #[error("failed to parse {file_name}: {source}")]
@@ -43,6 +45,8 @@ impl Analysis {
         options: AnalysisOptions,
     ) -> Result<AlignmentStats, AnalysisError> {
         options.validate()?;
+        self.validate()?;
+        validate_clusters(&clusters, self.clusters.len())?;
         let first_new_cluster = self.clusters.len();
         self.clusters.extend(clusters);
         let (links, stats) = cross_cluster_links_from(&self.clusters, first_new_cluster, options)?;
@@ -59,6 +63,8 @@ impl Analysis {
         jobs: usize,
     ) -> Result<AlignmentStats, AnalysisError> {
         options.validate()?;
+        self.validate()?;
+        validate_clusters(&clusters, self.clusters.len())?;
         let pool = alignment_pool(jobs)?;
         let first_new_cluster = self.clusters.len();
         self.clusters.extend(clusters);
@@ -69,8 +75,14 @@ impl Analysis {
     }
 
     /// Append parsed clusters without producing protein links.
-    pub fn append_clusters_without_alignment(&mut self, clusters: Vec<Cluster>) {
+    pub fn append_clusters_without_alignment(
+        &mut self,
+        clusters: Vec<Cluster>,
+    ) -> Result<(), ValidationError> {
+        self.validate()?;
+        validate_clusters(&clusters, self.clusters.len())?;
         self.clusters.extend(clusters);
+        Ok(())
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -80,6 +92,7 @@ impl Analysis {
         jobs: usize,
     ) -> Result<AlignmentStats, AnalysisError> {
         options.validate()?;
+        self.validate()?;
         let pool = alignment_pool(jobs)?;
         let (links, stats) = cross_cluster_links_parallel_from(&self.clusters, 0, options, &pool)?;
         self.links = links;

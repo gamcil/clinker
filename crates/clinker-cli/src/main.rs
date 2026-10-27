@@ -176,7 +176,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     if let Some(path) = args.open_project.as_ref() {
         let project = ClinkerProject::from_json(&fs::read(path)?)?;
-        let similarities = project.analysis.analysis.cluster_similarity_matrix();
+        let similarities = project.analysis.analysis.cluster_similarity_matrix()?;
         return viewer::serve(&project, &similarities, args.no_browser);
     }
 
@@ -236,7 +236,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         session.ensure_settings(identity_cutoff, alignment)?;
     }
     if args.reanalyse {
-        session.analysis.append_clusters_without_alignment(clusters);
+        session
+            .analysis
+            .append_clusters_without_alignment(clusters)?;
         if let Some(options) = alignment.options(identity_cutoff) {
             session.analysis.reanalyse(options, args.jobs)?;
         } else {
@@ -254,7 +256,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 .analysis
                 .append_clusters_with_jobs(clusters, options, args.jobs)?;
         } else {
-            session.analysis.append_clusters_without_alignment(clusters);
+            session
+                .analysis
+                .append_clusters_without_alignment(clusters)?;
         }
     }
     if !session_exists || args.gene_functions.is_some() {
@@ -318,7 +322,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         let similarities = if let Some(figure) = &figure {
             &figure.similarity_matrix
         } else {
-            matrix = analysis.cluster_similarity_matrix();
+            matrix = analysis.cluster_similarity_matrix()?;
             &matrix
         };
         output.write(&outputs::distance_matrix(analysis, similarities)?)?;

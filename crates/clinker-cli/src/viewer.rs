@@ -101,8 +101,11 @@ fn read_similarity(
         ));
     }
     let session = AnalysisSession::from_json(&bytes).map_err(|error| (400, error.to_string()))?;
-    let matrix = serde_json::to_vec(&session.analysis.cluster_similarity_matrix())
+    let similarities = session
+        .analysis
+        .cluster_similarity_matrix()
         .map_err(|error| (400, error.to_string()))?;
+    let matrix = serde_json::to_vec(&similarities).map_err(|error| (400, error.to_string()))?;
     Ok((matrix, "application/json"))
 }
 

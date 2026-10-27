@@ -438,7 +438,10 @@ pub fn open_session(session: JsValue) -> Result<JsValue, JsValue> {
         .validate()
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let result = BrowserSavedAnalysis {
-        similarity_matrix: session.analysis.cluster_similarity_matrix(),
+        similarity_matrix: session
+            .analysis
+            .cluster_similarity_matrix()
+            .map_err(|error| JsValue::from_str(&error.to_string()))?,
         analysis_session: session,
     };
     serde_wasm_bindgen::to_value(&result)

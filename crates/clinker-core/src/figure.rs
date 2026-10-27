@@ -40,7 +40,6 @@ impl Analysis {
         definitions: &[GeneGroupDefinition],
         mut progress: impl FnMut(FigureProgress),
     ) -> Result<PreparedFigure, ValidationError> {
-        self.validate()?;
         let count = self.clusters.len();
         let total_pairs = count.saturating_mul(count.saturating_sub(1)) / 2;
         let similarity_matrix = self.cluster_similarity_matrix_with_progress(|completed| {
@@ -49,7 +48,7 @@ impl Analysis {
                 completed,
                 total: total_pairs,
             });
-        });
+        })?;
         progress(FigureProgress {
             stage: FigureStage::Ordering,
             completed: 0,

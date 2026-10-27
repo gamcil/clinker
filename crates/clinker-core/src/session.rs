@@ -286,6 +286,26 @@ ORIGIN
         }])
         .unwrap();
 
+        let before = analysis.clone();
+        let mut invalid = new_clusters.clone();
+        invalid[0].loci[0].genes[0].strand = 0;
+        assert!(
+            analysis
+                .append_clusters(invalid.clone(), AnalysisOptions::default())
+                .is_err()
+        );
+        assert!(
+            analysis
+                .append_clusters_without_alignment(invalid.clone())
+                .is_err()
+        );
+        #[cfg(not(target_arch = "wasm32"))]
+        assert!(
+            analysis
+                .append_clusters_with_jobs(invalid, AnalysisOptions::default(), 1)
+                .is_err()
+        );
+        assert_eq!(analysis, before);
         analysis
             .append_clusters(new_clusters, AnalysisOptions::default())
             .unwrap();
@@ -337,6 +357,11 @@ ORIGIN
             let mut invalid = original.clone();
             edit(&mut invalid.analysis);
             assert!(invalid.validate().is_err(), "case {case}");
+            assert!(
+                invalid.analysis.cluster_similarity_matrix().is_err(),
+                "case {case}"
+            );
+            assert!(invalid.analysis.cluster_order().is_err(), "case {case}");
             assert!(
                 invalid
                     .analysis

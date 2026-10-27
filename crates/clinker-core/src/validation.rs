@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use thiserror::Error;
 
-use crate::{Analysis, GeneRef, MAX_SEQUENCE_COORDINATE};
+use crate::{Analysis, Cluster, GeneRef, MAX_SEQUENCE_COORDINATE};
 
 #[derive(Debug, Error)]
 pub enum ValidationError {
@@ -28,32 +28,7 @@ pub enum ValidationError {
 
 impl Analysis {
     pub fn validate(&self) -> Result<(), ValidationError> {
-        for (cluster_index, cluster) in self.clusters.iter().enumerate() {
-            if cluster.loci.is_empty() {
-                return Err(ValidationError::EmptyCluster(cluster_index));
-            }
-            for (locus_index, locus) in cluster.loci.iter().enumerate() {
-                if locus.start >= locus.end || locus.end > MAX_SEQUENCE_COORDINATE {
-                    return Err(ValidationError::LocusCoordinates {
-                        cluster: cluster_index,
-                        locus: locus_index,
-                    });
-                }
-                for (gene_index, gene) in locus.genes.iter().enumerate() {
-                    let reference = GeneRef {
-                        cluster: cluster_index,
-                        locus: locus_index,
-                        gene: gene_index,
-                    };
-                    if gene.start >= gene.end || gene.start < locus.start || gene.end > locus.end {
-                        return Err(ValidationError::GeneCoordinates(reference));
-                    }
-                    if !matches!(gene.strand, -1 | 1) {
-                        return Err(ValidationError::GeneStrand(reference));
-                    }
-                }
-            }
-        }
+        validate_clusters(&self.clusters, 0)?;
         let mut pairs = HashSet::new();
         for (index, link) in self.links.iter().enumerate() {
             for (endpoint, reference) in [("query", link.query), ("target", link.target)] {
@@ -104,4 +79,38 @@ impl Analysis {
         }
         Ok(())
     }
+}
+
+pub(crate) fn validate_clusters(
+    clusters: &[Cluster],
+    first_cluster: usize,
+) -> Result<(), ValidationError> {
+    for (index, cluster) in clusters.iter().enumerate() {
+        let cluster_index = first_cluster + index;
+        if cluster.loci.is_empty() {
+            return Err(ValidationError::EmptyCluster(cluster_index));
+        }
+        for (locus_index, locus) in cluster.loci.iter().enumerate() {
+            if locus.start >= locus.end || locus.end > MAX_SEQUENCE_COORDINATE {
+                return Err(ValidationError::LocusCoordinates {
+                    cluster: cluster_index,
+                    locus: locus_index,
+                });
+            }
+            for (gene_index, gene) in locus.genes.iter().enumerate() {
+                let reference = GeneRef {
+                    cluster: cluster_index,
+                    locus: locus_index,
+                    gene: gene_index,
+                };
+                if gene.start >= gene.end || gene.start < locus.start || gene.end > locus.end {
+                    return Err(ValidationError::GeneCoordinates(reference));
+                }
+                if !matches!(gene.strand, -1 | 1) {
+                    return Err(ValidationError::GeneStrand(reference));
+                }
+            }
+        }
+    }
+    Ok(())
 }

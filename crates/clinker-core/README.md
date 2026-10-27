@@ -28,6 +28,11 @@ append methods both take `AnalysisOptions` and return work statistics. Worker
 consumers use `PreparedAlignment` and `ProteinBatchAligner`; candidate-selection
 helpers remain internal.
 
+Scoring and ordering return validation errors for malformed analysis data.
+Append operations validate existing and incoming data before changing the
+analysis. Caller-supplied matrices are kept out of the public ordering API;
+`prepare_figure` returns the computed scores, ordering and hierarchy together.
+
 `AnalysisSession` retains analysis state for continuation. `ClinkerProject`
 combines that state with an editable figure; renderer-specific data remains JSON
 so it can preserve saved annotations, trees and editor state.

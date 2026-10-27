@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 
 use crate::hierarchy::{ClusterOrdering, ward_ordering};
-use crate::{Analysis, Cluster, GeneRef, Link};
+use crate::{Analysis, Cluster, GeneRef, Link, ValidationError};
 
 /// Directional best-hit coverages and their containment-aware similarity.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize)]
@@ -23,18 +23,21 @@ impl Analysis {
     /// by its translated protein length. The larger directional coverage is
     /// used so a well-matched smaller cluster remains similar to a larger
     /// cluster that contains it.
-    pub fn synteny_matrix(&self) -> Vec<Vec<f64>> {
-        self.cluster_similarity_matrix()
+    pub fn synteny_matrix(&self) -> Result<Vec<Vec<f64>>, ValidationError> {
+        Ok(self
+            .cluster_similarity_matrix()?
             .into_iter()
             .map(|row| row.into_iter().map(|pair| pair.similarity).collect())
-            .collect()
+            .collect())
     }
 
     /// Calculate directional best-hit coverages for every cluster pair.
     ///
     /// At `[query][target]`, `query_coverage` is query → target and
     /// `target_coverage` is target → query. The mirrored entry swaps them.
-    pub fn cluster_similarity_matrix(&self) -> Vec<Vec<ClusterPairSimilarity>> {
+    pub fn cluster_similarity_matrix(
+        &self,
+    ) -> Result<Vec<Vec<ClusterPairSimilarity>>, ValidationError> {
         self.cluster_similarity_matrix_with_progress(|_| {})
     }
 
@@ -43,7 +46,8 @@ impl Analysis {
     pub fn cluster_similarity_matrix_with_progress(
         &self,
         mut progress: impl FnMut(usize),
-    ) -> Vec<Vec<ClusterPairSimilarity>> {
+    ) -> Result<Vec<Vec<ClusterPairSimilarity>>, ValidationError> {
+        self.validate()?;
         let count = self.clusters.len();
         let mut matrix = vec![vec![ClusterPairSimilarity::default(); count]; count];
         let mut links_by_pair = BTreeMap::<(usize, usize), Vec<&Link>>::new();
@@ -78,12 +82,12 @@ impl Analysis {
         if processed == 0 {
             progress(0);
         }
-        matrix
+        Ok(matrix)
     }
 
     /// Create a pairwise distance matrix for row ordering.
-    pub fn synteny_distance_matrix(&self) -> Vec<Vec<f64>> {
-        let mut matrix = self.synteny_matrix();
+    pub fn synteny_distance_matrix(&self) -> Result<Vec<Vec<f64>>, ValidationError> {
+        let mut matrix = self.synteny_matrix()?;
         for (row_index, row) in matrix.iter_mut().enumerate() {
             for (column_index, value) in row.iter_mut().enumerate() {
                 *value = if row_index == column_index {
@@ -93,7 +97,7 @@ impl Analysis {
                 };
             }
         }
-        matrix
+        Ok(matrix)
     }
 
     /// Order clusters by Ward linkage with bounded leaf ordering.
@@ -102,23 +106,15 @@ impl Analysis {
     /// the final sequence with its strongest linked component first. Component
     /// strength is the total pairwise similarity within it, then its number of
     /// clusters as a tie-breaker.
-    pub fn cluster_order(&self) -> Vec<usize> {
-        let similarities = self.cluster_similarity_matrix();
-        self.cluster_order_from_similarity_matrix(&similarities)
-    }
-
-    /// Order clusters using an already calculated similarity matrix.
-    /// Reusing it avoids recalculating every cluster pair during browser
-    /// post-processing, where the same matrix is also exported as CSV.
-    pub fn cluster_order_from_similarity_matrix(
-        &self,
-        matrix: &[Vec<ClusterPairSimilarity>],
-    ) -> Vec<usize> {
-        self.cluster_ordering_from_similarity_matrix(matrix).order
+    pub fn cluster_order(&self) -> Result<Vec<usize>, ValidationError> {
+        let similarities = self.cluster_similarity_matrix()?;
+        Ok(self
+            .cluster_ordering_from_similarity_matrix(&similarities)
+            .order)
     }
 
     /// Retain Ward topology, oriented to the bounded display order.
-    pub fn cluster_ordering_from_similarity_matrix(
+    pub(crate) fn cluster_ordering_from_similarity_matrix(
         &self,
         matrix: &[Vec<ClusterPairSimilarity>],
     ) -> ClusterOrdering {
@@ -341,8 +337,8 @@ mod tests {
             clusters: vec![cluster("one", 2), cluster("two", 2)],
             links: vec![link(0, 0, 0.8), link(0, 1, 0.9), link(1, 1, 0.7)],
         };
-        assert!((analysis.synteny_matrix()[0][1] - 0.85).abs() < 1e-6);
-        assert!((analysis.synteny_distance_matrix()[0][1] - 0.15).abs() < 1e-6);
+        assert!((analysis.synteny_matrix().unwrap()[0][1] - 0.85).abs() < 1e-6);
+        assert!((analysis.synteny_distance_matrix().unwrap()[0][1] - 0.15).abs() < 1e-6);
     }
 
     #[test]
@@ -352,7 +348,7 @@ mod tests {
             links: vec![link_between(1, 0, 2, 0, 0.8), link_between(1, 1, 2, 1, 0.9)],
         };
 
-        assert!((analysis.synteny_matrix()[1][2] - 0.85).abs() < 1e-6);
+        assert!((analysis.synteny_matrix().unwrap()[1][2] - 0.85).abs() < 1e-6);
     }
 
     #[test]
@@ -363,8 +359,9 @@ mod tests {
         };
         let mut reports = Vec::new();
 
-        let _ =
-            analysis.cluster_similarity_matrix_with_progress(|processed| reports.push(processed));
+        let _ = analysis
+            .cluster_similarity_matrix_with_progress(|processed| reports.push(processed))
+            .unwrap();
 
         assert_eq!(reports, vec![1, 2, 3]);
     }
@@ -379,7 +376,7 @@ mod tests {
             links: vec![link(0, 0, 0.9)],
         };
 
-        assert!((analysis.synteny_matrix()[0][1] - 90.0 / 110.0).abs() < 1e-6);
+        assert!((analysis.synteny_matrix().unwrap()[0][1] - 90.0 / 110.0).abs() < 1e-6);
     }
 
     #[test]
@@ -392,12 +389,9 @@ mod tests {
                 link_between(3, 0, 4, 0, 0.7),
             ],
         };
-        let matrix = analysis.cluster_similarity_matrix();
+        let matrix = analysis.cluster_similarity_matrix().unwrap();
         let ordering = analysis.cluster_ordering_from_similarity_matrix(&matrix);
-        assert_eq!(
-            ordering.order,
-            analysis.cluster_order_from_similarity_matrix(&matrix)
-        );
+        assert_eq!(ordering.order, analysis.cluster_order().unwrap());
         assert_eq!(ordering.merges.len(), 4);
         let mut leaves = Vec::new();
         let mut stack = vec![5 + ordering.merges.len() - 1];
