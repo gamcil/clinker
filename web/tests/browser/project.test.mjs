@@ -37,6 +37,7 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(url);
+  assert.equal(await page.locator('#prefilter').isChecked(), false, 'default analysis matches the unfiltered CLI');
   const helpButton = page.getByRole('button', { name: 'Plot help', exact: true });
   const help = page.getByRole('dialog', { name: 'Plot help' });
   await helpButton.click();

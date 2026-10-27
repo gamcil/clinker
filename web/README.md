@@ -108,9 +108,10 @@ The optional **k-mer prefilter** indexes distinct protein 3-mers and only
 aligns pairs with at least three shared words. Candidate tiles contain each
 needed protein once plus pair indices, rather than one copied sequence per
 pair. This is deliberately approximate and can miss remote homologues. It is
-enabled by default with permissive settings (k-mer size 3, three shared words);
-disable the checkbox beside the identity setting to compare every eligible
-protein pair.
+off by default, matching the native CLI. Enable the checkbox beside the identity
+setting to use the default filter (k-mer size 3, three shared words). Whether
+filtering improves runtime depends on the input data; leave it off to compare
+every eligible protein pair.
 Larger words and higher shared-word thresholds are more selective. Protein
 normalisation is shared with alignment. Words are cached once per protein and
 only one target-cluster index is held at a time. Words use lossless five-bit
