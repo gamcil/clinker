@@ -1,7 +1,12 @@
 use std::{
     fs,
+    io::{BufRead, BufReader, Read, Write},
+    net::TcpStream,
     path::Path,
-    process::{Command, Output},
+    process::{Child, Command, Output, Stdio},
+    sync::mpsc,
+    thread,
+    time::Duration,
 };
 
 use clinker_core::{AlignmentSettings, AnalysisSession, ClinkerProject, KmerPrefilter};
@@ -44,6 +49,35 @@ fn gff(directory: &Path, sequence: &str) {
     )
     .unwrap();
     fs::write(directory.join("sample.fna"), format!(">seq\n{sequence}\n")).unwrap();
+}
+
+struct Viewer(Child);
+
+impl Drop for Viewer {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+fn viewer_get(address: &str, path: &str) -> String {
+    let mut stream = TcpStream::connect(address).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
+    write!(
+        stream,
+        "GET /{path} HTTP/1.0\r\nHost: {address}\r\nConnection: close\r\n\r\n"
+    )
+    .unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    let (headers, body) = response.split_once("\r\n\r\n").unwrap();
+    assert!(
+        headers.lines().next().unwrap().contains(" 200 "),
+        "{headers}"
+    );
+    body.to_owned()
 }
 
 #[test]
@@ -192,6 +226,34 @@ fn sessions_extend_and_export_restorable_projects_figures_and_escaped_csv() {
         ],
     );
     assert_eq!(session(root), saved);
+
+    let mut viewer = Viewer(
+        Command::new(env!("CARGO_BIN_EXE_clinker"))
+            .current_dir(root)
+            .args(["--open-project", "project.json", "--no-browser"])
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let stdout = viewer.0.stdout.take().unwrap();
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            let line = line.unwrap();
+            if let Some(url) = line.strip_prefix("Viewer: http://") {
+                let _ = sender.send(url.to_owned());
+                break;
+            }
+        }
+    });
+    let url = receiver.recv_timeout(Duration::from_secs(10)).unwrap();
+    let (address, prefix) = url.split_once('/').unwrap();
+    assert!(viewer_get(address, prefix).starts_with("<!doctype html>"));
+    assert!(!viewer_get(address, &format!("{prefix}local.js")).is_empty());
+    let served =
+        ClinkerProject::from_json(viewer_get(address, &format!("{prefix}api/project")).as_bytes())
+            .unwrap();
+    assert_eq!(served, project);
 }
 
 #[test]
