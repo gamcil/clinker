@@ -27,6 +27,7 @@ test('incremental WASM parsing and post-processing preserve mixed-format input o
   assert.throws(() => post_process(parsed.layout, parsed.proteins, invalid, [], settings, true, () => {}), /invalid query reference/);
   const result = post_process(parsed.layout, parsed.proteins, [], [], settings, true, () => {});
   assert.deepEqual(result.plotData.clusters.map(c => c.source_file), ['features.gff3', 'last.gbk', 'offset.gff3']);
+  assert.equal('translation' in parsed.layout.clusters[0].loci[0].genes[0], false);
   assert.equal(result.plotData.clusters[2].loci[0].start, 5000000000);
   assert.equal(result.plotData.clusters[2].loci[0].genes[0].end, 5000000009);
   assert.deepEqual(result.analysisSession.alignment, { mode: 'aligned', prefilter: undefined });
@@ -55,7 +56,13 @@ test('prefilter and alignment agree on case and unsupported amino acids', () => 
   try {
     const matches = worker.analyse_batch(parsed.proteins, parsed.alignmentBatches[0], [], 0.3, () => {});
     assert.equal(matches.links.length, 1);
-    assert.equal(matches.links[0].identity, 1);
+    assert.deepEqual(matches.links, [{ query: { cluster: 0, locus: 0, gene: 0 }, target: { cluster: 1, locus: 0, gene: 0 }, identity: 1, similarity: 1 }]);
+    const groups = [{ label: 'Shared function', genes: ['gene'], colour: '#123456' }];
+    const result = post_process(parsed.layout, parsed.proteins, matches.links, groups, settings, true, () => {});
+    assert.deepEqual(result.analysisSession.analysis.links, matches.links);
+    assert.deepEqual(result.analysisSession.groupDefinitions, groups);
+    assert.ok(result.plotData.groups.some(group => group.label === 'Shared function' && group.colour === '#123456'));
+    assert.deepEqual(open_session(JSON.parse(JSON.stringify(result.analysisSession))).analysisSession, result.analysisSession);
   } finally { worker.free(); }
 });
 

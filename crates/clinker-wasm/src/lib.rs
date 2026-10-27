@@ -82,7 +82,6 @@ impl BrowserAnalysisSettings {
 struct BrowserGenBankOptions {
     ranges: Vec<BrowserSequenceRange>,
     as_separate_clusters: bool,
-    #[serde(default = "default_set_origin")]
     set_origin: bool,
 }
 
@@ -93,16 +92,13 @@ struct BrowserSequenceRange {
     end: u64,
 }
 
-fn default_set_origin() -> bool {
-    true
-}
-
 impl Default for BrowserGenBankOptions {
     fn default() -> Self {
+        let defaults = ParseOptions::default();
         Self {
             ranges: Vec::new(),
-            as_separate_clusters: false,
-            set_origin: true,
+            as_separate_clusters: defaults.as_separate_clusters,
+            set_origin: defaults.set_origin,
         }
     }
 }
@@ -248,19 +244,10 @@ struct BrowserLayoutGene {
     strand: i8,
 }
 
-/// A retained link returned by an alignment-only worker tile.
-#[derive(Debug, Serialize)]
-struct TileLink {
-    query: BrowserProteinRef,
-    target: BrowserProteinRef,
-    identity: f32,
-    similarity: f32,
-}
-
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct BrowserTileResult {
-    links: Vec<TileLink>,
+    links: Vec<Link>,
     alignment_count: usize,
     pair_count: usize,
 }
@@ -271,51 +258,6 @@ struct BrowserProgress<'a> {
     stage: &'a str,
     completed: usize,
     total: usize,
-}
-
-/// Link shape returned by an alignment worker and later sent to the grouping
-/// worker. It uses positions, rather than renderer UIDs, so Rust can form
-/// groups without reparsing strings.
-#[derive(Debug, Deserialize)]
-struct BrowserLink {
-    query: BrowserProteinRef,
-    target: BrowserProteinRef,
-    identity: f32,
-    similarity: f32,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct BrowserGroupDefinition {
-    label: String,
-    genes: Vec<String>,
-    colour: Option<String>,
-}
-
-impl From<BrowserGroupDefinition> for GeneGroupDefinition {
-    fn from(group: BrowserGroupDefinition) -> Self {
-        Self {
-            label: group.label,
-            genes: group.genes,
-            colour: group.colour,
-        }
-    }
-}
-
-impl From<&BrowserGroupDefinition> for GeneGroupDefinition {
-    fn from(group: &BrowserGroupDefinition) -> Self {
-        Self {
-            label: group.label.clone(),
-            genes: group.genes.clone(),
-            colour: group.colour.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct BrowserProteinRef {
-    cluster: usize,
-    locus: usize,
-    gene: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -337,17 +279,7 @@ struct BrowserSavedAnalysis {
     analysis_session: AnalysisSession,
 }
 
-impl From<BrowserProteinRef> for GeneRef {
-    fn from(reference: BrowserProteinRef) -> Self {
-        Self {
-            cluster: reference.cluster,
-            locus: reference.locus,
-            gene: reference.gene,
-        }
-    }
-}
-
-impl From<&BrowserProtein> for BrowserProteinRef {
+impl From<&BrowserProtein> for GeneRef {
     fn from(protein: &BrowserProtein) -> Self {
         Self {
             cluster: protein.cluster,
@@ -416,7 +348,7 @@ fn encode_batch(
     let links = result
         .matches
         .into_iter()
-        .map(|matched| TileLink {
+        .map(|matched| Link {
             query: (&proteins[matched.query_index]).into(),
             target: (&proteins[matched.target_index]).into(),
             identity: matched.identity,
@@ -479,14 +411,11 @@ pub fn post_process(
         .map_err(|error| JsValue::from_str(&format!("invalid layout data: {error}")))?;
     let proteins = serde_wasm_bindgen::from_value::<Vec<BrowserProtein>>(proteins)
         .map_err(|error| JsValue::from_str(&format!("invalid browser proteins: {error}")))?;
-    let links = browser_links(links)?;
-    let browser_group_definitions =
-        serde_wasm_bindgen::from_value::<Vec<BrowserGroupDefinition>>(group_definitions)
+    let links = serde_wasm_bindgen::from_value::<Vec<Link>>(links)
+        .map_err(|error| JsValue::from_str(&format!("invalid browser links: {error}")))?;
+    let group_definitions =
+        serde_wasm_bindgen::from_value::<Vec<GeneGroupDefinition>>(group_definitions)
             .map_err(|error| JsValue::from_str(&format!("invalid gene groups: {error}")))?;
-    let group_definitions = browser_group_definitions
-        .iter()
-        .map(GeneGroupDefinition::from)
-        .collect::<Vec<_>>();
     let analysis = Analysis {
         clusters: clusters_from_layout(layout, proteins)?,
         links,
@@ -578,22 +507,6 @@ fn post_process_analysis(
         .map_err(|error| JsValue::from_str(&format!("could not encode post-processing: {error}")))
 }
 
-fn browser_links(links: JsValue) -> Result<Vec<Link>, JsValue> {
-    serde_wasm_bindgen::from_value::<Vec<BrowserLink>>(links)
-        .map_err(|error| JsValue::from_str(&format!("invalid browser links: {error}")))
-        .map(|links| {
-            links
-                .into_iter()
-                .map(|link| Link {
-                    query: link.query.into(),
-                    target: link.target.into(),
-                    identity: link.identity,
-                    similarity: link.similarity,
-                })
-                .collect()
-        })
-}
-
 fn clusters_from_layout(
     layout: BrowserLayout,
     proteins: Vec<BrowserProtein>,
@@ -617,7 +530,7 @@ fn clusters_from_layout(
                         .into_iter()
                         .map(|gene| Gene {
                             label: gene.label,
-                            names: gene.names.into_iter().collect(),
+                            names: gene.names,
                             start: gene.start,
                             end: gene.end,
                             strand: gene.strand,
@@ -635,16 +548,16 @@ fn clusters_from_layout(
         .sum::<usize>();
     let mut assigned = std::collections::BTreeSet::new();
     for protein in proteins {
-        let reference = (protein.cluster, protein.locus, protein.gene);
+        let reference = GeneRef::from(&protein);
         if !assigned.insert(reference) {
             return Err(JsValue::from_str(&format!(
                 "duplicate browser protein reference {reference:?}"
             )));
         }
         let gene = clusters
-            .get_mut(protein.cluster)
-            .and_then(|cluster| cluster.loci.get_mut(protein.locus))
-            .and_then(|locus| locus.genes.get_mut(protein.gene))
+            .get_mut(reference.cluster)
+            .and_then(|cluster| cluster.loci.get_mut(reference.locus))
+            .and_then(|locus| locus.genes.get_mut(reference.gene))
             .ok_or_else(|| {
                 JsValue::from_str(&format!("invalid browser protein reference {reference:?}"))
             })?;
