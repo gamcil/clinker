@@ -5,9 +5,15 @@
   automatic locus orientation and placement.
 - Plot editing, SVG and similarity CSV export, and complete saved projects.
 - Native CLI builds for Linux x86-64, Windows x86-64 and Apple Silicon macOS.
+- Embedded local viewer with tree/annotation import, editing and exports; native
+  results are rendered without WASM analysis. Bare `--plot` opens the viewer.
+- Shared editable project format; `--project` writes a complete project and
+  `--open-project` restores it with its figure edits.
+- Self-contained core/CLI Cargo source packages with independent install checks,
+  native archive extraction checks and checksums for every release artifact.
 
 The Rust port does not reproduce every Python score or layout exactly. Python
-session compatibility, a CLI-hosted interactive app, and adding input files to
+session compatibility and adding input files to
 an edited browser project are outside this release. Similarity CSV scores come
 from the retained analysis; visual edits do not rerun it. Translation fallback
 does not infer alternative initiation or recoding exceptions.

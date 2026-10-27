@@ -64,8 +64,10 @@ See [architecture and development](docs/architecture.md),
 and [release procedure](docs/releasing.md).
 The native CLI embeds the shared local viewer. Bare `--plot` opens it;
 `--open-project comparison.json` restores an edited project. Use `--no-browser`
-to print the local URL without launching a browser. Cargo release packaging is
-the next migration step; portable HTML remains a separate renderer-only export.
+to print the local URL without launching a browser. See [distribution packaging](docs/packaging.md)
+for source crates, native archives and independent install checks. Portable HTML
+remains a separate renderer-only export. The binary rename and default-branch
+cutover remain the final migration step.
 
 ## Citation
 

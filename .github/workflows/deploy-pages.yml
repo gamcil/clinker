@@ -10,6 +10,7 @@ on:
       - "crates/**"
       - "web/**"
       - "docs/**"
+      - "scripts/**"
       - "examples/**"
       - ".github/workflows/deploy-pages.yml"
       - "LICENSE"
@@ -20,10 +21,15 @@ on:
       - "crates/**"
       - "web/**"
       - "docs/**"
+      - "scripts/**"
       - "examples/**"
       - ".github/workflows/deploy-pages.yml"
       - "LICENSE"
   workflow_dispatch:
+
+env:
+  # Rename once, at the final Rust cutover; check-packages validates this value.
+  CLINKER_BINARY: clinker-rs
 
 permissions:
   contents: read
@@ -75,33 +81,59 @@ jobs:
         run: cargo test --locked --workspace
       - name: Build CLI
         run: cargo build --locked --release -p clinker-cli --target ${{ matrix.target }}
-      - name: Smoke-test release binary
-        run: cargo run --locked --release -p clinker-cli --target ${{ matrix.target }} -- --version
       - name: Package CLI (Unix)
-        if: startsWith(github.ref, 'refs/tags/rust-v') && runner.os != 'Windows'
+        if: runner.os != 'Windows'
         working-directory: .
         run: |
           mkdir -p release/clinker
-          cp target/${{ matrix.target }}/release/clinker-rs release/clinker/
+          cp "target/${{ matrix.target }}/release/$CLINKER_BINARY" release/clinker/
           cp LICENSE crates/clinker-cli/assets/LICENSE.* release/clinker/
           cp docs/cli.md release/clinker/README.md
+          cp docs/project-format.md release/clinker/
           tar -C release -czf release/${{ matrix.archive }} clinker
+          mkdir -p "$RUNNER_TEMP/clinker-archive"
+          tar -xzf release/${{ matrix.archive }} -C "$RUNNER_TEMP/clinker-archive"
+          cd "$RUNNER_TEMP/clinker-archive/clinker"
+          "./$CLINKER_BINARY" --version
       - name: Package CLI (Windows)
-        if: startsWith(github.ref, 'refs/tags/rust-v') && runner.os == 'Windows'
+        if: runner.os == 'Windows'
         working-directory: .
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force release/clinker | Out-Null
-          Copy-Item target/${{ matrix.target }}/release/clinker-rs.exe release/clinker/
+          Copy-Item "target/${{ matrix.target }}/release/${env:CLINKER_BINARY}.exe" release/clinker/
           Copy-Item LICENSE release/clinker/
           Copy-Item docs/cli.md release/clinker/README.md
+          Copy-Item docs/project-format.md release/clinker/
           Copy-Item crates/clinker-cli/assets/LICENSE.* release/clinker/
           Compress-Archive -Path release/clinker -DestinationPath release/${{ matrix.archive }}
+          Expand-Archive release/${{ matrix.archive }} -DestinationPath "$env:RUNNER_TEMP/clinker-archive"
+          Set-Location "$env:RUNNER_TEMP/clinker-archive/clinker"
+          & "./${env:CLINKER_BINARY}.exe" --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v7
         if: startsWith(github.ref, 'refs/tags/rust-v')
         with:
           name: ${{ matrix.archive }}
           path: release/${{ matrix.archive }}
+          if-no-files-found: error
+
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build and install extracted source packages
+        run: node scripts/check-packages.mjs
+      - uses: actions/upload-artifact@v7
+        if: startsWith(github.ref, 'refs/tags/rust-v')
+        with:
+          name: clinker-source-crates
+          path: target/package-check/package/*.crate
           if-no-files-found: error
 
   web:
@@ -166,7 +198,7 @@ jobs:
   deploy:
     # TODO: change to master once Rust port is final
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/rust-port'
-    needs: [native, web]
+    needs: [native, web, packages]
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -186,7 +218,7 @@ jobs:
 
   publish:
     if: startsWith(github.ref, 'refs/tags/rust-v')
-    needs: [native, web]
+    needs: [native, web, packages]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -203,5 +235,5 @@ jobs:
         shell: bash
         run: |
           cd release
-          sha256sum -- ./*.tar.gz ./*.zip > SHA256SUMS
+          sha256sum -- ./*.tar.gz ./*.zip ./*.crate > SHA256SUMS
           gh release create "$GITHUB_REF_NAME" ./* --notes-file ../docs/release-notes.md --generate-notes --verify-tag
