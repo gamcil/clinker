@@ -193,13 +193,13 @@ jobs:
           path: release/clinker-web.tar.gz
           if-no-files-found: error
       - name: Upload Pages artifact
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/rust-port'
         uses: actions/upload-pages-artifact@v5
         with:
           path: ${{ runner.temp }}/clinker-web
 
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/rust-port'
     needs: [native, web, packages]
     runs-on: ubuntu-latest
     permissions:

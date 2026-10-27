@@ -1,7 +1,7 @@
 # Rust release procedure
 
 The hosted application is the primary interface. The same workflow validates
-pushes and pull requests, deploys `master` to Pages, and builds release
+pushes and pull requests, deploys `rust-port` to Pages, and builds release
 archives for tags matching `v[0-9]*`.
 
 ## Before tagging
@@ -24,13 +24,17 @@ archives for tags matching `v[0-9]*`.
 
 ## Repository cutover
 
-The workflow is configured for `master`; it stops deploying `rust-port` once
-these changes are pushed there. The currently hosted site remains in place
-until a successful `master` deployment replaces it.
+Rust development and Pages deployment remain on `rust-port` while the code base
+is finalized. The merge into `master` is deferred. The executable rename and
+packaging work can be used independently of that merge.
+
+When ready to make Rust the main repository version:
 
 1. Push the prepared Rust branch and confirm all native, source-package and web
    checks pass on GitHub.
-2. Merge it into `master`. Keep `python-maintenance` as the Python/PyPI branch.
+2. Change both Pages conditions in `.github/workflows/deploy-pages.yml` from
+   `refs/heads/rust-port` to `refs/heads/master`, then merge into `master`. Keep
+   `python-maintenance` as the Python/PyPI branch.
 3. Confirm GitHub's default branch is `master`, Pages uses GitHub Actions, and
    the `github-pages` environment permits deployment from `master`.
 4. Confirm the merged commit passes CI and deploys the intended hosted app.

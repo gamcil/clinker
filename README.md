@@ -66,8 +66,9 @@ The native CLI embeds the shared local viewer. Bare `--plot` opens it;
 `--open-project comparison.json` restores an edited project. Use `--no-browser`
 to print the local URL without launching a browser. See [distribution packaging](docs/packaging.md)
 for source crates, native archives and independent install checks. Portable HTML
-remains a separate renderer-only export. The [repository cutover](docs/releasing.md#repository-cutover)
-procedure covers merging to `master`, Pages deployment and the first Rust release.
+remains a separate renderer-only export. Development and Pages deployment stay
+on `rust-port` while the code base is finalized. The later [repository cutover](docs/releasing.md#repository-cutover)
+covers merging to `master` and the first Rust release.
 
 ## Citation
 

@@ -6,8 +6,8 @@ is the existing `v0.0.32` release, commit
 `rust-port` matched that release when the maintenance branch was created.
 
 Keep future Python fixes, dependency updates, package version changes and PyPI
-releases on that branch. The Rust implementation is prepared on `rust-port` for
-merging into `master`. The Rust branch no longer contains the Python
+releases on that branch. Rust development remains on `rust-port` while the code base is finalized;
+the merge into `master` is deferred. The Rust branch no longer contains the Python
 implementation, packaging files, Dockerfile, or PyPI workflow. Check out
 `python-maintenance` before building or publishing a Python package.
 
