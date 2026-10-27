@@ -17,6 +17,7 @@ mod project;
 mod protein;
 mod session;
 mod synteny;
+mod validation;
 
 pub use align::ProteinMatch;
 pub use alignment::{
@@ -44,6 +45,7 @@ pub use session::{
     ANALYSIS_SESSION_FORMAT, ANALYSIS_SESSION_VERSION, AnalysisSession, SessionError,
 };
 pub use synteny::ClusterPairSimilarity;
+pub use validation::ValidationError;
 
 pub use prefilter::{
     KmerPrefilter, cluster_kmer_candidate_pairs_with_progress, kmer_candidate_pairs,

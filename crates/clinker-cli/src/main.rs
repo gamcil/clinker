@@ -214,8 +214,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             analysis.cluster_order()
         };
-        let data =
-            analysis.to_auto_arranged_plot_data_with_group_definitions(&order, group_definitions);
+        let data = analysis
+            .to_auto_arranged_plot_data_with_group_definitions(&order, group_definitions)?;
         if let Some(output) = &mut outputs.plot {
             let json = serde_json::to_string_pretty(&data)?;
             let contents = match outputs

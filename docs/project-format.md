@@ -49,6 +49,10 @@ The shared JavaScript project module validates figure IDs against analysis,
 coordinates, trees and layout, and retains unknown project extension fields on
 export. The Rust `ClinkerProject` model validates the envelope and analysis
 session and preserves figure data, config, layout and extra fields as JSON.
+Analysis validation checks coordinate containment, strands, gene references,
+canonical cross-cluster links, score consistency and duplicate pairs. Plot
+conversion also requires a complete cluster-order permutation and returns a
+Rust error for invalid data. These checks do not change the saved JSON format.
 Renderer-specific validation remains in the shared JavaScript viewer. Native
 code must not deserialize those fields into a narrower schema that drops edits.
 

@@ -31,7 +31,7 @@ fn bundled_genbank_files_complete_the_analysis_and_plot_data_workflow() {
         files.len()
     );
 
-    let plot_data = analysis.to_auto_arranged_plot_data(&order);
+    let plot_data = analysis.to_auto_arranged_plot_data(&order).unwrap();
     assert_eq!(plot_data.clusters.len(), files.len());
     assert_eq!(plot_data.links.len(), analysis.links.len());
     assert!(!plot_data.groups.is_empty());

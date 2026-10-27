@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Analysis, GeneGroupDefinition, GeneRef};
+use crate::{Analysis, GeneGroupDefinition, ValidationError};
 
 pub const ANALYSIS_SESSION_FORMAT: &str = "clinker-analysis";
 pub const ANALYSIS_SESSION_VERSION: u32 = 1;
@@ -66,46 +66,8 @@ impl AnalysisSession {
         if !self.identity_cutoff.is_finite() || !(0.0..=1.0).contains(&self.identity_cutoff) {
             return Err(SessionError::InvalidIdentity(self.identity_cutoff));
         }
-        for (index, link) in self.analysis.links.iter().enumerate() {
-            validate_gene_ref(&self.analysis, index, "query", link.query)?;
-            validate_gene_ref(&self.analysis, index, "target", link.target)?;
-            if link.query.cluster == link.target.cluster {
-                return Err(SessionError::WithinClusterLink(index));
-            }
-            if !valid_fraction(link.identity) || !valid_fraction(link.similarity) {
-                return Err(SessionError::InvalidLinkScore(index));
-            }
-        }
+        self.analysis.validate()?;
         Ok(())
-    }
-}
-
-fn valid_fraction(value: f32) -> bool {
-    value.is_finite() && (0.0..=1.0).contains(&value)
-}
-
-fn validate_gene_ref(
-    analysis: &Analysis,
-    link: usize,
-    endpoint: &'static str,
-    reference: GeneRef,
-) -> Result<(), SessionError> {
-    let valid = analysis
-        .clusters
-        .get(reference.cluster)
-        .and_then(|cluster| cluster.loci.get(reference.locus))
-        .and_then(|locus| locus.genes.get(reference.gene))
-        .is_some();
-    if valid {
-        Ok(())
-    } else {
-        Err(SessionError::InvalidGeneReference {
-            link,
-            endpoint,
-            cluster: reference.cluster,
-            locus: reference.locus,
-            gene: reference.gene,
-        })
     }
 }
 
@@ -119,18 +81,8 @@ pub enum SessionError {
     UnsupportedVersion(u32),
     #[error("session identity cutoff must be between 0 and 1, got {0}")]
     InvalidIdentity(f32),
-    #[error("session link {link} has an invalid {endpoint} reference ({cluster}, {locus}, {gene})")]
-    InvalidGeneReference {
-        link: usize,
-        endpoint: &'static str,
-        cluster: usize,
-        locus: usize,
-        gene: usize,
-    },
-    #[error("session link {0} connects genes in the same cluster")]
-    WithinClusterLink(usize),
-    #[error("session link {0} has an identity or similarity outside 0..=1")]
-    InvalidLinkScore(usize),
+    #[error(transparent)]
+    Analysis(#[from] ValidationError),
 }
 
 #[cfg(test)]
@@ -242,6 +194,53 @@ ORIGIN
     }
 
     #[test]
+    fn invalid_analysis_is_rejected_on_load_and_before_plotting() {
+        let analysis = analyse_genbank(
+            &[
+                InputFile {
+                    name: "first.gbk",
+                    bytes: FIRST,
+                },
+                InputFile {
+                    name: "second.gbk",
+                    bytes: SECOND,
+                },
+            ],
+            AnalysisOptions::default(),
+        )
+        .unwrap();
+        let original = AnalysisSession::new(analysis, 0.3, Vec::new()).unwrap();
+        let edits: &[fn(&mut crate::Analysis)] = &[
+            |a| a.clusters[0].loci.clear(),
+            |a| a.clusters[0].loci[0].end = 0,
+            |a| a.clusters[0].loci[0].genes[0].end = 10,
+            |a| a.clusters[0].loci[0].genes[0].strand = 0,
+            |a| a.links[0].query.gene = usize::MAX,
+            |a| {
+                let link = &mut a.links[0];
+                std::mem::swap(&mut link.query, &mut link.target);
+            },
+            |a| a.links[0].identity = f32::NAN,
+            |a| a.links[0].similarity = 0.0,
+            |a| a.links.push(a.links[0].clone()),
+        ];
+        for (case, edit) in edits.iter().enumerate() {
+            let mut invalid = original.clone();
+            edit(&mut invalid.analysis);
+            assert!(invalid.validate().is_err(), "case {case}");
+            assert!(
+                invalid
+                    .analysis
+                    .to_auto_arranged_plot_data(&[0, 1])
+                    .is_err(),
+                "case {case}"
+            );
+            let bytes = serde_json::to_vec(&invalid).unwrap();
+            assert!(AnalysisSession::from_json(&bytes).is_err(), "case {case}");
+        }
+    }
+
+    #[test]
     fn rejects_invalid_versions_and_gene_references() {
         let mut value = serde_json::json!({
             "format": ANALYSIS_SESSION_FORMAT,
@@ -264,7 +263,9 @@ ORIGIN
         }]);
         assert!(matches!(
             AnalysisSession::from_json(&serde_json::to_vec(&value).unwrap()),
-            Err(SessionError::InvalidGeneReference { .. })
+            Err(SessionError::Analysis(
+                crate::ValidationError::GeneReference { .. }
+            ))
         ));
     }
 }

@@ -492,6 +492,10 @@ fn post_process_analysis(
     use_file_order: bool,
     progress: &Function,
 ) -> Result<JsValue, JsValue> {
+    let analysis_session = AnalysisSession::new(analysis, identity_cutoff, group_definitions)
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
+    let analysis = &analysis_session.analysis;
+    let group_definitions = &analysis_session.group_definitions;
     let cluster_count = analysis.clusters.len();
     let similarity_total = cluster_count.saturating_mul(cluster_count.saturating_sub(1)) / 2;
     let mut last_similarity_report = 0;
@@ -518,35 +522,35 @@ fn post_process_analysis(
     let group_total = analysis.links.len() * 2;
     let mut last_group_report = 0;
     let mut last_layout_report = 0;
-    let arranged = analysis.to_auto_arranged_plot_data_with_group_definitions_and_progress(
-        &order,
-        &group_definitions,
-        |completed| {
-            report_progress_event_if_due(
-                progress,
-                "groups",
-                completed,
-                group_total,
-                &mut last_group_report,
-            )
-        },
-        |completed| {
-            report_progress_event_if_due(
-                progress,
-                "layout",
-                completed,
-                cluster_count,
-                &mut last_layout_report,
-            )
-        },
-    );
+    let arranged = analysis
+        .to_auto_arranged_plot_data_with_group_definitions_and_progress(
+            &order,
+            group_definitions,
+            |completed| {
+                report_progress_event_if_due(
+                    progress,
+                    "groups",
+                    completed,
+                    group_total,
+                    &mut last_group_report,
+                )
+            },
+            |completed| {
+                report_progress_event_if_due(
+                    progress,
+                    "layout",
+                    completed,
+                    cluster_count,
+                    &mut last_layout_report,
+                )
+            },
+        )
+        .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let cluster_names = analysis
         .clusters
         .iter()
         .map(|cluster| cluster.name.clone())
         .collect();
-    let analysis_session = AnalysisSession::new(analysis, identity_cutoff, group_definitions)
-        .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let result = BrowserPostProcess {
         plot_data: arranged,
         cluster_names,

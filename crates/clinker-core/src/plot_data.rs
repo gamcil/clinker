@@ -3,7 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use crate::layout::auto_locus_layouts_with_progress;
-use crate::{Analysis, GeneRef, build_gene_groups, build_gene_groups_with_progress};
+use crate::{
+    Analysis, GeneRef, ValidationError, build_gene_groups, build_gene_groups_with_progress,
+};
 
 /// JSON object consumed by clustermap.js.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -80,14 +82,14 @@ pub struct GeneGroupDefinition {
 
 /// Convert analysis output to clustermap.js data contract
 impl Analysis {
-    pub fn to_plot_data(&self) -> PlotData {
+    pub fn to_plot_data(&self) -> Result<PlotData, ValidationError> {
         self.to_plot_data_in_order(&(0..self.clusters.len()).collect::<Vec<_>>())
     }
 
     pub fn to_plot_data_with_group_definitions(
         &self,
         definitions: &[GeneGroupDefinition],
-    ) -> PlotData {
+    ) -> Result<PlotData, ValidationError> {
         self.to_plot_data_in_order_with_group_definitions(
             &(0..self.clusters.len()).collect::<Vec<_>>(),
             definitions,
@@ -97,7 +99,7 @@ impl Analysis {
     /// Convert analysis output to plot data with clusters in `order`.
     /// Gene and link IDs retain their original analysis indices, so reordering
     /// clusters never invalidates cross-references in links or groups.
-    pub fn to_plot_data_in_order(&self, order: &[usize]) -> PlotData {
+    pub fn to_plot_data_in_order(&self, order: &[usize]) -> Result<PlotData, ValidationError> {
         self.to_plot_data_in_order_with_group_definitions(order, &[])
     }
 
@@ -105,8 +107,10 @@ impl Analysis {
         &self,
         order: &[usize],
         definitions: &[GeneGroupDefinition],
-    ) -> PlotData {
-        self.to_plot_data_in_order_with_groups(order, build_plot_groups(self, definitions))
+    ) -> Result<PlotData, ValidationError> {
+        self.validate()?;
+        self.validate_order(order)?;
+        Ok(self.to_plot_data_in_order_with_groups(order, build_plot_groups(self, definitions)))
     }
 
     fn to_plot_data_in_order_with_groups(
@@ -114,7 +118,6 @@ impl Analysis {
         order: &[usize],
         groups: Vec<PlotGroup>,
     ) -> PlotData {
-        assert_eq!(order.len(), self.clusters.len());
         let clusters = order
             .iter()
             .copied()
@@ -179,7 +182,7 @@ impl Analysis {
     }
 
     /// Emit plot data with loci reordered and flipped to follow homology anchors.
-    pub fn to_auto_arranged_plot_data(&self, order: &[usize]) -> PlotData {
+    pub fn to_auto_arranged_plot_data(&self, order: &[usize]) -> Result<PlotData, ValidationError> {
         self.to_auto_arranged_plot_data_with_progress(order, |_| {}, |_| {})
     }
 
@@ -187,7 +190,7 @@ impl Analysis {
         &self,
         order: &[usize],
         definitions: &[GeneGroupDefinition],
-    ) -> PlotData {
+    ) -> Result<PlotData, ValidationError> {
         self.to_auto_arranged_plot_data_with_group_definitions_and_progress(
             order,
             definitions,
@@ -203,7 +206,7 @@ impl Analysis {
         order: &[usize],
         group_progress: impl FnMut(usize),
         layout_progress: impl FnMut(usize),
-    ) -> PlotData {
+    ) -> Result<PlotData, ValidationError> {
         self.to_auto_arranged_plot_data_with_group_definitions_and_progress(
             order,
             &[],
@@ -218,7 +221,9 @@ impl Analysis {
         definitions: &[GeneGroupDefinition],
         group_progress: impl FnMut(usize),
         layout_progress: impl FnMut(usize),
-    ) -> PlotData {
+    ) -> Result<PlotData, ValidationError> {
+        self.validate()?;
+        self.validate_order(order)?;
         let groups = build_plot_groups_with_progress(self, definitions, group_progress);
         let layouts = auto_locus_layouts_with_progress(self, order, layout_progress);
         let mut data = self.to_plot_data_in_order_with_groups(order, groups);
@@ -248,7 +253,7 @@ impl Analysis {
                 })
                 .collect();
         }
-        data
+        Ok(data)
     }
 }
 
@@ -413,7 +418,8 @@ ORIGIN
 
         let data = analyse_genbank(&files, AnalysisOptions::default())
             .unwrap()
-            .to_plot_data();
+            .to_plot_data()
+            .unwrap();
 
         assert_eq!(data.clusters[0].uid, "cluster-0");
         assert_eq!(data.clusters[0].loci[0].genes[0].uid, "gene-0-0-0");
@@ -445,7 +451,12 @@ ORIGIN
             },
         ];
         let analysis = analyse_genbank(&files, AnalysisOptions::default()).unwrap();
-        let data = analysis.to_plot_data_in_order(&[1, 0]);
+        let data = analysis.to_plot_data_in_order(&[1, 0]).unwrap();
+
+        for order in [&[0, 0][..], &[0, 2][..], &[0][..]] {
+            assert!(analysis.to_plot_data_in_order(order).is_err());
+            assert!(analysis.to_auto_arranged_plot_data(order).is_err());
+        }
 
         assert_eq!(data.clusters[0].uid, "cluster-1");
         assert_eq!(data.links[0].query.uid, "gene-0-0-0");
@@ -475,7 +486,7 @@ ORIGIN
         ];
         let analysis = analyse_genbank(&files, AnalysisOptions::default()).unwrap();
 
-        let data = analysis.to_auto_arranged_plot_data(&[0, 1]);
+        let data = analysis.to_auto_arranged_plot_data(&[0, 1]).unwrap();
 
         // A zero offset is meaningful: it overrides default locus packing and
         // aligns this homologous locus to the first cluster.
@@ -526,14 +537,18 @@ ORIGIN
             },
         ];
 
-        let linked = analysis.to_plot_data_with_group_definitions(&definitions);
+        let linked = analysis
+            .to_plot_data_with_group_definitions(&definitions)
+            .unwrap();
         assert_eq!(linked.groups.len(), 1);
         assert_eq!(linked.groups[0].label, "Core enzyme");
         assert_eq!(linked.groups[0].colour.as_deref(), Some("#336699"));
         assert_eq!(linked.groups[0].genes.len(), 2);
 
         analysis.links.clear();
-        let annotation_only = analysis.to_plot_data_with_group_definitions(&definitions);
+        let annotation_only = analysis
+            .to_plot_data_with_group_definitions(&definitions)
+            .unwrap();
         assert!(annotation_only.links.is_empty());
         assert_eq!(annotation_only.groups.len(), 2);
         assert_eq!(annotation_only.groups[0].genes, ["gene-0-0-0"]);

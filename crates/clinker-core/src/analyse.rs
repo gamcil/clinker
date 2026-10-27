@@ -151,7 +151,7 @@ pub enum AnalysisError {
 }
 
 /// A stable position within this analysis result.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 pub struct GeneRef {
     pub cluster: usize,
     pub locus: usize,

@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bytes = std::fs::read("cluster.gbk")?;
     let inputs = [InputFile { name: "cluster.gbk", bytes: &bytes }];
     let analysis = analyse_genbank(&inputs, AnalysisOptions::default())?;
-    let figure = analysis.to_plot_data();
+    let figure = analysis.to_plot_data()?;
     println!("{} clusters", figure.clusters.len());
     Ok(())
 }

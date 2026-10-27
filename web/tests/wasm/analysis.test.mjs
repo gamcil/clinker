@@ -22,6 +22,8 @@ test('incremental WASM parsing and post-processing preserve mixed-format input o
     { name: 'features.fna', bytes: fixture('features.fna') },
   ]);
   assert.deepEqual(parsed.layout.clusters.map(c => c.source_file), ['features.gff3', 'last.gbk']);
+  const invalid = [{ query: { cluster: 0, locus: 99, gene: 0 }, target: { cluster: 1, locus: 0, gene: 0 }, identity: 1, similarity: 1 }];
+  assert.throws(() => post_process(parsed.layout, parsed.proteins, invalid, [], 0.3, true, () => {}), /invalid query reference/);
   const result = post_process(parsed.layout, parsed.proteins, [], [], 0.3, true, () => {});
   assert.deepEqual(result.plotData.clusters.map(c => c.source_file), ['features.gff3', 'last.gbk']);
   const reopened = open_session(JSON.parse(JSON.stringify(result.analysisSession)));
