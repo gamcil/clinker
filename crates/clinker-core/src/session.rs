@@ -369,13 +369,6 @@ ORIGIN
                     .is_err(),
                 "case {case}"
             );
-            assert!(
-                invalid
-                    .analysis
-                    .to_auto_arranged_plot_data(&[0, 1])
-                    .is_err(),
-                "case {case}"
-            );
             let bytes = serde_json::to_vec(&invalid).unwrap();
             assert!(AnalysisSession::from_json(&bytes).is_err(), "case {case}");
         }

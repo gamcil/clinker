@@ -238,7 +238,10 @@ fn large_absolute_coordinates_survive_parsing_arrangement_and_project_round_trip
                 },
             ],
         };
-        let data = analysis.to_auto_arranged_plot_data(&[0, 1]).unwrap();
+        let data = analysis
+            .prepare_figure(clinker_core::RowOrder::Input, &[], |_| {})
+            .unwrap()
+            .plot_data;
         let reversed = &data.clusters[1].loci[0];
         assert_eq!(reversed.offset, Some(0.0));
         assert_eq!(

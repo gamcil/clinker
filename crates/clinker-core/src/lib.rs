@@ -43,7 +43,7 @@ pub use parse_genbank::{
 pub use parse_gff::{GffError, parse_gff3};
 pub use plot_data::{
     GeneGroupDefinition, PlotCluster, PlotData, PlotGene, PlotGeneRef, PlotGroup, PlotLink,
-    PlotLocus, build_plot_groups,
+    PlotLocus,
 };
 pub use project::{ClinkerProject, PROJECT_FORMAT, PROJECT_VERSION, ProjectError};
 pub use session::{

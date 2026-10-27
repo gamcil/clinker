@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::layout::auto_locus_layouts_with_progress;
 use crate::{
-    Analysis, FigureProgress, FigureStage, GeneRef, ValidationError, build_gene_groups,
+    Analysis, FigureProgress, FigureStage, GeneRef, ValidationError,
     build_gene_groups_with_progress,
 };
 
@@ -81,37 +81,20 @@ pub struct GeneGroupDefinition {
     pub colour: Option<String>,
 }
 
-/// Convert analysis output to clustermap.js data contract
 impl Analysis {
-    pub fn to_plot_data(&self) -> Result<PlotData, ValidationError> {
-        self.to_plot_data_in_order(&(0..self.clusters.len()).collect::<Vec<_>>())
-    }
-
-    pub fn to_plot_data_with_group_definitions(
-        &self,
-        definitions: &[GeneGroupDefinition],
-    ) -> Result<PlotData, ValidationError> {
-        self.to_plot_data_in_order_with_group_definitions(
-            &(0..self.clusters.len()).collect::<Vec<_>>(),
-            definitions,
-        )
-    }
-
-    /// Convert analysis output to plot data with clusters in `order`.
-    /// Gene and link IDs retain their original analysis indices, so reordering
-    /// clusters never invalidates cross-references in links or groups.
-    pub fn to_plot_data_in_order(&self, order: &[usize]) -> Result<PlotData, ValidationError> {
-        self.to_plot_data_in_order_with_group_definitions(order, &[])
-    }
-
-    pub fn to_plot_data_in_order_with_group_definitions(
+    /// Convert to renderer data without arranging loci or scoring cluster pairs.
+    /// `order` must contain every cluster index once; IDs retain input indices.
+    pub fn to_plot_data(
         &self,
         order: &[usize],
         definitions: &[GeneGroupDefinition],
     ) -> Result<PlotData, ValidationError> {
         self.validate()?;
         self.validate_order(order)?;
-        Ok(self.to_plot_data_in_order_with_groups(order, build_plot_groups(self, definitions)))
+        Ok(self.to_plot_data_in_order_with_groups(
+            order,
+            build_plot_groups_with_progress(self, definitions, |_| {}),
+        ))
     }
 
     fn to_plot_data_in_order_with_groups(
@@ -182,21 +165,6 @@ impl Analysis {
         }
     }
 
-    /// Emit plot data with loci reordered and flipped to follow homology anchors.
-    pub fn to_auto_arranged_plot_data(&self, order: &[usize]) -> Result<PlotData, ValidationError> {
-        self.to_auto_arranged_plot_data_with_group_definitions(order, &[])
-    }
-
-    pub fn to_auto_arranged_plot_data_with_group_definitions(
-        &self,
-        order: &[usize],
-        definitions: &[GeneGroupDefinition],
-    ) -> Result<PlotData, ValidationError> {
-        self.validate()?;
-        self.validate_order(order)?;
-        Ok(self.arrange_plot_data(order, definitions, &mut |_| {}))
-    }
-
     pub(crate) fn arrange_plot_data(
         &self,
         order: &[usize],
@@ -248,14 +216,6 @@ impl Analysis {
         }
         data
     }
-}
-
-/// Convert configured functions and retained links into clustermap.js groups.
-pub fn build_plot_groups(
-    analysis: &Analysis,
-    definitions: &[GeneGroupDefinition],
-) -> Vec<PlotGroup> {
-    configured_plot_groups(analysis, definitions, build_gene_groups(&analysis.links))
 }
 
 fn build_plot_groups_with_progress(
@@ -411,7 +371,7 @@ ORIGIN
 
         let data = analyse(&files, AnalysisOptions::default())
             .unwrap()
-            .to_plot_data()
+            .to_plot_data(&[0, 1], &[])
             .unwrap();
 
         assert_eq!(data.clusters[0].uid, "cluster-0");
@@ -444,11 +404,10 @@ ORIGIN
             },
         ];
         let analysis = analyse(&files, AnalysisOptions::default()).unwrap();
-        let data = analysis.to_plot_data_in_order(&[1, 0]).unwrap();
+        let data = analysis.to_plot_data(&[1, 0], &[]).unwrap();
 
         for order in [&[0, 0][..], &[0, 2][..], &[0][..]] {
-            assert!(analysis.to_plot_data_in_order(order).is_err());
-            assert!(analysis.to_auto_arranged_plot_data(order).is_err());
+            assert!(analysis.to_plot_data(order, &[]).is_err());
         }
 
         assert_eq!(data.clusters[0].uid, "cluster-1");
@@ -479,7 +438,10 @@ ORIGIN
         ];
         let analysis = analyse(&files, AnalysisOptions::default()).unwrap();
 
-        let data = analysis.to_auto_arranged_plot_data(&[0, 1]).unwrap();
+        let data = analysis
+            .prepare_figure(crate::RowOrder::Input, &[], |_| {})
+            .unwrap()
+            .plot_data;
 
         // A zero offset is meaningful: it overrides default locus packing and
         // aligns this homologous locus to the first cluster.
@@ -530,18 +492,14 @@ ORIGIN
             },
         ];
 
-        let linked = analysis
-            .to_plot_data_with_group_definitions(&definitions)
-            .unwrap();
+        let linked = analysis.to_plot_data(&[0, 1], &definitions).unwrap();
         assert_eq!(linked.groups.len(), 1);
         assert_eq!(linked.groups[0].label, "Core enzyme");
         assert_eq!(linked.groups[0].colour.as_deref(), Some("#336699"));
         assert_eq!(linked.groups[0].genes.len(), 2);
 
         analysis.links.clear();
-        let annotation_only = analysis
-            .to_plot_data_with_group_definitions(&definitions)
-            .unwrap();
+        let annotation_only = analysis.to_plot_data(&[0, 1], &definitions).unwrap();
         assert!(annotation_only.links.is_empty());
         assert_eq!(annotation_only.groups.len(), 2);
         assert_eq!(annotation_only.groups[0].genes, ["gene-0-0-0"]);
