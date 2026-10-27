@@ -55,6 +55,8 @@ try {
   await writeFile(join(temporary, 'Cargo.lock'), lock);
   await writeFile(join(cliDirectory, 'Cargo.lock'), lock);
   await writeFile(join(temporary, 'Cargo.toml'), `[workspace]\nmembers = [${JSON.stringify(coreDirectory)}, ${JSON.stringify(cliDirectory)}]\nresolver = "2"\n\n[patch.crates-io]\nclinker-core = { path = ${JSON.stringify(coreDirectory)} }\n`);
+  // Extracted archives have stable timestamps; rebuild same-version project sources.
+  run('cargo', ['clean', '--locked', '-p', core.name, '-p', cli.name, '--target-dir', target, ...offline], temporary);
   run('cargo', ['build', '--locked', '--workspace', '--all-targets', '--target-dir', target, ...offline], temporary);
   const installation = join(temporary, 'installation');
   run('cargo', ['install', '--locked', '--debug', '--path', cliDirectory, '--root', installation,
