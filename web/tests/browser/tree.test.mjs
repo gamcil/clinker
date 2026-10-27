@@ -331,7 +331,8 @@ test('tree import, matching, edits, renderers and project round-trips retain the
   await page.locator('#clinker-file').setInputFiles({ name: 'broken.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(invalidProject)) });
   await page.waitForFunction(() => document.querySelector('#run-status').textContent.includes('Invalid tree'));
   assert.deepEqual((await snapshot()).data, savedFigure.data);
-  await page.locator('#clear-input-files').click();
+  assert.equal(await page.locator('#files').evaluate(input => input.files.length), 0);
+  assert.equal(await page.locator('#clear-input-files').isVisible(), false);
   await loadRunTree(treeText.replace('A. versicolor CBS 583.65', 'resolve_after_run'));
   await page.waitForFunction(() => document.querySelector('#run-tree-import-status').textContent.includes('5 tree leaves'));
   const retained = await snapshot();

@@ -187,6 +187,14 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
     assert.deepEqual(preserved.state.clusterOrder, expected.state.clusterOrder);
   }
   await page.locator('#new-run').click();
+  assert.equal(await page.locator('#files').evaluate(input => input.files.length), 0);
+  assert.equal(await page.locator('#analyse').isDisabled(), true);
+  await page.locator('#files').setInputFiles([
+    resolve(root, 'examples/A. versicolor CBS 583.65.gbk'),
+    resolve(root, 'examples/A. burnettii MST-FP2249.gbk'),
+    resolve(root, 'examples/P. vexata CBS 129021.gbk'),
+  ]);
+  await page.waitForFunction(() => !document.querySelector('#analyse').disabled);
   // Hold each worker stage at its request boundary so cancellation is reliable
   // even when the example analysis finishes in milliseconds.
   for (const stage of ['parse-start', 'parse-finish', 'analyse-batch', 'post-process', 'open-session']) {
