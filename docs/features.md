@@ -30,7 +30,7 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 | Apply function colours from CSV | Yes | Yes | Yes | Group and CLI tests; WASM build |
 | Synteny-based ordering or input order | Yes | Yes | Yes | Ordering tests |
 | Automatic locus arrangement and orientation | Yes | Via plots | Yes | Layout and plot-data tests |
-| Human-readable or delimited link summary | Yes | Yes | Not applicable | Formatter and CLI tests |
+| Human-readable or delimited link summary | Structured links | Yes | Not applicable | CLI workflow |
 | Similarity/distance matrix export | Yes | CSV | CSV | Matrix tests and CLI smoke test |
 | clustermap.js plot-data output | Yes | JSON | In project | Plot-data tests |
 | Portable interactive figure | Yes | HTML and local viewer | Static application | CLI and browser smoke tests |

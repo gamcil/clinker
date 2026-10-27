@@ -7,98 +7,9 @@ use rayon::prelude::*;
 
 use crate::{
     AlignmentCounts, AlignmentStats, Analysis, AnalysisOptions, AnalysisOptionsError, Cluster,
-    GeneRef, InputFile, Link, ParseOptions, PreparedAlignment, ProteinBatchAligner,
+    InputFile, Link, ParseOptions, PreparedAlignment, ProteinBatchAligner,
     parse_genbank_with_options, parse_gff3,
 };
-
-impl Analysis {
-    /// Format alignment output as in original clinker.
-    /// For structured results use [`Self::links`] or [`Self::to_plot_data`].
-    pub fn format_link_summary(&self) -> String {
-        self.format_link_summary_with_options(4, None, true, true)
-    }
-
-    /// Format retained links with the same presentation controls as the
-    /// Python command line interface.
-    pub fn format_link_summary_with_options(
-        &self,
-        decimals: usize,
-        delimiter: Option<&str>,
-        alignment_headers: bool,
-        link_headers: bool,
-    ) -> String {
-        let mut sections = Vec::new();
-        for query_cluster in 0..self.clusters.len() {
-            for target_cluster in query_cluster + 1..self.clusters.len() {
-                let links = self
-                    .links
-                    .iter()
-                    .filter(|link| {
-                        link.query.cluster == query_cluster && link.target.cluster == target_cluster
-                    })
-                    .collect::<Vec<_>>();
-                if links.is_empty() {
-                    continue;
-                }
-                let header = format!(
-                    "{} vs {}",
-                    self.clusters[query_cluster].name, self.clusters[target_cluster].name
-                );
-                let mut rows = Vec::new();
-                if link_headers {
-                    rows.push([
-                        "Query".to_owned(),
-                        "Target".to_owned(),
-                        "Identity".to_owned(),
-                        "Similarity".to_owned(),
-                    ]);
-                }
-                rows.extend(links.into_iter().map(|link| {
-                    [
-                        self.gene_label(link.query).to_owned(),
-                        self.gene_label(link.target).to_owned(),
-                        format!("{:.decimals$}", link.identity),
-                        format!("{:.decimals$}", link.similarity),
-                    ]
-                }));
-                let table = if let Some(delimiter) = delimiter {
-                    rows.into_iter()
-                        .map(|row| row.join(delimiter))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                } else {
-                    let widths = std::array::from_fn::<_, 4, _>(|column| {
-                        rows.iter().map(|row| row[column].len()).max().unwrap_or(0)
-                    });
-                    rows.into_iter()
-                        .map(|row| {
-                            row.into_iter()
-                                .enumerate()
-                                .map(|(column, value)| {
-                                    format!("{value:<width$}", width = widths[column])
-                                })
-                                .collect::<Vec<_>>()
-                                .join("  ")
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                };
-
-                sections.push(if alignment_headers {
-                    format!("{header}\n{}\n{table}", "-".repeat(header.len()))
-                } else {
-                    table
-                });
-            }
-        }
-
-        sections.join("\n\n")
-    }
-
-    fn gene_label(&self, reference: GeneRef) -> &str {
-        &self.clusters[reference.cluster].loci[reference.locus].genes[reference.gene].label
-    }
-}
 
 #[derive(Debug, Error)]
 pub enum AnalysisError {
@@ -453,14 +364,6 @@ ORIGIN
         assert_eq!(analysis.links[0].identity, 1.0);
         assert_eq!(analysis.links[0].query.cluster, 0);
         assert_eq!(analysis.links[0].target.cluster, 1);
-        assert_eq!(
-            analysis.format_link_summary(),
-            "first vs second\n---------------\nQuery  Target  Identity  Similarity\nfirst  second  1.0000    1.0000    "
-        );
-        assert_eq!(
-            analysis.format_link_summary_with_options(2, Some(","), false, false),
-            "first,second,1.00,1.00"
-        );
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -554,7 +457,7 @@ ORIGIN
             let expected = unfiltered
                 .iter()
                 .filter(|link| {
-                    let protein = |r: super::GeneRef| {
+                    let protein = |r: crate::GeneRef| {
                         clusters[r.cluster].loci[r.locus].genes[r.gene]
                             .translation
                             .as_bytes()

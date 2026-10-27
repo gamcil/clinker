@@ -265,7 +265,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let analysis = &session.analysis;
     let group_definitions = &session.group_definitions;
 
-    let summary = analysis.format_link_summary_with_options(
+    let summary = outputs::link_summary(
+        analysis,
         usize::from(args.decimals),
         args.delimiter.as_deref(),
         !args.hide_alignment_headers,

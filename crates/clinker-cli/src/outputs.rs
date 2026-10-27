@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clinker_core::{Analysis, ClusterPairSimilarity};
+use clinker_core::{Analysis, ClusterPairSimilarity, GeneRef};
 use tempfile::NamedTempFile;
 
 use crate::{Args, inputs::InputSource};
@@ -232,6 +232,86 @@ fn check_destination(path: &Path, overwrite: bool) -> io::Result<()> {
         ));
     }
     Ok(())
+}
+
+pub fn link_summary(
+    analysis: &Analysis,
+    decimals: usize,
+    delimiter: Option<&str>,
+    alignment_headers: bool,
+    link_headers: bool,
+) -> String {
+    let gene_label = |reference: GeneRef| {
+        analysis.clusters[reference.cluster].loci[reference.locus].genes[reference.gene]
+            .label
+            .as_str()
+    };
+    let mut sections = Vec::new();
+    for query_cluster in 0..analysis.clusters.len() {
+        for target_cluster in query_cluster + 1..analysis.clusters.len() {
+            let links = analysis
+                .links
+                .iter()
+                .filter(|link| {
+                    link.query.cluster == query_cluster && link.target.cluster == target_cluster
+                })
+                .collect::<Vec<_>>();
+            if links.is_empty() {
+                continue;
+            }
+            let header = format!(
+                "{} vs {}",
+                analysis.clusters[query_cluster].name, analysis.clusters[target_cluster].name
+            );
+            let mut rows = Vec::new();
+            if link_headers {
+                rows.push([
+                    "Query".to_owned(),
+                    "Target".to_owned(),
+                    "Identity".to_owned(),
+                    "Similarity".to_owned(),
+                ]);
+            }
+            rows.extend(links.into_iter().map(|link| {
+                [
+                    gene_label(link.query).to_owned(),
+                    gene_label(link.target).to_owned(),
+                    format!("{:.decimals$}", link.identity),
+                    format!("{:.decimals$}", link.similarity),
+                ]
+            }));
+            let table = if let Some(delimiter) = delimiter {
+                rows.into_iter()
+                    .map(|row| row.join(delimiter))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            } else {
+                let widths = std::array::from_fn::<_, 4, _>(|column| {
+                    rows.iter().map(|row| row[column].len()).max().unwrap_or(0)
+                });
+                rows.into_iter()
+                    .map(|row| {
+                        row.into_iter()
+                            .enumerate()
+                            .map(|(column, value)| {
+                                format!("{value:<width$}", width = widths[column])
+                            })
+                            .collect::<Vec<_>>()
+                            .join("  ")
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+
+            sections.push(if alignment_headers {
+                format!("{header}\n{}\n{table}", "-".repeat(header.len()))
+            } else {
+                table
+            });
+        }
+    }
+
+    sections.join("\n\n")
 }
 
 pub fn distance_matrix(

@@ -14,13 +14,14 @@ fn run(directory: &Path, args: &[&str]) -> Output {
         .unwrap()
 }
 
-fn succeeds(directory: &Path, args: &[&str]) {
+fn succeeds(directory: &Path, args: &[&str]) -> Output {
     let output = run(directory, args);
     assert!(
         output.status.success(),
         "{args:?}: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    output
 }
 
 fn session(directory: &Path) -> AnalysisSession {
@@ -123,6 +124,26 @@ fn sessions_extend_and_export_restorable_projects_figures_and_escaped_csv() {
     let mut saved = session(root);
     assert_eq!(saved.analysis.clusters.len(), 2);
     assert!(!saved.analysis.links.is_empty());
+    let aligned = succeeds(root, &["--session", "session.json", "--decimals", "4"]);
+    assert_eq!(
+        String::from_utf8(aligned.stdout).unwrap(),
+        "input vs input\n--------------\nQuery  Target  Identity  Similarity\ngene   gene    1.0000    1.0000    \n"
+    );
+    let delimited = succeeds(
+        root,
+        &[
+            "--session",
+            "session.json",
+            "--delimiter",
+            ",",
+            "--hide-alignment-headers",
+            "--hide-link-headers",
+        ],
+    );
+    assert_eq!(
+        String::from_utf8(delimited.stdout).unwrap(),
+        "gene,gene,1.00,1.00\n"
+    );
     saved.analysis.clusters[0].name = "one, with comma".into();
     saved.analysis.clusters[1].name = "two \"quoted\"\nsecond line".into();
     fs::write(root.join("session.json"), saved.to_json().unwrap()).unwrap();
