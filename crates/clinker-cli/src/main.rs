@@ -16,7 +16,7 @@ use std::{
 use clap::Parser;
 use clinker_core::{
     AlignmentSettings, Analysis, AnalysisSession, ClinkerProject, GeneGroupDefinition,
-    KmerPrefilter, ParseOptions, SequenceRange,
+    KmerPrefilter, ParseOptions, RowOrder, SequenceRange,
 };
 
 /// Analyse GenBank or GFF3 input with clinker.
@@ -176,7 +176,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     if let Some(path) = args.open_project.as_ref() {
         let project = ClinkerProject::from_json(&fs::read(path)?)?;
-        return viewer::serve(&project, args.no_browser);
+        let similarities = project.analysis.analysis.cluster_similarity_matrix();
+        return viewer::serve(&project, &similarities, args.no_browser);
     }
 
     let session_exists = args.session.as_ref().is_some_and(|path| path.exists());
@@ -276,18 +277,22 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         output.write(summary.as_bytes())?;
     }
 
-    let mut local_project = None;
-    if args.plot.is_some() || args.project.is_some() {
-        let order =
+    let figure = if args.plot.is_some() || args.project.is_some() {
+        let row_order =
             if args.use_file_order || session.alignment() == Some(AlignmentSettings::Skipped) {
-                (0..analysis.clusters.len()).collect()
+                RowOrder::Input
             } else {
-                analysis.cluster_order()
+                RowOrder::Similarity
             };
-        let data = analysis
-            .to_auto_arranged_plot_data_with_group_definitions(&order, group_definitions)?;
+        Some(analysis.prepare_figure(row_order, group_definitions, |_| {})?)
+    } else {
+        None
+    };
+    let mut local_project = None;
+    if let Some(figure) = &figure {
+        let data = &figure.plot_data;
         if let Some(output) = &mut outputs.plot {
-            let json = serde_json::to_string_pretty(&data)?;
+            let json = serde_json::to_string_pretty(data)?;
             let contents = match outputs
                 .plot_format
                 .as_ref()
@@ -299,18 +304,25 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             output.write(contents.as_bytes())?;
         }
         if outputs.project.is_some() || matches!(args.plot, Some(None)) {
-            let project = ClinkerProject::new(session.clone(), &data)?;
+            let project = ClinkerProject::new(session.clone(), data)?;
             if let Some(output) = &mut outputs.project {
                 output.write(&project.to_json()?)?;
             }
             if matches!(args.plot, Some(None)) {
-                local_project = Some(project);
+                local_project = Some((project, &figure.similarity_matrix));
             }
         }
     }
 
     if let Some(output) = &mut outputs.matrix {
-        output.write(&outputs::distance_matrix(analysis)?)?;
+        let matrix;
+        let similarities = if let Some(figure) = &figure {
+            &figure.similarity_matrix
+        } else {
+            matrix = analysis.cluster_similarity_matrix();
+            &matrix
+        };
+        output.write(&outputs::distance_matrix(analysis, similarities)?)?;
     }
     outputs.commit(&session)?;
     if args.output.is_none() {
@@ -326,8 +338,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    if let Some(project) = local_project {
-        viewer::serve(&project, args.no_browser)?;
+    if let Some((project, similarities)) = local_project {
+        viewer::serve(&project, similarities, args.no_browser)?;
     }
 
     Ok(())

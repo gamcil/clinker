@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clinker_core::Analysis;
+use clinker_core::{Analysis, ClusterPairSimilarity};
 use tempfile::NamedTempFile;
 
 use crate::{Args, inputs::InputSource};
@@ -234,7 +234,10 @@ fn check_destination(path: &Path, overwrite: bool) -> io::Result<()> {
     Ok(())
 }
 
-pub fn distance_matrix(analysis: &Analysis) -> Result<Vec<u8>, csv::Error> {
+pub fn distance_matrix(
+    analysis: &Analysis,
+    similarities: &[Vec<ClusterPairSimilarity>],
+) -> Result<Vec<u8>, csv::Error> {
     let mut writer = csv::Writer::from_writer(Vec::new());
     writer.write_record(
         std::iter::once("").chain(
@@ -244,14 +247,17 @@ pub fn distance_matrix(analysis: &Analysis) -> Result<Vec<u8>, csv::Error> {
                 .map(|cluster| cluster.name.as_str()),
         ),
     )?;
-    for (cluster, row) in analysis
-        .clusters
-        .iter()
-        .zip(analysis.synteny_distance_matrix())
-    {
-        writer.write_record(
-            std::iter::once(cluster.name.clone()).chain(row.iter().map(ToString::to_string)),
-        )?;
+    for (query, (cluster, row)) in analysis.clusters.iter().zip(similarities).enumerate() {
+        writer.write_record(std::iter::once(cluster.name.clone()).chain(
+            row.iter().enumerate().map(|(target, pair)| {
+                let distance = if query == target {
+                    0.0
+                } else {
+                    1.0 - pair.similarity
+                };
+                distance.to_string()
+            }),
+        ))?;
     }
     writer
         .into_inner()

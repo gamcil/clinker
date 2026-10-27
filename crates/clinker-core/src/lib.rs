@@ -5,6 +5,7 @@
 mod align;
 mod alignment;
 mod analyse;
+mod figure;
 mod groups;
 mod hierarchy;
 mod layout;
@@ -31,6 +32,7 @@ pub use analyse::{
     can_reach_identity, parse_input_files, parse_input_files_with_options,
     parse_input_files_with_options_and_progress, parse_input_files_with_progress,
 };
+pub use figure::{FigureProgress, FigureStage, PreparedFigure, RowOrder};
 pub use groups::{GeneGroup, build_gene_groups, build_gene_groups_with_progress};
 pub use hierarchy::ClusterOrdering;
 pub use model::{Cluster, Gene, Locus, MAX_SEQUENCE_COORDINATE};

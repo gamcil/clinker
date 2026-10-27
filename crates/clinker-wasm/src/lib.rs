@@ -7,9 +7,10 @@ use std::collections::BTreeMap;
 
 use clinker_core::{
     AlignmentCounts, AlignmentSettings, Analysis, AnalysisOptions, AnalysisSession, Cluster,
-    ClusterPairSimilarity, GenBankOptions, Gene, GeneGroupDefinition, GeneRef, InputFile,
-    KmerPrefilter, Link, Locus, PlotData, PreparedAlignment, ProteinBatch, ProteinBatchAligner,
-    ProteinBatchResult, ProteinPair, SequenceRange, parse_input_files_with_options,
+    ClusterPairSimilarity, FigureStage, GenBankOptions, Gene, GeneGroupDefinition, GeneRef,
+    InputFile, KmerPrefilter, Link, Locus, PlotData, PreparedAlignment, ProteinBatch,
+    ProteinBatchAligner, ProteinBatchResult, ProteinPair, RowOrder, SequenceRange,
+    parse_input_files_with_options,
 };
 use js_sys::Function;
 use serde::{Deserialize, Serialize};
@@ -528,55 +529,33 @@ fn post_process_analysis(
     .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let analysis = &analysis_session.analysis;
     let group_definitions = &analysis_session.group_definitions;
-    let cluster_count = analysis.clusters.len();
-    let similarity_total = cluster_count.saturating_mul(cluster_count.saturating_sub(1)) / 2;
-    let mut last_similarity_report = 0;
-    let similarity_matrix = analysis.cluster_similarity_matrix_with_progress(|completed| {
-        report_progress_event_if_due(
-            progress,
-            "similarity",
-            completed,
-            similarity_total,
-            &mut last_similarity_report,
-        )
-    });
-    report_progress_event(progress, "ordering", 0, cluster_count);
-    let ordering = if use_file_order {
-        None
+    let row_order = if use_file_order {
+        RowOrder::Input
     } else {
-        Some(analysis.cluster_ordering_from_similarity_matrix(&similarity_matrix))
+        RowOrder::Similarity
     };
-    let (order, clustering_merges, clustering_heights) = ordering.map_or_else(
-        || ((0..cluster_count).collect(), Vec::new(), Vec::new()),
-        |ordering| (ordering.order, ordering.merges, ordering.heights),
-    );
-    report_progress_event(progress, "ordering", cluster_count, cluster_count);
-    let group_total = analysis.links.len() * 2;
-    let mut last_group_report = 0;
-    let mut last_layout_report = 0;
-    let arranged = analysis
-        .to_auto_arranged_plot_data_with_group_definitions_and_progress(
-            &order,
-            group_definitions,
-            |completed| {
-                report_progress_event_if_due(
-                    progress,
-                    "groups",
-                    completed,
-                    group_total,
-                    &mut last_group_report,
-                )
-            },
-            |completed| {
-                report_progress_event_if_due(
-                    progress,
-                    "layout",
-                    completed,
-                    cluster_count,
-                    &mut last_layout_report,
-                )
-            },
-        )
+    let mut last_stage = None;
+    let mut last_report = 0;
+    let figure = analysis
+        .prepare_figure(row_order, group_definitions, |update| {
+            if last_stage != Some(update.stage) {
+                last_report = 0;
+                last_stage = Some(update.stage);
+            }
+            let stage = match update.stage {
+                FigureStage::Similarity => "similarity",
+                FigureStage::Ordering => "ordering",
+                FigureStage::Groups => "groups",
+                FigureStage::Layout => "layout",
+            };
+            report_progress_event_if_due(
+                progress,
+                stage,
+                update.completed,
+                update.total,
+                &mut last_report,
+            );
+        })
         .map_err(|error| JsValue::from_str(&error.to_string()))?;
     let cluster_names = analysis
         .clusters
@@ -584,12 +563,12 @@ fn post_process_analysis(
         .map(|cluster| cluster.name.clone())
         .collect();
     let result = BrowserPostProcess {
-        plot_data: arranged,
+        plot_data: figure.plot_data,
         cluster_names,
-        cluster_order: order,
-        clustering_merges,
-        clustering_heights,
-        similarity_matrix,
+        cluster_order: figure.ordering.order,
+        clustering_merges: figure.ordering.merges,
+        clustering_heights: figure.ordering.heights,
+        similarity_matrix: figure.similarity_matrix,
         analysis_session,
     };
     serde_wasm_bindgen::to_value(&result)

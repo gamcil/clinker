@@ -125,6 +125,13 @@ accepts this complete project format only. The CLI writes the same format
 with `--project comparison.json`; `--session` remains the native analysis
 continuation format. See [project formats](project-format.md).
 
+Both frontends use `Analysis::prepare_figure` for similarity scoring, row ordering,
+grouping and locus arrangement. It returns plot data, similarity scores in input
+order and the computed ordering with its Ward hierarchy. `RowOrder::Input` keeps
+input order and omits the hierarchy. Progress events identify the preparation
+stage; the WASM adapter throttles and forwards them to the browser. The CLI
+reuses the scores for CSV output and the local viewer.
+
 Plot data contains `clusters`, `links`, and connected-component `groups`.
 Gene, locus, and cluster IDs are stable within a run; translations are retained
 only during analysis and are not written to browser data. Existing output files

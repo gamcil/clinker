@@ -5,14 +5,14 @@ GenBank and GFF3/FASTA bytes, compares proteins, groups homologues, orders clust
 and prepares renderer data. Native and WebAssembly frontends use this same crate.
 
 ```rust
-use clinker_core::{AnalysisOptions, InputFile, analyse_genbank};
+use clinker_core::{AnalysisOptions, InputFile, RowOrder, analyse_genbank};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bytes = std::fs::read("cluster.gbk")?;
     let inputs = [InputFile { name: "cluster.gbk", bytes: &bytes }];
     let analysis = analyse_genbank(&inputs, AnalysisOptions::default())?;
-    let figure = analysis.to_plot_data()?;
-    println!("{} clusters", figure.clusters.len());
+    let figure = analysis.prepare_figure(RowOrder::Similarity, &[], |_| {})?;
+    println!("{} clusters", figure.plot_data.clusters.len());
     Ok(())
 }
 ```

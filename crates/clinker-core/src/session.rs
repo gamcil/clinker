@@ -340,6 +340,13 @@ ORIGIN
             assert!(
                 invalid
                     .analysis
+                    .prepare_figure(crate::RowOrder::Similarity, &[], |_| {})
+                    .is_err(),
+                "case {case}"
+            );
+            assert!(
+                invalid
+                    .analysis
                     .to_auto_arranged_plot_data(&[0, 1])
                     .is_err(),
                 "case {case}"

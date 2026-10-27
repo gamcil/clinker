@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::layout::auto_locus_layouts_with_progress;
 use crate::{
-    Analysis, GeneRef, ValidationError, build_gene_groups, build_gene_groups_with_progress,
+    Analysis, FigureProgress, FigureStage, GeneRef, ValidationError, build_gene_groups,
+    build_gene_groups_with_progress,
 };
 
 /// JSON object consumed by clustermap.js.
@@ -183,7 +184,7 @@ impl Analysis {
 
     /// Emit plot data with loci reordered and flipped to follow homology anchors.
     pub fn to_auto_arranged_plot_data(&self, order: &[usize]) -> Result<PlotData, ValidationError> {
-        self.to_auto_arranged_plot_data_with_progress(order, |_| {}, |_| {})
+        self.to_auto_arranged_plot_data_with_group_definitions(order, &[])
     }
 
     pub fn to_auto_arranged_plot_data_with_group_definitions(
@@ -191,41 +192,31 @@ impl Analysis {
         order: &[usize],
         definitions: &[GeneGroupDefinition],
     ) -> Result<PlotData, ValidationError> {
-        self.to_auto_arranged_plot_data_with_group_definitions_and_progress(
-            order,
-            definitions,
-            |_| {},
-            |_| {},
-        )
+        self.validate()?;
+        self.validate_order(order)?;
+        Ok(self.arrange_plot_data(order, definitions, &mut |_| {}))
     }
 
-    /// As [`Analysis::to_auto_arranged_plot_data`], reporting completed link
-    /// operations while grouping and completed clusters while arranging loci.
-    pub fn to_auto_arranged_plot_data_with_progress(
-        &self,
-        order: &[usize],
-        group_progress: impl FnMut(usize),
-        layout_progress: impl FnMut(usize),
-    ) -> Result<PlotData, ValidationError> {
-        self.to_auto_arranged_plot_data_with_group_definitions_and_progress(
-            order,
-            &[],
-            group_progress,
-            layout_progress,
-        )
-    }
-
-    pub fn to_auto_arranged_plot_data_with_group_definitions_and_progress(
+    pub(crate) fn arrange_plot_data(
         &self,
         order: &[usize],
         definitions: &[GeneGroupDefinition],
-        group_progress: impl FnMut(usize),
-        layout_progress: impl FnMut(usize),
-    ) -> Result<PlotData, ValidationError> {
-        self.validate()?;
-        self.validate_order(order)?;
-        let groups = build_plot_groups_with_progress(self, definitions, group_progress);
-        let layouts = auto_locus_layouts_with_progress(self, order, layout_progress);
+        progress: &mut impl FnMut(FigureProgress),
+    ) -> PlotData {
+        let groups = build_plot_groups_with_progress(self, definitions, |completed| {
+            progress(FigureProgress {
+                stage: FigureStage::Groups,
+                completed,
+                total: self.links.len().saturating_mul(2),
+            });
+        });
+        let layouts = auto_locus_layouts_with_progress(self, order, |completed| {
+            progress(FigureProgress {
+                stage: FigureStage::Layout,
+                completed,
+                total: self.clusters.len(),
+            });
+        });
         let mut data = self.to_plot_data_in_order_with_groups(order, groups);
         for (cluster, layout) in data.clusters.iter_mut().zip(layouts) {
             let mut original = std::mem::take(&mut cluster.loci)
@@ -255,7 +246,7 @@ impl Analysis {
                 })
                 .collect();
         }
-        Ok(data)
+        data
     }
 }
 

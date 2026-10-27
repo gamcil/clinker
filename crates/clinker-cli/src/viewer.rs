@@ -1,13 +1,17 @@
 use std::{io, io::Read, process::Command};
 
-use clinker_core::{AnalysisSession, ClinkerProject};
+use clinker_core::{AnalysisSession, ClinkerProject, ClusterPairSimilarity};
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 
 include!(concat!(env!("OUT_DIR"), "/viewer-assets.rs"));
 
 /// Serve only the embedded viewer and explicit JSON endpoints, never paths on
 /// disk. A fresh loopback port and capability path identify this running figure.
-pub fn serve(project: &ClinkerProject, no_browser: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn serve(
+    project: &ClinkerProject,
+    similarities: &[Vec<ClusterPairSimilarity>],
+    no_browser: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let server =
         Server::http("127.0.0.1:0").map_err(|error| io::Error::other(error.to_string()))?;
     let address = server.server_addr().to_ip().expect("TCP listener");
@@ -23,7 +27,7 @@ pub fn serve(project: &ClinkerProject, no_browser: bool) -> Result<(), Box<dyn s
     let origin = format!("http://{address}");
     let url = format!("{origin}{prefix}");
     let project_json = project.to_json()?;
-    let similarity = serde_json::to_vec(&project.analysis.analysis.cluster_similarity_matrix())?;
+    let similarity = serde_json::to_vec(similarities)?;
     println!("Viewer: {url}\nPress Ctrl+C to stop the local viewer.");
     if !no_browser && let Err(error) = open_browser(&url) {
         eprintln!("Could not open a browser ({error}). Open the URL above manually.");
