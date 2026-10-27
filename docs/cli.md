@@ -21,7 +21,12 @@ to support it. Intel macOS and Linux ARM binaries are not currently provided.
 ```
 
 GFF3 files need embedded FASTA or a same-stem companion FASTA in the same
-directory. Place input paths before `--plot`: without a filename it starts the
+directory. If several companion FASTA files match, supply one explicitly alongside
+the GFF file. Each input keeps its own directory for pairing, even when different
+directories contain identical filenames. Directory discovery is sorted and skips
+symlinked directories; repeated paths to the same input are analysed once.
+
+Place input paths before `--plot`: without a filename it starts the
 shared local viewer and opens your default browser. The CLI prints a loopback
 URL and remains running until Ctrl+C. `--no-browser` prints the URL without
 launching a browser, which is useful on remote/headless machines. The server
