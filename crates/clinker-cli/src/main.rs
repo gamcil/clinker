@@ -307,7 +307,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             output.write(contents.as_bytes())?;
         }
         if outputs.project.is_some() || matches!(args.plot, Some(None)) {
-            let project = ClinkerProject::new(session.clone(), data)?;
+            let mut project = ClinkerProject::new(session.clone(), data)?;
+            if let Some(tree) = &figure.clustering_dendrogram {
+                project.extensions.insert(
+                    "clusteringDendrogram".to_owned(),
+                    serde_json::to_value(tree)?,
+                );
+            }
             if let Some(output) = &mut outputs.project {
                 output.write(&project.to_json()?)?;
             }

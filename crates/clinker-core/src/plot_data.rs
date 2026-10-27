@@ -358,7 +358,7 @@ struct ConfiguredGroup {
     colour: Option<String>,
 }
 
-fn cluster_id(cluster: usize) -> String {
+pub(crate) fn cluster_id(cluster: usize) -> String {
     format!("cluster-{cluster}")
 }
 

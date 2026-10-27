@@ -393,18 +393,36 @@ mod tests {
         let ordering = analysis.cluster_ordering_from_similarity_matrix(&matrix);
         assert_eq!(ordering.order, analysis.cluster_order().unwrap());
         assert_eq!(ordering.merges.len(), 4);
+        let figure = analysis
+            .prepare_figure(crate::RowOrder::Similarity, &[], |_| {})
+            .unwrap();
+        let tree = serde_json::to_value(figure.clustering_dendrogram.unwrap()).unwrap();
+        let nodes = tree["nodes"].as_array().unwrap();
+        let root_height = ordering.heights.last().unwrap();
         let mut leaves = Vec::new();
-        let mut stack = vec![5 + ordering.merges.len() - 1];
-        while let Some(node) = stack.pop() {
-            if node < 5 {
-                leaves.push(node);
+        let mut stack = vec![(tree["root"].as_str().unwrap(), 0.0)];
+        while let Some((uid, distance)) = stack.pop() {
+            let node = nodes.iter().find(|node| node["uid"] == uid).unwrap();
+            if let Some(children) = node["children"].as_array() {
+                for child in children.iter().rev() {
+                    let child = nodes.iter().find(|node| node["uid"] == *child).unwrap();
+                    let length = child["branchLength"].as_f64().unwrap();
+                    assert!(length.is_finite() && length >= 0.0);
+                    stack.push((child["uid"].as_str().unwrap(), distance + length));
+                }
             } else {
-                let [left, right] = ordering.merges[node - 5];
-                assert!(left < node && right < node);
-                stack.extend([right, left]);
+                leaves.push(node["cluster"].as_str().unwrap().to_owned());
+                assert!((distance - root_height).abs() < 1e-12);
             }
         }
-        assert_eq!(leaves, ordering.order);
+        assert_eq!(
+            leaves,
+            ordering
+                .order
+                .iter()
+                .map(|index| format!("cluster-{index}"))
+                .collect::<Vec<_>>()
+        );
         let empty = Analysis {
             clusters: analysis.clusters,
             links: Vec::new(),

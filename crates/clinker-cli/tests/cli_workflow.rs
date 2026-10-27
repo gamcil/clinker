@@ -198,6 +198,12 @@ fn sessions_extend_and_export_restorable_projects_figures_and_escaped_csv() {
     );
     let project = ClinkerProject::from_json(&fs::read(root.join("project.json")).unwrap()).unwrap();
     assert_eq!(project.analysis, saved);
+    let tree = &project.extensions["clusteringDendrogram"];
+    assert_eq!(tree["distance"]["kind"], "mergeHeight");
+    assert_eq!(tree["nodes"].as_array().unwrap().len(), 3);
+    assert_eq!(tree["nodes"][0]["cluster"], "cluster-0");
+    assert_eq!(tree["nodes"][0]["label"], "one, with comma");
+    assert!(project.data.get("tree").is_none());
     assert_eq!(project.data["clusters"].as_array().unwrap().len(), 2);
     assert!(
         fs::read_to_string(root.join("figure.html"))

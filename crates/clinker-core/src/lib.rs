@@ -31,7 +31,7 @@ pub use analyse::{
     AnalysisError, analyse, analyse_with_parse_options, parse_input_files,
     parse_input_files_with_options, parse_input_files_with_progress,
 };
-pub use figure::{FigureProgress, FigureStage, PreparedFigure, RowOrder};
+pub use figure::{ClusteringDendrogram, FigureProgress, FigureStage, PreparedFigure, RowOrder};
 pub use groups::{GeneGroup, build_gene_groups, build_gene_groups_with_progress};
 pub use hierarchy::ClusterOrdering;
 pub use model::{

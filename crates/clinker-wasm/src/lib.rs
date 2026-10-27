@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 
 use clinker_core::{
     AlignmentCounts, AlignmentSettings, Analysis, AnalysisOptions, AnalysisSession, Cluster,
-    ClusterPairSimilarity, FigureStage, Gene, GeneGroupDefinition, GeneRef, InputFile,
-    KmerPrefilter, Link, Locus, ParseOptions, PlotData, PreparedAlignment, ProteinBatch,
+    ClusterPairSimilarity, ClusteringDendrogram, FigureStage, Gene, GeneGroupDefinition, GeneRef,
+    InputFile, KmerPrefilter, Link, Locus, ParseOptions, PlotData, PreparedAlignment, ProteinBatch,
     ProteinBatchAligner, ProteinBatchResult, ProteinPair, RowOrder, SequenceRange,
     parse_input_files_with_options,
 };
@@ -266,8 +266,7 @@ struct BrowserPostProcess {
     plot_data: PlotData,
     cluster_names: Vec<String>,
     cluster_order: Vec<usize>,
-    clustering_merges: Vec<[usize; 2]>,
-    clustering_heights: Vec<f64>,
+    clustering_dendrogram: Option<ClusteringDendrogram>,
     similarity_matrix: Vec<Vec<ClusterPairSimilarity>>,
     analysis_session: AnalysisSession,
 }
@@ -501,8 +500,7 @@ fn post_process_analysis(
         plot_data: figure.plot_data,
         cluster_names,
         cluster_order: figure.ordering.order,
-        clustering_merges: figure.ordering.merges,
-        clustering_heights: figure.ordering.heights,
+        clustering_dendrogram: figure.clustering_dendrogram,
         similarity_matrix: figure.similarity_matrix,
         analysis_session,
     };

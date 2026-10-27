@@ -59,6 +59,7 @@ fn bundled_genbank_files_complete_the_analysis_and_plot_data_workflow() {
         .unwrap();
     assert_eq!(input.ordering.order, [0, 1]);
     assert!(input.ordering.merges.is_empty());
+    assert!(input.clustering_dendrogram.is_none());
     assert!(input.ordering.heights.is_empty());
     assert_eq!(input.similarity_matrix, figure.similarity_matrix);
     assert_eq!(plot_data.clusters.len(), files.len());

@@ -39,7 +39,7 @@ well-defined, useful, stable enough for saved output, and covered by Rust tests.
 | SVG export and interactive plot editing | Plot contract | Local viewer | Yes | Browser integration coverage and native viewer checks |
 | Import TSV/CSV annotation tracks and shared-scale heatmaps | Project round-trip | Local viewer | Yes | Browser import/edit/project round-trip; native viewer acceptance |
 | Import Newick trees and preserve interactive tree edits | Project round-trip | Local viewer | Yes | Parser/matching fixtures and browser project/export tests |
-| Display the computed Ward dendrogram | Hierarchy | Not yet attached to newly generated native projects; restored from saved projects | Yes | Browser tree tests |
+| Display the computed Ward dendrogram | Shared renderer tree | Local viewer and saved projects | Yes | Core hierarchy, CLI project and browser tree regressions |
 | Offline analysis without Python or an external service | Yes | Yes | Yes | Native and WASM builds |
 
 Newick and annotation imports belong to the JavaScript host. Rust project
@@ -49,8 +49,7 @@ persistence preserves their renderer data as JSON.
 
 The native `--plot` option now opens the embedded viewer when no path is given.
 Packaging is implemented. Remaining release work includes cross-platform and
-hosted verification, the deferred repository cutover, and deciding whether the
-native computed-dendrogram gap above must be closed before the first release.
+hosted verification and the deferred repository cutover.
 
 ## Future additions
 
@@ -123,9 +122,6 @@ Verified locally:
 
 Remaining release gates:
 
-- Fresh CLI projects retain computed row order but omit the Ward dendrogram.
-  Saved browser-generated dendrograms are restored correctly. Resolve this
-  entry-point difference or explicitly accept it for the first release.
 - Confirm Linux/Windows native archives, actual Safari and the hosted Pages
   deployment in their release environments, following [releasing.md](releasing.md).
   Local WebKit checks cover engine behavior; Safari verification remains pending.

@@ -4,7 +4,7 @@ import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs";
 import { Workflow } from "./workflow.mjs";
 import { mountTreeImport } from "./tree-import.mjs";
 import { mountAnnotationImport } from "./annotation-import.mjs";
-import { inputTreeClusters, bindInputTree, clusteringTree } from "./viewer/tree.mjs";
+import { inputTreeClusters, bindInputTree } from "./viewer/tree.mjs";
 import { createViewer } from "./viewer/viewer.mjs";
 import { readThemePreference, mountViewerControls } from "./viewer/controls.mjs";
 
@@ -1025,7 +1025,7 @@ async function analyseFiles(files, workflow) {
   treeImport.close();
   viewer.mount(plotData, { analysis: result.analysisSession });
   treeImport.bind();
-  treeImport.setDendrogram(clusteringTree(result.clusteringMerges, plotData.clusters, result.clusteringHeights));
+  treeImport.setDendrogram(result.clusteringDendrogram);
   viewer.refreshEditor();
   svgButton.disabled = false;
   projectButton.disabled = false;
