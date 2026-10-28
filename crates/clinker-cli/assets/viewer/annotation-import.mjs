@@ -1,4 +1,4 @@
-import { parseDelimitedRows } from "./delimited.mjs?v=3949e8083df33d25";
+import { parseDelimitedRows } from "./delimited.mjs?v=cc18ab0a8d958d5c";
 
 const NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const SKIP = "__skip__";
