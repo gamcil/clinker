@@ -70,128 +70,120 @@
         <section id="run-panel" class="run-panel" aria-labelledby="run-panel-title">
           <div class="run-card">
             <div class="run-card-heading">
-              <div>
-                <h2 id="run-panel-title">Compare gene clusters</h2>
-              </div>
+              <h2 id="run-panel-title" class="run-title">Compare gene clusters</h2>
               <button id="cancel-run" type="button" hidden class="app-button large-control">Cancel</button>
             </div>
-            <label id="file-drop-zone" class="file-drop-zone">
-              <span class="file-drop-icon" aria-hidden="true">↑</span>
-              <span class="file-drop-title">Drop GenBank or GFF3 + FASTA files</span>
-              <span class="file-drop-action"><span>Choose files</span></span>
-              <span id="file-summary" class="file-summary" hidden></span>
-              <input id="files" class="app-field visually-hidden" type="file" accept=".gb,.gbk,.genbank,.gbf,.gbff,.gff,.gff3,.fa,.fsa,.fna,.fasta,.faa" multiple>
-            </label>
-            <div id="file-input-status" class="file-input-status" role="status" aria-live="polite" hidden>
-              <div class="file-input-status-heading">
-                <strong id="file-input-status-summary">Selected inputs</strong>
-                <button id="clear-input-files" class="app-button quiet-action compact-control" type="button">Clear</button>
-              </div>
-              <ul id="file-input-status-list"></ul>
-            </div>
-            <fieldset id="run-tree-fields" class="run-tree-fields" aria-label="Optional tree"></fieldset>
-            <div class="run-options">
-              <label class="basic-number-row">
-                <span>Minimum protein identity</span>
-                <span class="percentage-control">
-                  <input id="identity" class="app-field compact-control" type="number" min="0" max="100" step="1" value="30" aria-label="Minimum protein identity (%)">
-                  <span aria-hidden="true">%</span>
-                </span>
+            <div class="run-setup">
+              <label id="file-drop-zone" class="file-drop-zone">
+                <span class="file-drop-icon" aria-hidden="true">↑</span>
+                <span class="file-drop-title">Drop GenBank or GFF3 + FASTA files</span>
+                <span class="file-drop-action">Choose files</span>
+                <span id="file-summary" class="file-summary" hidden></span>
+                <input id="files" class="app-field visually-hidden" type="file" accept=".gb,.gbk,.genbank,.gbf,.gbff,.gff,.gff3,.fa,.fsa,.fna,.fasta,.faa" multiple>
               </label>
-              <div class="prefilter-option">
-                <label class="prefilter-toggle">
-                  <input id="prefilter" type="checkbox" aria-describedby="prefilter-help" class="app-field">
-                  <span>Use k-mer prefilter</span>
+              <div id="file-input-status" class="file-input-status" role="status" aria-live="polite" hidden>
+                <div class="file-input-status-heading">
+                  <strong id="file-input-status-summary">Selected inputs</strong>
+                  <button id="clear-input-files" class="app-button quiet-action compact-control" type="button">Clear</button>
+                </div>
+                <ul id="file-input-status-list"></ul>
+              </div>
+              <fieldset id="run-tree-fields" class="run-tree-fields" aria-label="Optional tree"></fieldset>
+              <div class="run-options">
+                <label class="setting-row identity-setting">
+                  <span>Minimum protein identity</span>
+                  <span class="percentage-control">
+                    <input id="identity" class="app-field compact-control" type="number" min="0" max="100" step="1" value="30" aria-label="Minimum protein identity (%)">
+                    <span aria-hidden="true">%</span>
+                  </span>
                 </label>
-                <p id="prefilter-help" class="prefilter-help">Can reduce comparison work; may miss distant homologues.</p>
+                <div class="prefilter-option">
+                  <label class="setting-check">
+                    <input id="prefilter" type="checkbox" aria-describedby="prefilter-help" class="app-field">
+                    <span>Use k-mer prefilter</span>
+                  </label>
+                  <p id="prefilter-help" class="setting-help">Can reduce comparison work; may miss distant homologues.</p>
+                </div>
               </div>
-            </div>
-            <details class="run-advanced">
-              <summary class="app-disclosure">Advanced settings</summary>
-              <div class="advanced-options">
-                <section class="advanced-section alignment-settings" aria-labelledby="alignment-settings-label">
-                  <div class="advanced-section-heading">
-                    <span id="alignment-settings-label" class="run-field-label">Protein comparison</span>
-                  </div>
-                  <div class="settings-card">
-                    <label class="advanced-check">
-                      <input id="no-align" type="checkbox" class="app-field">
-                      <span>Plot annotations without protein alignment</span>
-                    </label>
-                    <p class="settings-subheading">Prefilter settings</p>
-                    <label class="advanced-number-row">
-                      <span>k-mer size</span>
-                      <input id="kmer-size" class="app-field compact-control" type="number" min="1" max="8" step="1" value="3">
-                    </label>
-                    <label class="advanced-number-row">
-                      <span>Minimum shared k-mers</span>
-                      <input id="min-shared-kmers" class="app-field compact-control" type="number" min="1" step="1" value="3">
-                    </label>
-                  </div>
-                </section>
-                <section class="advanced-section" aria-labelledby="record-ranges-label">
-                  <div class="advanced-section-heading">
-                    <span id="record-ranges-label" class="run-field-label">Trim sequences</span>
-                  </div>
-                  <fieldset id="record-ranges" class="record-range-list" aria-labelledby="record-ranges-label" aria-live="polite">
-                    <p class="empty-setting">Choose input files to trim their sequences.</p>
-                  </fieldset>
-                </section>
-                <section class="advanced-section annotation-files" aria-labelledby="annotation-files-label">
-                  <div class="advanced-section-heading">
-                    <span id="annotation-files-label" class="run-field-label">Gene annotations</span>
-                    <span class="advanced-section-help">Optional two-column CSV files.</span>
-                  </div>
-                  <div class="settings-card">
-                    <div class="compact-file-row">
-                      <span class="compact-file-description">
-                        <strong>Gene functions</strong>
-                        <small><code>gene,function</code></small>
-                      </span>
-                      <label class="app-button compact-control">
-                        <span>Choose CSV</span>
-                        <input id="gene-functions" class="app-field visually-hidden" type="file" accept=".csv,text/csv">
+              <details class="run-advanced">
+                <summary class="app-disclosure">Advanced settings</summary>
+                <div class="settings-sections">
+                  <section class="settings-section" aria-labelledby="alignment-settings-label">
+                    <h3 id="alignment-settings-label" class="settings-title">Protein comparison</h3>
+                    <div class="settings-card">
+                      <label class="setting-check">
+                        <input id="no-align" type="checkbox" class="app-field">
+                        <span>Plot annotations without protein alignment</span>
                       </label>
-                      <span id="gene-functions-summary" class="compact-file-summary">None selected</span>
-                    </div>
-                    <div class="compact-file-row">
-                      <span class="compact-file-description">
-                        <strong>Function colours</strong>
-                        <small><code>function,colour</code></small>
-                      </span>
-                      <label class="app-button compact-control">
-                        <span>Choose CSV</span>
-                        <input id="colour-map" class="app-field visually-hidden" type="file" accept=".csv,text/csv" disabled>
+                      <p class="settings-subheading">Prefilter settings</p>
+                      <label class="setting-row">
+                        <span>k-mer size</span>
+                        <input id="kmer-size" class="app-field compact-control" type="number" min="1" max="8" step="1" value="3">
                       </label>
-                      <span id="colour-map-summary" class="compact-file-summary">Add functions first</span>
+                      <label class="setting-row">
+                        <span>Minimum shared k-mers</span>
+                        <input id="min-shared-kmers" class="app-field compact-control" type="number" min="1" step="1" value="3">
+                      </label>
                     </div>
-                  </div>
-                </section>
-                <section class="advanced-section other-settings" aria-labelledby="other-settings-label">
-                  <div class="advanced-section-heading">
-                    <span id="other-settings-label" class="run-field-label">Other</span>
-                  </div>
-                  <div class="settings-card">
-                    <label class="advanced-check">
-                      <input id="file-order" type="checkbox" class="app-field">
-                      <span>Keep input file order</span>
-                    </label>
-                    <label class="advanced-check">
-                      <input id="separate-records" type="checkbox" class="app-field">
-                      <span>Plot each GenBank record as a separate cluster</span>
-                    </label>
-                    <label class="advanced-check">
-                      <input id="keep-origin" type="checkbox" class="app-field">
-                      <span>Keep the original origin of circular records</span>
-                    </label>
-                  </div>
-                </section>
+                  </section>
+                  <section class="settings-section" aria-labelledby="record-ranges-label">
+                    <h3 id="record-ranges-label" class="settings-title">Trim sequences</h3>
+                    <fieldset id="record-ranges" class="record-range-list" aria-labelledby="record-ranges-label" aria-live="polite">
+                      <p class="empty-setting">Choose input files to trim their sequences.</p>
+                    </fieldset>
+                  </section>
+                  <section class="settings-section" aria-labelledby="annotation-files-label">
+                    <h3 id="annotation-files-label" class="settings-title">Gene annotations</h3>
+                    <p class="setting-help">Optional two-column CSV files.</p>
+                    <div class="settings-card">
+                      <div class="compact-file-row">
+                        <span class="compact-file-description">
+                          <strong>Gene functions</strong>
+                          <small><code>gene,function</code></small>
+                        </span>
+                        <label class="app-button compact-control">
+                          <span>Choose CSV</span>
+                          <input id="gene-functions" class="app-field visually-hidden" type="file" accept=".csv,text/csv" aria-label="Choose gene functions CSV">
+                        </label>
+                        <span id="gene-functions-summary" class="compact-file-summary">None selected</span>
+                      </div>
+                      <div class="compact-file-row">
+                        <span class="compact-file-description">
+                          <strong>Function colours</strong>
+                          <small><code>function,colour</code></small>
+                        </span>
+                        <label class="app-button compact-control">
+                          <span>Choose CSV</span>
+                          <input id="colour-map" class="app-field visually-hidden" type="file" accept=".csv,text/csv" aria-label="Choose function colours CSV" disabled>
+                        </label>
+                        <span id="colour-map-summary" class="compact-file-summary">Add functions first</span>
+                      </div>
+                    </div>
+                  </section>
+                  <section class="settings-section" aria-labelledby="other-settings-label">
+                    <h3 id="other-settings-label" class="settings-title">Other</h3>
+                    <div class="settings-card">
+                      <label class="setting-check">
+                        <input id="file-order" type="checkbox" class="app-field">
+                        <span>Keep input file order</span>
+                      </label>
+                      <label class="setting-check">
+                        <input id="separate-records" type="checkbox" class="app-field">
+                        <span>Plot each GenBank record as a separate cluster</span>
+                      </label>
+                      <label class="setting-check">
+                        <input id="keep-origin" type="checkbox" class="app-field">
+                        <span>Keep the original origin of circular records</span>
+                      </label>
+                    </div>
+                  </section>
+                </div>
+              </details>
+              <div class="run-actions">
+                <button id="analyse" class="app-button primary-action large-control" type="button" disabled>Analyse</button>
+                <button id="load-example" type="button" class="app-button large-control">Try example</button>
+                <button id="open-project-start" type="button" class="app-button large-control">Open project</button>
               </div>
-            </details>
-            <div class="run-actions">
-              <button id="analyse" class="app-button primary-action large-control" type="button" disabled>Analyse</button>
-              <button id="load-example" type="button" class="app-button large-control">Try example</button>
-              <button id="open-project-start" type="button" class="app-button large-control">Open project</button>
             </div>
             <div id="run-feedback" class="run-feedback" aria-live="polite" hidden>
               <ol id="run-steps" class="run-steps" hidden>

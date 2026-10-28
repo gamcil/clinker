@@ -1,5 +1,5 @@
-import { mountPlotSelectionToolbar } from '../vendor/clustermap/editor.mjs?v=254ccce6d82cd58d';
-import { createProject, validateProject } from './project.mjs?v=254ccce6d82cd58d';
+import { mountPlotSelectionToolbar } from '../vendor/clustermap/editor.mjs?v=517d88ceeda8b410';
+import { createProject, validateProject } from './project.mjs?v=517d88ceeda8b410';
 
 const DEFAULT_CONFIG = {
   link: { bestOnly: true },

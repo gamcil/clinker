@@ -682,17 +682,13 @@ html,
   gap: 16px;
   margin-bottom: 20px;
 }
-:where(.clinker-app) .run-card h2 {
+:where(.clinker-app) .run-title {
   margin: 0;
   color: var(--app-foreground);
   font-size: 1.3rem;
 }
-:where(.clinker-app) .run-card-heading p {
-  margin: 4px 0 0;
-  color: var(--app-muted);
-}
-
-:where(.clinker-app) .run-field-label {
+:where(.clinker-app) .settings-title {
+  margin: 0;
   color: var(--app-foreground);
   font-size: .84rem;
   font-weight: 650;
@@ -748,11 +744,8 @@ html,
   font-weight: 650;
 }
 :where(.clinker-app) .file-drop-action {
-  color: var(--app-muted);
-  font-size: .8rem;
-}
-:where(.clinker-app) .file-drop-action span {
   color: var(--app-accent);
+  font-size: .8rem;
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -853,16 +846,21 @@ html,
   gap: 6px;
   margin-top: 16px;
 }
-:where(.clinker-app) .basic-number-row {
+:where(.clinker-app) .setting-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 90px;
+  grid-template-columns: minmax(0, 1fr) var(--setting-control-width, 116px);
   min-width: 0;
-  min-height: 38px;
+  min-height: 34px;
   align-items: center;
   gap: 12px;
-  padding: 0;
+  padding: 2px 3px 2px 9px;
   color: var(--app-foreground);
   font-size: .86rem;
+}
+:where(.clinker-app) .identity-setting {
+  --setting-control-width: 90px;
+  min-height: 38px;
+  padding: 0;
 }
 
 :where(.clinker-app) .percentage-control {
@@ -876,23 +874,37 @@ html,
   gap: 4px;
   margin-top: 6px;
 }
-:where(.clinker-app) .prefilter-toggle {
+:where(.clinker-app) .setting-check {
   display: flex;
+  min-width: 0;
+  min-height: 34px;
   align-items: center;
   gap: 8px;
+  padding: 6px 9px;
   color: var(--app-foreground);
   cursor: pointer;
   font-size: .86rem;
 }
 
-:where(.clinker-app) .prefilter-toggle:has(input:disabled) {
+:where(.clinker-app) .setting-check:hover:not(:has(input:disabled)) {
+  background: var(--app-subtle);
+}
+:where(.clinker-app) .setting-check:has(input:disabled),
+:where(.clinker-app) .setting-row:has(input:disabled) {
   color: var(--app-disabled-text);
   cursor: default;
 }
-:where(.clinker-app) .prefilter-help {
-  margin: 0 0 0 24px;
+:where(.clinker-app) .run-options .setting-check {
+  min-height: 0;
+  padding: 0;
+}
+:where(.clinker-app) .setting-help {
+  margin: 0;
   color: var(--app-muted);
   font-size: .76rem;
+}
+:where(.clinker-app) .prefilter-option .setting-help {
+  margin-left: 24px;
 }
 :where(.clinker-app) .settings-subheading {
   margin: 0;
@@ -900,10 +912,6 @@ html,
   color: var(--app-muted);
   font-size: .78rem;
   font-weight: 600;
-}
-:where(.clinker-app) .run-advanced > summary:focus-visible {
-  outline: 2px solid var(--app-focus-ring);
-  outline-offset: 2px;
 }
 :where(.clinker-app) .run-advanced {
   margin-top: 15px;
@@ -916,79 +924,15 @@ html,
   font-size: .84rem;
   font-weight: 600;
 }
-:where(.clinker-app) .advanced-options {
+:where(.clinker-app) .settings-sections {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 11px;
+  gap: 14px;
   margin-top: 11px;
 }
-:where(.clinker-app) .advanced-check {
-  display: flex;
-  min-width: 0;
-  min-height: 34px;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 9px;
-  color: var(--app-foreground);
-  cursor: pointer;
-  font-size: .86rem;
-}
-:where(.clinker-app) .advanced-check:hover {
-  background: var(--app-subtle);
-}
-:where(.clinker-app) .advanced-check:focus-within {
-  outline: 2px solid var(--app-focus-ring);
-  outline-offset: -2px;
-}
-
-:where(.clinker-app) .advanced-check:has(input:disabled),
-:where(.clinker-app) .advanced-number-row:has(input:disabled) {
-  color: var(--app-disabled-text);
-  background: var(--app-subtle);
-  cursor: default;
-  opacity: .8;
-}
-
-:where(.clinker-app) .advanced-section {
-  grid-column: 1 / -1;
-  min-width: 0;
-  padding-top: 2px;
-}
-:where(.clinker-app) .advanced-section-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 7px;
-}
-:where(.clinker-app) .advanced-section-heading > .run-field-label {
-  color: var(--app-foreground);
-  font-size: .84rem;
-  font-weight: 650;
-  text-align: left;
-}
-:where(.clinker-app) .advanced-section-help {
-  color: var(--app-muted);
-  font-size: .77rem;
-  text-align: right;
-}
-:where(.clinker-app) .other-settings {
+:where(.clinker-app) .settings-section {
   display: grid;
   gap: 7px;
-}
-:where(.clinker-app) .other-settings .advanced-section-heading {
-  margin-bottom: 0;
-}
-:where(.clinker-app) .advanced-number-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 116px;
   min-width: 0;
-  min-height: 34px;
-  align-items: center;
-  gap: 12px;
-  padding: 2px 3px 2px 9px;
-  color: var(--app-foreground);
-  font-size: .86rem;
 }
 
 :where(.clinker-app) .record-range-list {
@@ -1104,13 +1048,6 @@ html,
   color: var(--app-muted);
   font-size: .8rem;
 }
-:where(.clinker-app) .annotation-files {
-  display: grid;
-  gap: 5px;
-}
-:where(.clinker-app) .annotation-files .advanced-section-heading {
-  margin-bottom: 2px;
-}
 :where(.clinker-app) .compact-file-row {
   font-size: .78rem;
   display: grid;
@@ -1132,6 +1069,7 @@ html,
 }
 :where(.clinker-app) .compact-file-description {
   display: flex;
+  flex-wrap: wrap;
   min-width: 0;
   align-items: baseline;
   gap: 7px;
@@ -1165,12 +1103,7 @@ html,
   border-top: 1px solid var(--app-subtle);
 }
 
-:where(.clinker-app) .run-card.is-busy .file-drop-zone,
-:where(.clinker-app) .run-card.is-busy .file-input-status,
-:where(.clinker-app) .run-card.is-busy .run-tree-fields,
-:where(.clinker-app) .run-card.is-busy .run-options,
-:where(.clinker-app) .run-card.is-busy .run-advanced,
-:where(.clinker-app) .run-card.is-busy .run-actions {
+:where(.clinker-app) .run-card.is-busy .run-setup {
   display: none;
 }
 :where(.clinker-app) .run-card.is-busy .run-feedback {
@@ -1364,23 +1297,6 @@ html,
 :where(.clinker-app) .run-card {
     padding: 17px;
   }
-:where(.clinker-app) .advanced-options {
-    grid-template-columns: 1fr;
-  }
-:where(.clinker-app) .advanced-section {
-    grid-column: auto;
-  }
-:where(.clinker-app) .advanced-section-heading {
-    display: grid;
-    gap: 2px;
-  }
-:where(.clinker-app) .advanced-section-help {
-    text-align: left;
-  }
-:where(.clinker-app) .basic-number-row {
-    grid-template-columns: minmax(0, 1fr) 100px;
-    justify-content: stretch;
-  }
 :where(.clinker-app) .sequence-regions th,
 :where(.clinker-app) .sequence-regions td {
     padding-right: 5px;
@@ -1391,7 +1307,7 @@ html,
     width: 83px;
   }
 :where(.clinker-app) .compact-file-row {
-    grid-template-columns: minmax(140px, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 :where(.clinker-app) .compact-file-summary {
     grid-column: 1 / -1;
