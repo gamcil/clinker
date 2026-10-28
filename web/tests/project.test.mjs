@@ -1,3 +1,5 @@
+import { parseTwoColumnCsv } from "../src/delimited.mjs";
+import { parseAnnotationTable } from "../src/annotation-import.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { similarityCsv, parseProject, displayedClusterOrder } from "../src/viewer/project.mjs";
@@ -55,4 +57,14 @@ test("project validation permits edits and deletions but rejects broken IDs, coo
     assert.throws(() => parseProject(JSON.stringify(invalid)), error);
   }
   assert.throws(() => parseProject('null'), /not a clinker project/);
+});
+
+test("CSV imports share quoted-field parsing and retain their format validation", () => {
+  const rows = '\uFEFF"gene,1","enzyme ""A"""\r\n"gene2","line1\nline2"\r\n';
+  const expected = [["gene,1", 'enzyme "A"'], ["gene2", "line1\nline2"]];
+  assert.deepEqual(parseTwoColumnCsv(rows, "Gene functions"), expected);
+  assert.deepEqual(parseAnnotationTable(`source_file,label\r\n${rows.replace(/^\uFEFF/, "")}`, ",").records, expected);
+  assert.throws(() => parseTwoColumnCsv('gene,"bad"text', "Gene functions"), /after a quoted field/);
+  assert.throws(() => parseTwoColumnCsv("gene,", "Gene functions"), /two non-empty columns/);
+  assert.throws(() => parseAnnotationTable("name,NAME\na,b", ","), /unique/);
 });

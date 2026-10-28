@@ -15,7 +15,7 @@ export async function buildViewer() {
     .replace('src="app.js"', 'src="local.js"');
   if (shell.includes('id="run-panel"')) throw new Error('Shared shell is missing run-panel markers.');
   await writeFile(resolve(staging, 'index.html'), shell);
-  for (const name of ['local.js', 'style.css', 'viewer', 'tree-import.mjs', 'tree-input.mjs', 'annotation-import.mjs', 'workflow.mjs']) {
+  for (const name of ['local.js', 'style.css', 'viewer', 'tree-import.mjs', 'tree-input.mjs', 'annotation-import.mjs', 'delimited.mjs', 'workflow.mjs']) {
     await copy(resolve(webRoot, 'src', name), resolve(staging, name));
   }
   for (const asset of assets) await copy(resolve(webRoot, asset.source), resolve(staging, asset.output));

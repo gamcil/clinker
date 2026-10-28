@@ -1,3 +1,4 @@
+import { parseTwoColumnCsv } from "./delimited.mjs";
 import { analyseTilesInWorkerPool } from "./alignment.mjs";
 import { parseProject } from "./viewer/project.mjs";
 import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs";
@@ -169,45 +170,6 @@ async function runWorkflow(task, failureMessage) {
       trigger.focus();
     }
   }
-}
-
-function parseTwoColumnCsv(text, description) {
-  const rows = [];
-  let row = [];
-  let field = "";
-  let quoted = false;
-  for (let index = 0; index <= text.length; index += 1) {
-    const character = index === text.length ? "\n" : text[index];
-    if (quoted) {
-      if (character === '"' && text[index + 1] === '"') {
-        field += '"';
-        index += 1;
-      } else if (character === '"') {
-        quoted = false;
-      } else {
-        field += character;
-      }
-    } else if (character === '"' && field.length === 0) {
-      quoted = true;
-    } else if (character === ",") {
-      row.push(field.trim());
-      field = "";
-    } else if (character === "\n") {
-      row.push(field.trim());
-      field = "";
-      if (row.some(value => value.length > 0)) {
-        if (row.length !== 2 || row.some(value => !value)) {
-          throw new Error(`${description} row ${rows.length + 1} must contain two non-empty columns.`);
-        }
-        rows.push(row);
-      }
-      row = [];
-    } else if (character !== "\r") {
-      field += character;
-    }
-  }
-  if (quoted) throw new Error(`${description} contains an unterminated quoted field.`);
-  return rows;
 }
 
 async function readGroupDefinitions(workflow) {
