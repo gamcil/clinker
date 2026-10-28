@@ -12,7 +12,7 @@
     "build:viewer": "node scripts/build-viewer.mjs"
   },
   "dependencies": {
-    "clustermap.js": "https://codeload.github.com/gamcil/clustermap.js/tar.gz/f75cf112b7aee0c6315e1054c12645705578f6d9",
+    "clustermap.js": "https://codeload.github.com/gamcil/clustermap.js/tar.gz/d815dd40c827ff209b554176a052f4f4372659a1",
     "d3": "7.9.0"
   },
   "devDependencies": {
