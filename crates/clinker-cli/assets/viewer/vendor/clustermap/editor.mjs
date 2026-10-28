@@ -1,8 +1,8 @@
 import { d as defineActionMenu, i as installDataEditorStyle, a as installStyle } from './editor/annotation-editor-20ae8582.mjs';
 import { c as createTemplate, m as mountComponent, a as controlStyles, u as upgradeProperty } from './editor/search-field-595834d9.mjs';
 import { a as applyEditorTheme, e as editorThemeStyles } from './editor/theme-8bd47f2f.mjs';
-import { d as defineAppearancePanel } from './editor/appearance-panel-ba8c9cb7.mjs';
-import { b as bindOptionButtons, d as defineDataPanel } from './editor/data-panel-6beae826.mjs';
+import { d as defineAppearancePanel } from './editor/appearance-panel-b4ed47ff.mjs';
+import { b as bindOptionButtons, d as defineDataPanel } from './editor/data-panel-2e8265f6.mjs';
 
 const editable = "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
 
@@ -265,7 +265,6 @@ class ClinkerEditorElement extends HTMLElementBase {
   }
 
   #renderShell() {
-    defineTabs(); defineDataPanel(); defineAppearancePanel();
     this.shadowRoot.querySelector("[data-editor-shell]")?.remove();
     this.shadowRoot.append(shellTemplate(this.ownerDocument));
     this.#dataPanel = this.shadowRoot.querySelector("clinker-data-panel");
@@ -275,7 +274,7 @@ class ClinkerEditorElement extends HTMLElementBase {
   #subscribe() {
     if (this.#unsubscribe || !this.isConnected || !this.#chart?.on) return;
     this.#unsubscribe = this.#chart.on("change", (change) => {
-      if (["config.change", "theme.change", "state.replace"].includes(change.type)) this.#syncTheme();
+      if (change.type === "theme.change") this.#syncTheme();
       if (change.type === "history.change") this.#renderHistory();
     });
   }
@@ -302,7 +301,7 @@ class ClinkerEditorElement extends HTMLElementBase {
 
 function defineClinkerEditor() {
   if (!globalThis.customElements) throw new Error("Custom elements are unavailable in this environment.");
-  defineDataPanel();
+  defineTabs(); defineDataPanel(); defineAppearancePanel();
   if (!customElements.get("clinker-editor")) customElements.define("clinker-editor", ClinkerEditorElement);
   return customElements.get("clinker-editor");
 }

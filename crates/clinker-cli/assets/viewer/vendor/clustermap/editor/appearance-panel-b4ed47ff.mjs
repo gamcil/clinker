@@ -95,8 +95,9 @@ function validateTreePresentation(tree, config = {}) {
       for (const [uid, record] of Object.entries(presentation[scope])) {
         const node = nodes.get(uid);
         if (!node) fail(`presentation.${scope} refers to unknown node '${uid}'.`);
-        fields(record, scope === "subtrees" ? ["branch"] : ["branch", "label"], `${scope}.${uid}`);
+        fields(record, scope === "subtrees" ? ["branch", "collapsed"] : ["branch", "label"], `${scope}.${uid}`);
         if (scope === "subtrees" && !node.children) fail(`subtree '${uid}' must be an internal node.`);
+        if (record.collapsed !== undefined && typeof record.collapsed !== "boolean") fail(`subtrees.${uid}.collapsed must be boolean.`);
         if (record.branch !== undefined) {
           if (scope === "nodes" && uid === tree.root) fail("the display root has no incoming edge to style.");
           validateBranch(record.branch, `${scope}.${uid}.branch`);
@@ -338,10 +339,13 @@ class ClinkerAppearancePanelElement extends HTMLElementBase {
     this.#navigation++;
     this.#chart?.previewTreePresentation?.(null);
     this.#unsubscribe?.(); this.#unsubscribe = null;
-    this.#chart = value || null; this.#subscribe(); this.#render();
+    this.#chart = value || null;
+    applyEditorTheme(this, this.#chart);
+    this.#subscribe(); this.#render();
   }
   connectedCallback() {
     this.classList.add("cm-ui", "cm-data-ui");
+    applyEditorTheme(this, this.#chart);
     this.#subscribe(); this.#render();
   }
   disconnectedCallback() {
@@ -353,14 +357,14 @@ class ClinkerAppearancePanelElement extends HTMLElementBase {
   #subscribe() {
     if (this.#unsubscribe || !this.isConnected || !this.#chart?.on) return;
     this.#unsubscribe = this.#chart.on("change", (change) => {
-      if (["config.change", "theme.change", "data.replace", "state.replace"].includes(change.type) ||
+      if (change.type === "theme.change") applyEditorTheme(this, this.#chart);
+      else if (["config.change", "data.replace"].includes(change.type) ||
           (change.type === "data.apply" && change.operations?.some((op) => op.type.startsWith("tree.")))) this.#render();
     });
   }
   #render() {
     if (!this.isConnected) return;
     const config = this.#chart?.config?.();
-    applyEditorTheme(this, this.#chart);
     this.shadowRoot.querySelector(".toolbar").hidden = !config;
     this.shadowRoot.querySelector(".settings").hidden = !config;
     if (!config) { this.#config = null; this.#hasTree = false; this.#tree.state = { tree: null }; return; }

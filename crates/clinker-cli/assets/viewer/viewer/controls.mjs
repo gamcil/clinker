@@ -1,4 +1,4 @@
-import { similarityCsv, serializeProject, downloadText } from './project.mjs?v=08d7ffd49be46c90';
+import { similarityCsv, serializeProject, downloadText } from './project.mjs?v=e4d08783786e12fa';
 
 const themePreferenceKey = 'clinker-interface-theme';
 export function readThemePreference() {

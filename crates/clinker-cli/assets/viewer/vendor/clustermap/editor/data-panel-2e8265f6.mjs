@@ -1,5 +1,5 @@
-import { b as defineDataTable, c as defineEditableField, i as installDataEditorStyle, a as installStyle, d as defineActionMenu, R as RowSelection, D as DATA_EDITOR_CSS, e as defineSelectionBar, f as defineAnnotationEditor, g as DATA_ROW_HEIGHT } from './annotation-editor-20ae8582.mjs';
-import { r as rgb$1, i as color, e as colourHex, c as createTemplate, m as mountComponent, d as updateSelectOptions, g as createActionRunner, a as controlStyles, u as upgradeProperty, f as defineSearchField } from './search-field-595834d9.mjs';
+import { b as defineDataTable, c as defineEditableField, i as installDataEditorStyle, a as installStyle, d as defineActionMenu, e as defineSelectionBar, f as defineAnnotationEditor, R as RowSelection, D as DATA_EDITOR_CSS, g as DATA_ROW_HEIGHT } from './annotation-editor-20ae8582.mjs';
+import { r as rgb$1, i as color, e as colourHex, c as createTemplate, m as mountComponent, d as updateSelectOptions, f as defineSearchField, g as createActionRunner, a as controlStyles, u as upgradeProperty } from './search-field-595834d9.mjs';
 import { e as editorThemeStyles, a as applyEditorTheme } from './theme-8bd47f2f.mjs';
 
 /** Shared activation and horizontal keyboard navigation for option buttons. */
@@ -1599,7 +1599,6 @@ class ClinkerDataPanelElement extends HTMLElementBase {
   }
 
   connectedCallback() {
-    defineSelectionBar(); defineViewSwitcher(); defineSearchField(); defineRecordActions(); defineRecordTable(); defineAnnotationEditor();
     this.classList.add("cm-ui", "cm-data-ui");
     if (!this.#table) this.#renderShell();
     this.#subscribe(); this.#syncTheme(); this.#refreshData();
@@ -1630,9 +1629,8 @@ class ClinkerDataPanelElement extends HTMLElementBase {
     this.#unsubscribe = this.#chart.on("change", (change) => {
       if (["data.apply", "data.replace", "state.replace"].includes(change.type)) {
         if (this.#editing) return;
-        if (change.type === "state.replace") this.#syncTheme();
         this.#refreshData({ replace: change.type === "data.replace" });
-      } else if (change.type === "config.change" || change.type === "theme.change") this.#syncTheme();
+      } else if (change.type === "theme.change") this.#syncTheme();
     });
   }
 
@@ -1937,6 +1935,7 @@ class ClinkerDataPanelElement extends HTMLElementBase {
 }
 
 function defineDataPanel() {
+  defineSelectionBar(); defineViewSwitcher(); defineSearchField(); defineRecordActions(); defineRecordTable(); defineAnnotationEditor();
   if (!customElements.get("clinker-data-panel")) customElements.define("clinker-data-panel", ClinkerDataPanelElement);
 }
 
