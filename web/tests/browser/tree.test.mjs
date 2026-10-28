@@ -160,7 +160,8 @@ test('tree import, matching and edited project round-trips preserve the working 
   await page.locator('#tree-appearance').click();
   assert.equal(await page.locator('#plot-editor').isVisible(), true);
   assert.equal(await page.locator('#plot-editor').getByRole('tab', { name: 'Appearance' }).getAttribute('aria-selected'), 'true');
-  assert.equal(await page.locator('#plot-editor [data-config="tree.show"]').evaluate(element => element === element.getRootNode().activeElement), true);
+  await page.waitForFunction(element => element === element.getRootNode().activeElement,
+    await page.locator('#plot-editor [data-config="tree.show"]').elementHandle());
   await page.locator('#plot-editor').getByLabel('Branch stroke width', { exact: true }).fill('2');
   await page.locator('#plot-editor').getByLabel('Branch stroke width', { exact: true }).press('Enter');
   await page.locator('#plot-editor').getByLabel('Show dashed leaf guides', { exact: true }).check();
