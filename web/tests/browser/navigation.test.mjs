@@ -114,7 +114,9 @@ test('task menus support adding data, saving, editing and keyboard navigation at
   await capture('desktop-file-dark');
   await page.keyboard.press('Escape');
 
-  for (const width of [1400, 900, 761, 760, 480, 375, 320]) {
+  // Wider font metrics reproduce the overlap seen on Linux CI.
+  await page.locator('.app-bar').evaluate(bar => { bar.style.fontFamily = 'Verdana, sans-serif'; });
+  for (const width of [1400, 901, 900, 761, 760, 480, 375, 320]) {
     await page.setViewportSize({ width, height: 850 });
     const boxes = await page.locator('.app-logo, #new-run, #file-menu > summary, .figure-menus > .menu > summary, #edit-plot, #appearance-label, #plot-help')
       .evaluateAll(items => items.map(item => {
@@ -137,6 +139,7 @@ test('task menus support adding data, saving, editing and keyboard navigation at
     }
     await capture(`narrow-dark-${width}`);
   }
+  await page.locator('.app-bar').evaluate(bar => bar.style.removeProperty('font-family'));
   await page.setViewportSize({ width: 1400, height: 900 });
   await openMenu('#appearance-menu');
   await page.locator('[data-theme-mode="auto"]').click();

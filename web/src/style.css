@@ -393,6 +393,7 @@ html,
   position: relative;
   z-index: 5;
   display: flex;
+  flex-wrap: wrap;
   flex: none;
   min-height: 48px;
   align-items: center;
@@ -418,7 +419,7 @@ html,
   gap: 10px;
 }
 :where(.clinker-app) .app-actions {
-  flex: 1;
+  flex: 1 0 auto;
   min-width: 0;
 }
 :where(.clinker-app) .utility-controls { margin-left: auto; }
@@ -468,7 +469,7 @@ html,
   color: var(--app-muted);
   font-weight: 700;
 }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   :where(.clinker-app) .app-bar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
