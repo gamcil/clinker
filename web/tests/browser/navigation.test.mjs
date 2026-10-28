@@ -114,9 +114,9 @@ test('task menus support adding data, saving, editing and keyboard navigation at
   await capture('desktop-file-dark');
   await page.keyboard.press('Escape');
 
-  for (const width of [375, 320]) {
+  for (const width of [1400, 900, 761, 760, 480, 375, 320]) {
     await page.setViewportSize({ width, height: 850 });
-    const boxes = await page.locator('.app-bar > h1, #new-run, #file-menu > summary, .app-actions > .menu > summary, #edit-plot, #appearance-label, #plot-help')
+    const boxes = await page.locator('.app-logo, #new-run, #file-menu > summary, .figure-menus > .menu > summary, #edit-plot, #appearance-label, #plot-help')
       .evaluateAll(items => items.map(item => {
         const { x, y, width, height } = item.getBoundingClientRect();
         return { name: item.textContent, x, y, width, height };

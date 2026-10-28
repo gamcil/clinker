@@ -122,6 +122,7 @@ html,
   position: relative;
   z-index: 5;
   display: flex;
+  flex: none;
   min-height: 48px;
   align-items: center;
   gap: 10px;
@@ -137,11 +138,20 @@ html,
   line-height: 1;
   letter-spacing: -.045em;
 }
-:where(.clinker-app) .app-actions {
+:where(.clinker-app) .project-controls,
+:where(.clinker-app) .app-actions,
+:where(.clinker-app) .figure-menus,
+:where(.clinker-app) .utility-controls {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-left: 0;
+}
+:where(.clinker-app) .app-actions {
+  flex: 1;
+  min-width: 0;
+}
+:where(.clinker-app) .utility-controls {
+  margin-left: auto;
 }
 :where(.clinker-app) .app-button,
 :where(.clinker-app) .menu > .app-disclosure {
@@ -319,6 +329,12 @@ html,
 :where(.clinker-app) .menu-popover button:hover:not(:disabled) {
   border-color: transparent;
 }
+:where(.clinker-app) .menu-popover button[aria-pressed="true"]::after {
+  content: "✓";
+  float: right;
+  margin-left: 16px;
+  color: var(--app-accent);
+}
 :where(.clinker-app) .app-bar .menu > summary {
   min-height: 32px;
   border: 0;
@@ -343,24 +359,18 @@ html,
   opacity: .45;
 }
 :where(.clinker-app) .file-menu .menu-popover { min-width: 250px; }
-:where(.clinker-app) #add-data-menu .menu-popover { min-width: 260px; }
-:where(.clinker-app) #plot-order .menu-popover { min-width: 245px; }
+:where(.clinker-app) .data-menu .menu-popover { min-width: 260px; }
+:where(.clinker-app) .order-menu .menu-popover { min-width: 245px; }
 :where(.clinker-app) .menu-current-value { opacity: .75; }
 :where(.clinker-app) .menu-caption { padding: 5px 10px 3px; font-size: .8rem; opacity: .65; }
 :where(.clinker-app) .app-bar .edit-figure-action {
-  margin-left: 0;
+  flex: none;
+  margin-left: auto;
   border-color: var(--app-selection-border);
   padding: 6px 12px;
   background: var(--app-selection);
   color: var(--app-selection-text);
   font-weight: 600;
-}
-:where(.clinker-app) .about-help {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
 }
 :where(.clinker-app) .app-bar .about-button {
   display: grid;
@@ -454,8 +464,6 @@ html,
 :where(.clinker-app) .tree-matching[open] summary { margin-bottom: 12px; }
 :where(.clinker-app) .menu-checkbox { display: flex; align-items: center; gap: 7px; padding: 5px 8px; white-space: nowrap; }
 :where(.clinker-app) .menu-section-divider { border-top: 1px solid var(--app-border); margin: 4px 0; }
-:where(.clinker-app) #plot-order button[aria-pressed="true"]::after { content: "✓"; float: right; margin-left: 16px; color: var(--app-accent); }
-:where(.clinker-app) #appearance-menu button[aria-pressed="true"]::after { content: "✓"; float: right; margin-left: 16px; color: var(--app-accent); }
 :where(.clinker-app) .tree-import-options { margin-top: 20px; }
 
 :where(.clinker-app) .tree-root-option { display: flex; align-items: center; gap: 8px; }
@@ -1294,44 +1302,47 @@ html,
   box-shadow: 0 10px 35px rgba(23, 36, 54, .18);
 }
 
-@media (max-width: 1120px) {
-:where(.clinker-app) .app-bar {
-    flex-wrap: wrap;
-  }
-}
-
 @media (max-width: 760px) {
 :where(.clinker-app) .app-bar {
     display: grid;
-    grid-template-columns: auto auto 1fr auto auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 6px 4px;
     padding: 7px 8px;
   }
-:where(.clinker-app) .app-bar .app-logo { grid-column: 1; grid-row: 1; margin-right: 0; font-size: 1.3rem; }
-:where(.clinker-app) #new-run { grid-column: 2; grid-row: 1; }
-:where(.clinker-app) #file-menu { grid-column: 3; grid-row: 1; justify-self: start; }
-:where(.clinker-app) #appearance-menu { grid-column: 4; grid-row: 1; }
-:where(.clinker-app) #plot-help { grid-column: 5; grid-row: 1; }
-:where(.clinker-app) .app-bar:has(#new-run[hidden]) #file-menu { grid-column: 2 / 4; }
+:where(.clinker-app) .project-controls {
+    grid-column: 1;
+    grid-row: 1;
+  }
+:where(.clinker-app) .utility-controls {
+    grid-column: 2;
+    grid-row: 1;
+  }
 :where(.clinker-app) .app-actions {
-    grid-column: 1 / 4;
+    grid-column: 1 / -1;
     grid-row: 2;
-    width: 100%;
-    margin-left: 0;
-    flex-wrap: wrap;
   }
-:where(.clinker-app) .app-actions .menu > summary {
-    gap: 5px;
-    padding-inline: 6px;
+:where(.clinker-app) .project-controls,
+:where(.clinker-app) .figure-menus,
+:where(.clinker-app) .utility-controls {
+    gap: 4px;
   }
-:where(.clinker-app) .about-help { display: contents; }
-:where(.clinker-app) .app-bar .edit-figure-action { grid-column: 4 / 6; grid-row: 2; justify-self: end; }
-:where(.clinker-app) #plot-order .menu-current-value,
+:where(.clinker-app) .app-bar .app-logo {
+    margin-right: 0;
+    font-size: 1.2rem;
+  }
+:where(.clinker-app) .app-bar .about-button {
+    width: 24px;
+    min-width: 24px;
+  }
+:where(.clinker-app) .app-bar .app-button,
+:where(.clinker-app) .app-bar .menu > summary {
+    padding-inline: 5px;
+  }
+:where(.clinker-app) .order-menu .menu-current-value,
 :where(.clinker-app) .order-colon {
     display: none;
   }
-:where(.clinker-app) .app-bar .menu,
-:where(.clinker-app) .about-help {
+:where(.clinker-app) .app-bar .menu {
     position: static;
   }
 :where(.clinker-app) .app-bar .menu-popover {
@@ -1388,43 +1399,6 @@ html,
 }
 
 @media (max-width: 480px) {
-:where(.clinker-app) .app-bar {
-    display: flex;
-    flex-wrap: wrap;
-  }
-:where(.clinker-app) .app-bar .app-logo {
-    font-size: 1.2rem;
-  }
-:where(.clinker-app) .app-bar .about-button {
-    width: 24px;
-    min-width: 24px;
-  }
-/* Size the two toolbar rows independently: wide labels in the first row
-   must not push the editor action beyond the second row's viewport. */
-:where(.clinker-app) .app-bar::before {
-    content: "";
-    flex: 0 0 100%;
-    order: 1;
-  }
-:where(.clinker-app) .app-bar:has(#plot-actions[hidden])::before {
-    display: none;
-  }
-:where(.clinker-app) .app-bar .app-button,
-:where(.clinker-app) .app-bar .menu > summary {
-    padding-inline: 5px;
-  }
-:where(.clinker-app) .app-actions {
-    order: 2;
-    flex: 1 1 0;
-    min-width: 0;
-    width: auto;
-    gap: 4px;
-  }
-:where(.clinker-app) .app-bar .edit-figure-action {
-    order: 3;
-    flex: none;
-    margin-left: auto;
-  }
 :where(.clinker-app) .run-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

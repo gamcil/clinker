@@ -11,42 +11,46 @@
   <body class="clinker-app">
     <main class="app-main">
       <header class="app-bar">
-        <h1 class="app-logo">clinker</h1>
-        <button id="new-run" type="button" aria-controls="run-panel" aria-expanded="false" hidden class="app-button">New run</button>
-        <details id="file-menu" class="menu file-menu">
-          <summary class="app-disclosure">File</summary>
-          <div class="menu-popover">
-            <button id="load-clinker-file" type="button" class="app-button">Open project…</button>
-            <span class="menu-section-divider" aria-hidden="true"></span>
-            <button id="download-project" type="button" disabled class="app-button">Save project</button>
-            <span class="menu-section-divider" aria-hidden="true"></span>
-            <button id="download-svg" type="button" disabled class="app-button">Export figure (SVG)</button>
-            <button id="download-matrix" type="button" disabled class="app-button">Export similarity table (CSV)</button>
-          </div>
-        </details>
+        <div class="project-controls">
+          <h1 class="app-logo">clinker</h1>
+          <button id="new-run" type="button" aria-controls="run-panel" aria-expanded="false" hidden class="app-button">New run</button>
+          <details id="file-menu" class="menu file-menu">
+            <summary class="app-disclosure">File</summary>
+            <div class="menu-popover">
+              <button id="load-clinker-file" type="button" class="app-button">Open project…</button>
+              <span class="menu-section-divider" aria-hidden="true"></span>
+              <button id="download-project" type="button" disabled class="app-button">Save project</button>
+              <span class="menu-section-divider" aria-hidden="true"></span>
+              <button id="download-svg" type="button" disabled class="app-button">Export figure (SVG)</button>
+              <button id="download-matrix" type="button" disabled class="app-button">Export similarity table (CSV)</button>
+            </div>
+          </details>
+        </div>
         <nav id="plot-actions" class="app-actions" aria-label="Plot actions" hidden>
-          <details id="add-data-menu" class="menu">
-            <summary class="app-disclosure">Add data</summary>
-            <div class="menu-popover">
-              <button id="manage-tree" type="button" aria-haspopup="dialog" aria-controls="tree-dialog" disabled class="app-button">Import tree (Newick)…</button>
-              <button id="import-annotations" type="button" aria-haspopup="dialog" aria-controls="annotation-dialog" disabled class="app-button">Import annotations (TSV / CSV)…</button>
-            </div>
-          </details>
-          <details id="plot-order" class="menu">
-            <summary class="app-disclosure"><span>Row order<span class="order-colon">:</span></span> <span id="plot-order-label" class="menu-current-value">Default</span></summary>
-            <div class="menu-popover">
-              <button type="button" data-order="computed" aria-pressed="true" class="app-button">Default order</button>
-              <button type="button" data-order="clustering" aria-pressed="false" hidden class="app-button">Similarity dendrogram</button>
-              <button type="button" data-order="tree" aria-pressed="false" hidden class="app-button">Imported tree</button>
-              <label id="clustering-scale-control" class="menu-checkbox" hidden><input id="clustering-scaled" type="checkbox" checked class="app-field">Scale by merge height</label>
-              <span id="tree-controls-divider" class="menu-section-divider" aria-hidden="true" hidden></span>
-              <button id="tree-appearance" type="button" hidden class="app-button">Tree appearance…</button>
-              <button id="remove-tree" type="button" hidden class="app-button">Remove tree</button>
-            </div>
-          </details>
-        </nav>
-        <div class="about-help">
+          <div class="figure-menus">
+            <details id="add-data-menu" class="menu data-menu">
+              <summary class="app-disclosure">Add data</summary>
+              <div class="menu-popover">
+                <button id="manage-tree" type="button" aria-haspopup="dialog" aria-controls="tree-dialog" disabled class="app-button">Import tree (Newick)…</button>
+                <button id="import-annotations" type="button" aria-haspopup="dialog" aria-controls="annotation-dialog" disabled class="app-button">Import annotations (TSV / CSV)…</button>
+              </div>
+            </details>
+            <details id="plot-order" class="menu order-menu">
+              <summary class="app-disclosure"><span>Row order<span class="order-colon">:</span></span> <span id="plot-order-label" class="menu-current-value">Default</span></summary>
+              <div class="menu-popover">
+                <button type="button" data-order="computed" aria-pressed="true" class="app-button">Default order</button>
+                <button type="button" data-order="clustering" aria-pressed="false" hidden class="app-button">Similarity dendrogram</button>
+                <button type="button" data-order="tree" aria-pressed="false" hidden class="app-button">Imported tree</button>
+                <label id="clustering-scale-control" class="menu-checkbox" hidden><input id="clustering-scaled" type="checkbox" checked class="app-field">Scale by merge height</label>
+                <span id="tree-controls-divider" class="menu-section-divider" aria-hidden="true" hidden></span>
+                <button id="tree-appearance" type="button" hidden class="app-button">Tree appearance…</button>
+                <button id="remove-tree" type="button" hidden class="app-button">Remove tree</button>
+              </div>
+            </details>
+          </div>
           <button id="edit-plot" class="app-button edit-figure-action" type="button" disabled hidden aria-controls="plot-editor" aria-expanded="false">Edit figure</button>
+        </nav>
+        <div class="utility-controls">
           <details id="appearance-menu" class="menu menu-end">
             <summary id="appearance-label" title="Interface theme: System" class="app-disclosure">Theme</summary>
             <div class="menu-popover" role="group" aria-label="Interface appearance">
