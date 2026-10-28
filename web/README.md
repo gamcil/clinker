@@ -41,7 +41,9 @@ pushes and all three engines for manual runs and release tags.
 
 ## Sources and assets
 
-- `src/app.js`: browser entry and analysis orchestration.
+- `src/app.js`: browser entry, operation orchestration and control availability.
+- `src/run-inputs.mjs`: file selection, inspection, trimming and analysis settings.
+- `src/analysis.mjs`: parsing and post-processing worker messages.
 - `src/local.js`: native viewer entry; uses the CLI's project/similarity endpoints.
 - `src/viewer/`: shared figure lifecycle, controls, project validation and tree helpers.
 - `src/tree-*.mjs`, `src/annotation-import.mjs`: import and matching workflows.

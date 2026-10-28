@@ -25,8 +25,10 @@ IDs and omits translations. `AnalysisSession` supports native continuation;
 
 ## Browser and native viewer
 
-`web/src/app.js` owns browser inputs and analysis orchestration; `local.js`
-loads native results. Both use `viewer/` for chart lifecycle, menus, appearance
+`web/src/app.js` orchestrates browser operations and derives control availability.
+`run-inputs.mjs` owns selection, inspection and settings; `analysis.mjs` handles
+worker communication, while `alignment.mjs` dispatches alignment batches.
+`local.js` loads native results. Both use `viewer/` for chart lifecycle, menus, appearance
 and exports. Tree and annotation parsing/matching belong to Clinker; rendering,
 editor controls and figure interactions belong to clustermap.
 

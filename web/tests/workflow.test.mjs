@@ -1,3 +1,4 @@
+import { parseInputFiles } from "../src/analysis.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Workflow } from "../src/workflow.mjs";
@@ -92,7 +93,7 @@ test("worker requests clean up on messaging failures and ignore late messages", 
     terminations = 0;
     constructor() { worker = this; }
     postMessage(message) {
-      if (message.uncloneable) throw new DOMException("Cannot clone", "DataCloneError");
+      if (message.uncloneable || message.type === "parse-file") throw new DOMException("Cannot clone", "DataCloneError");
     }
     terminate() { this.terminations += 1; }
   };
@@ -102,6 +103,10 @@ test("worker requests clean up on messaging failures and ignore late messages", 
   });
   const workflow = new Workflow();
   await assert.rejects(workflow.request("worker.js", { uncloneable: true }), { name: "DataCloneError" });
+  assert.equal(worker.terminations, 1);
+  const parsing = parseInputFiles([{ name: "input.gbk", bytes: new Uint8Array([1]) }], { enabled: false }, {}, workflow);
+  worker.onmessage({ data: { type: "parse-ready" } });
+  await assert.rejects(parsing, { name: "DataCloneError" });
   assert.equal(worker.terminations, 1);
   const request = workflow.request("worker.js", {});
   const lateMessage = worker.onmessage;

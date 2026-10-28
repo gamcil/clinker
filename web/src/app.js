@@ -1,34 +1,14 @@
-import { parseTwoColumnCsv } from "./delimited.mjs";
+import { mountRunInputs } from "./run-inputs.mjs";
+import { parseInputFiles, postProcess, openAnalysisSession } from "./analysis.mjs";
 import { analyseTilesInWorkerPool } from "./alignment.mjs";
 import { parseProject } from "./viewer/project.mjs";
-import { inspectInputFiles, isSupportedInputFile } from "./input-files.mjs";
 import { Workflow } from "./workflow.mjs";
 import { mountTreeImport } from "./tree-import.mjs";
 import { mountAnnotationImport } from "./annotation-import.mjs";
-import { inputTreeClusters, bindInputTree } from "./viewer/tree.mjs";
+import { bindInputTree } from "./viewer/tree.mjs";
 import { createViewer } from "./viewer/viewer.mjs";
 import { readThemePreference, mountViewerControls } from "./viewer/controls.mjs";
 
-const filesInput = document.querySelector("#files");
-const fileDropZone = document.querySelector("#file-drop-zone");
-const fileSummary = document.querySelector("#file-summary");
-const fileInputStatus = document.querySelector("#file-input-status");
-const fileInputStatusSummary = document.querySelector("#file-input-status-summary");
-const fileInputStatusList = document.querySelector("#file-input-status-list");
-const clearInputFilesButton = document.querySelector("#clear-input-files");
-const identityInput = document.querySelector("#identity");
-const prefilterInput = document.querySelector("#prefilter");
-const noAlignInput = document.querySelector("#no-align");
-const fileOrderInput = document.querySelector("#file-order");
-const kmerSizeInput = document.querySelector("#kmer-size");
-const minSharedKmersInput = document.querySelector("#min-shared-kmers");
-const separateRecordsInput = document.querySelector("#separate-records");
-const keepOriginInput = document.querySelector("#keep-origin");
-const recordRangesElement = document.querySelector("#record-ranges");
-const geneFunctionsInput = document.querySelector("#gene-functions");
-const colourMapInput = document.querySelector("#colour-map");
-const geneFunctionsSummary = document.querySelector("#gene-functions-summary");
-const colourMapSummary = document.querySelector("#colour-map-summary");
 const analyseButton = document.querySelector("#analyse");
 const exampleButton = document.querySelector("#load-example");
 const matrixButton = document.querySelector("#download-matrix");
@@ -61,16 +41,15 @@ const runStatus = document.querySelector("#run-status");
 const plotStatus = document.querySelector("#plot-status");
 const plotElement = document.querySelector("#plot");
 const plotStage = document.querySelector(".plot-stage");
-const WORKER_URL = new URL("./worker.js", import.meta.url);
 const viewer = createViewer({ plot: plotElement, stage: plotStage, editor: plotEditor, appearance: readThemePreference() });
 let latestSimilarity = null;
-let analysisInProgress = false;
 let activeWorkflow = null;
-let inputInspection = null;
-let inputInspectionPromise = Promise.resolve({ ready: false, rows: [] });
-const inputMetadata = new WeakMap();
-let inputsReady = false;
-const selectedInputFiles = new Map();
+let treeImport = null;
+const runInputs = mountRunInputs(runPanel, {
+  onChange: syncControls,
+  onInputsChanged: () => treeImport?.inputsChanged(),
+  onError: message => setRunStatus(message, { tone: "error" }),
+});
 const EXAMPLE_FILES = [
   "P. vexata CBS 129021.gbk",
   "A. versicolor CBS 583.65.gbk",
@@ -79,45 +58,28 @@ const EXAMPLE_FILES = [
   "A. alliaceus CBS 536.65.gbk",
 ];
 
-function setAnalysisInputsDisabled(disabled) {
-  filesInput.disabled = disabled;
-  identityInput.disabled = disabled;
-  prefilterInput.disabled = disabled;
-  noAlignInput.disabled = disabled;
-  fileOrderInput.disabled = disabled;
-  separateRecordsInput.disabled = disabled;
-  keepOriginInput.disabled = disabled;
-  recordRangesElement.disabled = disabled;
-  geneFunctionsInput.disabled = disabled;
-  colourMapInput.disabled = disabled || geneFunctionsInput.files.length === 0;
-  analyseButton.disabled = disabled || !inputsReady || !treeImport.runReady();
-  clearInputFilesButton.disabled = disabled;
-  fileInputStatusList.querySelectorAll(".remove-input-file").forEach(button => {
-    button.disabled = disabled;
-  });
-  exampleButton.disabled = disabled;
-  loadClinkerFileButton.disabled = disabled;
-  openProjectStartButton.disabled = disabled;
-  newRunButton.disabled = disabled;
-  treeButton.disabled = disabled || !viewer.chart.data();
-  annotationImportButton.disabled = disabled || !viewer.chart.data();
-  plotActions.inert = disabled;
-  if (disabled) addDataMenu.open = false;
-  plotOrder.inert = disabled || !viewer.chart.data();
-  if (disabled) plotOrder.open = false;
-  document.querySelector("#run-tree-fields").disabled = disabled;
-  cancelRunButton.disabled = false;
-  cancelRunButton.hidden = !disabled && !viewer.chart.data();
-  cancelRunButton.textContent = disabled ? "Cancel" : "Back to plot";
-  syncPrefilterControls();
-}
-
-function syncPrefilterControls() {
-  prefilterInput.disabled = noAlignInput.disabled || noAlignInput.checked;
-  fileOrderInput.disabled = noAlignInput.disabled || noAlignInput.checked;
-  const disabled = prefilterInput.disabled || !prefilterInput.checked;
-  kmerSizeInput.disabled = disabled;
-  minSharedKmersInput.disabled = disabled;
+function syncControls() {
+  const busy = activeWorkflow !== null;
+  const hasPlot = Boolean(viewer.chart.data());
+  runInputs.setDisabled(busy);
+  analyseButton.disabled = busy || !runInputs.ready || !(treeImport?.runReady() ?? true);
+  for (const button of [exampleButton, loadClinkerFileButton, openProjectStartButton, newRunButton]) button.disabled = busy;
+  matrixButton.disabled = busy || !hasPlot || !latestSimilarity;
+  svgButton.disabled = busy || !hasPlot;
+  projectButton.disabled = busy || !hasPlot || !viewer.analysis;
+  editPlotButton.disabled = busy || !hasPlot;
+  treeButton.disabled = busy || !hasPlot;
+  annotationImportButton.disabled = busy || !hasPlot;
+  plotActions.hidden = !hasPlot;
+  editPlotButton.hidden = !hasPlot;
+  newRunButton.hidden = !hasPlot;
+  newRunButton.setAttribute("aria-expanded", String(!runPanel.hidden));
+  plotActions.inert = busy;
+  plotOrder.inert = busy || !hasPlot;
+  if (busy) { addDataMenu.open = false; plotOrder.open = false; }
+  cancelRunButton.hidden = !busy && (!hasPlot || runPanel.hidden);
+  cancelRunButton.textContent = busy ? "Cancel" : "Back to plot";
+  document.querySelector(".run-card").classList.toggle("is-busy", busy);
 }
 
 async function runWorkflow(task, failureMessage) {
@@ -127,13 +89,7 @@ async function runWorkflow(task, failureMessage) {
   const trigger = document.activeElement;
   openRunPanel();
   activeWorkflow = workflow;
-  analysisInProgress = true;
-  document.querySelector(".run-card").classList.add("is-busy");
-  setAnalysisInputsDisabled(true);
-  matrixButton.disabled = true;
-  svgButton.disabled = true;
-  projectButton.disabled = true;
-  editPlotButton.disabled = true;
+  syncControls();
   cancelRunButton.focus();
   let completed = false;
   try {
@@ -154,15 +110,7 @@ async function runWorkflow(task, failureMessage) {
   } finally {
     workflow.dispose();
     activeWorkflow = null;
-    analysisInProgress = false;
-    document.querySelector(".run-card").classList.remove("is-busy");
-    setAnalysisInputsDisabled(false);
-    const hasPlot = Boolean(viewer.chart.data());
-    matrixButton.disabled = !hasPlot || !latestSimilarity;
-    svgButton.disabled = !hasPlot;
-    projectButton.disabled = !hasPlot || !viewer.analysis;
-    editPlotButton.disabled = !hasPlot;
-    annotationImportButton.disabled = !hasPlot;
+    syncControls();
     if (completed) {
       closeRunPanel();
       editPlotButton.focus();
@@ -171,339 +119,6 @@ async function runWorkflow(task, failureMessage) {
     }
   }
 }
-
-async function readGroupDefinitions(workflow) {
-  const functionFile = geneFunctionsInput.files[0];
-  const colourFile = colourMapInput.files[0];
-  if (!functionFile) {
-    if (colourFile) throw new Error("Select a gene functions CSV before adding a colour map.");
-    return [];
-  }
-  const functions = parseTwoColumnCsv(await workflow.readFile(functionFile, true), "Gene functions CSV");
-  const colours = new Map(colourFile
-    ? parseTwoColumnCsv(await workflow.readFile(colourFile, true), "Function colours CSV")
-    : []);
-  const grouped = new Map();
-  for (const [gene, label] of functions) {
-    if (!grouped.has(label)) grouped.set(label, []);
-    grouped.get(label).push(gene);
-  }
-  return [...grouped].map(([label, genes]) => ({
-    label,
-    genes,
-    colour: colours.get(label) || null,
-  }));
-}
-
-function syncFileSummary() {
-  const count = filesInput.files.length;
-  fileSummary.textContent = count === 0
-    ? ""
-    : `${count} input ${count === 1 ? "file" : "files"} selected`;
-  fileSummary.hidden = count === 0;
-}
-
-function setSelectedInputFiles(files, { replace = false } = {}) {
-  if (replace) selectedInputFiles.clear();
-  for (const file of files) selectedInputFiles.set(file.name.toLocaleLowerCase(), file);
-  const transfer = new DataTransfer();
-  for (const file of selectedInputFiles.values()) transfer.items.add(file);
-  filesInput.files = transfer.files;
-}
-
-function renderInputValidation(validation) {
-  fileInputStatusList.replaceChildren();
-  fileInputStatus.hidden = validation.rows.length === 0;
-  if (validation.rows.length === 0) return;
-  const errorCount = validation.rows.filter(row => !row.ready).length;
-  const fileCount = filesInput.files.length;
-  const countLabel = `${fileCount} input ${fileCount === 1 ? "file" : "files"}`;
-  fileInputStatusSummary.textContent = errorCount === 0
-    ? `${countLabel} ready`
-    : `${errorCount} ${errorCount === 1 ? "problem" : "problems"} · ${countLabel}`;
-  const orderedRows = [
-    ...validation.rows.filter(row => !row.ready),
-    ...validation.rows.filter(row => row.ready),
-  ];
-  for (const row of orderedRows) {
-    const item = document.createElement("li");
-    item.dataset.state = row.ready ? "ready" : "error";
-    const name = document.createElement("span");
-    name.className = "file-input-name";
-    name.textContent = row.name;
-    name.title = row.name;
-    const state = document.createElement("span");
-    state.className = "file-input-state";
-    state.textContent = row.detail;
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.className = "app-button remove-input-file quiet-action";
-    remove.textContent = "Remove";
-    remove.setAttribute("aria-label", `Remove ${row.name}`);
-    remove.disabled = analysisInProgress;
-    remove.addEventListener("click", () => {
-      for (const name of row.files || [row.name]) selectedInputFiles.delete(name.toLocaleLowerCase());
-      setSelectedInputFiles([], { replace: false });
-      handleFileSelection();
-    });
-    const description = document.createElement("span");
-    description.className = "file-input-description";
-    description.textContent = row.description || "";
-    const label = document.createElement("div");
-    label.className = "file-input-label";
-    label.append(name, description);
-    item.append(label, state, remove);
-    if (row.reason) {
-      const reason = document.createElement("span");
-      reason.className = "file-input-reason";
-      reason.textContent = row.reason;
-      item.append(reason);
-    }
-    fileInputStatusList.append(item);
-  }
-}
-
-function emptyRecordRanges(message) {
-  recordRangesElement.replaceChildren();
-  const empty = document.createElement("p");
-  empty.className = "empty-setting";
-  empty.textContent = message;
-  recordRangesElement.append(empty);
-}
-
-function recordCoordinate(kind, value, minimum, maximum, description) {
-  const wrapper = document.createElement("label");
-  wrapper.className = "record-coordinate";
-  const input = document.createElement("input");
-  input.className = "app-field";
-  input.type = "number";
-  input.min = String(minimum);
-  input.max = String(maximum);
-  input.step = "1";
-  input.value = String(value);
-  input.dataset.rangeCoordinate = kind;
-  input.setAttribute("aria-label", `${description}: ${kind === "start" ? "Start" : "End"} (bp)`);
-  wrapper.append(input);
-  return wrapper;
-}
-
-function renderRecordRanges(filesWithRecords) {
-  if (filesWithRecords.length === 0) {
-    emptyRecordRanges("Choose input files to trim their sequences.");
-    return;
-  }
-  recordRangesElement.replaceChildren();
-  const headings = document.createElement("table");
-  headings.className = "sequence-regions sequence-region-headings";
-  const head = headings.createTHead().insertRow();
-  for (const text of ["File / sequence", "Start (bp)", "End (bp)"]) {
-    const cell = document.createElement("th");
-    cell.scope = "col";
-    cell.textContent = text;
-    head.append(cell);
-  }
-  const header = document.createElement("div");
-  header.className = "sequence-region-header";
-  header.append(headings);
-  const rows = document.createElement("div");
-  rows.className = "sequence-region-rows";
-  recordRangesElement.append(header, rows);
-  for (const { file, records } of filesWithRecords) {
-    const table = document.createElement("table");
-    table.className = "sequence-regions";
-    table.setAttribute("aria-label", file.name);
-    const columns = document.createElement("colgroup");
-    for (let index = 0; index < 3; index += 1) {
-      const column = document.createElement("col");
-      if (index > 0) column.className = "sequence-coordinate-column";
-      columns.append(column);
-    }
-    table.append(columns);
-    rows.append(table);
-    const body = table.createTBody();
-    if (records.length > 1) table.classList.add("sequence-file-group");
-    if (records.length === 0) {
-      const cell = body.insertRow().insertCell();
-      cell.colSpan = 3;
-      cell.className = "empty-setting";
-      cell.textContent = `${file.name}: No sequences found; the complete file will be analysed.`;
-      continue;
-    }
-    for (const record of records) {
-      const availableStart = record.start ?? 1;
-      const availableEnd = record.end ?? record.length;
-      const row = body.insertRow();
-      row.dataset.recordRange = "";
-      row.dataset.file = file.name;
-      row.dataset.record = record.name;
-      row.dataset.length = String(record.length);
-      row.dataset.availableStart = String(availableStart);
-      row.dataset.availableEnd = String(availableEnd);
-      const description = `${file.name}: ${record.name}`;
-      const identity = document.createElement("th");
-      identity.scope = "row";
-      identity.title = `${description} (${availableStart.toLocaleString()}–${availableEnd.toLocaleString()} bp)`;
-      const fileName = document.createElement("span");
-      fileName.className = "sequence-file-name";
-      fileName.textContent = file.name;
-      if (record !== records[0]) {
-        fileName.classList.add("sequence-file-name-placeholder");
-        fileName.setAttribute("aria-hidden", "true");
-      }
-      identity.append(fileName);
-      const name = document.createElement("span");
-      name.className = "record-range-name";
-      name.textContent = record.name;
-      identity.append(name);
-      row.append(identity);
-      row.insertCell().append(recordCoordinate("start", availableStart, availableStart, availableEnd, description));
-      row.insertCell().append(recordCoordinate("end", availableEnd, availableStart, availableEnd, description));
-    }
-  }
-}
-
-function collectRecordRanges() {
-  const selections = new Map();
-  for (const row of recordRangesElement.querySelectorAll("[data-record-range]")) {
-    const availableStart = Number(row.dataset.availableStart);
-    const availableEnd = Number(row.dataset.availableEnd);
-    const start = Number(row.querySelector('[data-range-coordinate="start"]').value);
-    const end = Number(row.querySelector('[data-range-coordinate="end"]').value);
-    const description = `${row.dataset.file}: ${row.dataset.record}`;
-    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)
-        || start < availableStart || end < start || end > availableEnd) {
-      throw new Error(`${description} requires whole-number coordinates between ${availableStart.toLocaleString()} and ${availableEnd.toLocaleString()}.`);
-    }
-    const selection = { record: row.dataset.record, start: start - 1, end };
-    if (!selections.has(selection.record)) selections.set(selection.record, []);
-    selections.get(selection.record).push({
-      range: selection,
-      isFullRecord: selection.start === availableStart - 1 && selection.end === availableEnd,
-    });
-  }
-  const ranges = [];
-  for (const [record, instances] of selections) {
-    if (instances.every(instance => instance.isFullRecord)) continue;
-    if (instances.length > 1 && instances.some(instance => instance.isFullRecord)) {
-      throw new Error(`Record ${record} occurs in multiple files; adjust every instance to the same range.`);
-    }
-    const [first, ...rest] = instances;
-    if (rest.some(instance => instance.range.start !== first.range.start
-        || instance.range.end !== first.range.end)) {
-      throw new Error(`Record ${record} occurs in multiple files with different ranges.`);
-    }
-    ranges.push(first.range);
-  }
-  return ranges;
-}
-
-function syncAnnotationFiles() {
-  const functionFile = geneFunctionsInput.files[0];
-  const colourFile = colourMapInput.files[0];
-  geneFunctionsSummary.textContent = functionFile?.name || "None selected";
-  colourMapInput.disabled = geneFunctionsInput.disabled || !functionFile;
-  colourMapSummary.textContent = colourFile?.name || (functionFile ? "None selected" : "Add functions first");
-}
-
-function handleFileSelection() {
-  syncFileSummary();
-  inputInspection?.dispose();
-  const inspection = new Workflow();
-  inputInspection = inspection;
-  const files = [...filesInput.files];
-  inputsReady = false;
-  analyseButton.disabled = true;
-  fileInputStatusList.replaceChildren();
-  fileInputStatus.hidden = files.length === 0;
-  if (files.length > 0) fileInputStatusSummary.textContent = "Checking selected inputs…";
-  recordRangesElement.setAttribute("aria-busy", "true");
-  emptyRecordRanges(files.length ? "Reading annotation records…" : "Choose input files to trim their sequences.");
-  inputInspectionPromise = inspectInputFiles(files, {
-    readText: file => inspection.readFile(file, true),
-    cache: inputMetadata,
-  }).then(validation => {
-    if (inspection.signal.aborted) return validation;
-    inputsReady = validation.ready;
-    renderInputValidation(validation);
-    renderRecordRanges(validation.filesWithRecords);
-    analyseButton.disabled = analysisInProgress || !inputsReady || !treeImport.runReady();
-    return validation;
-  }).catch(error => {
-    const validation = {
-      ready: false,
-      rows: [{
-        name: "Selected inputs",
-        detail: "Not ready",
-        reason: error.message || String(error),
-        ready: false,
-      }],
-    };
-    if (!inspection.signal.aborted) {
-      inputsReady = false;
-      analyseButton.disabled = true;
-      renderInputValidation(validation);
-      emptyRecordRanges("Could not inspect selected inputs.");
-    }
-    return validation;
-  }).finally(() => {
-    if (inputInspection === inspection) {
-      inputInspection = null;
-      recordRangesElement.removeAttribute("aria-busy");
-    }
-    inspection.dispose();
-  });
-  treeImport.inputsChanged();
-}
-
-prefilterInput.addEventListener("change", syncPrefilterControls);
-noAlignInput.addEventListener("change", syncPrefilterControls);
-separateRecordsInput.addEventListener("change", () => treeImport.inputsChanged());
-filesInput.addEventListener("change", () => {
-  setSelectedInputFiles([...filesInput.files]);
-  handleFileSelection();
-});
-clearInputFilesButton.addEventListener("click", () => {
-  setSelectedInputFiles([], { replace: true });
-  handleFileSelection();
-});
-let fileDragDepth = 0;
-fileDropZone.addEventListener("dragenter", event => {
-  if (filesInput.disabled || ![...event.dataTransfer.types].includes("Files")) return;
-  event.preventDefault();
-  fileDragDepth += 1;
-  fileDropZone.classList.add("is-dragging");
-});
-fileDropZone.addEventListener("dragover", event => {
-  if (filesInput.disabled || ![...event.dataTransfer.types].includes("Files")) return;
-  event.preventDefault();
-  event.dataTransfer.dropEffect = "copy";
-});
-fileDropZone.addEventListener("dragleave", () => {
-  fileDragDepth = Math.max(0, fileDragDepth - 1);
-  if (fileDragDepth === 0) fileDropZone.classList.remove("is-dragging");
-});
-fileDropZone.addEventListener("drop", event => {
-  event.preventDefault();
-  fileDragDepth = 0;
-  fileDropZone.classList.remove("is-dragging");
-  if (filesInput.disabled) return;
-  const files = [...event.dataTransfer.files];
-  const unsupported = files.filter(file => !isSupportedInputFile(file));
-  if (files.length === 0) return;
-  if (unsupported.length > 0) {
-    setRunStatus(
-      `Unsupported file${unsupported.length === 1 ? "" : "s"}: ${unsupported.map(file => file.name).join(", ")}. Choose GenBank, GFF3/GFF, or FASTA files.`,
-      { tone: "error" },
-    );
-    return;
-  }
-  setSelectedInputFiles(files);
-  handleFileSelection();
-});
-geneFunctionsInput.addEventListener("change", syncAnnotationFiles);
-colourMapInput.addEventListener("change", syncAnnotationFiles);
-syncPrefilterControls();
-syncAnnotationFiles();
 
 function resetRunSteps() {
   for (const step of runSteps.values()) {
@@ -571,111 +186,31 @@ mountViewerControls({
 document.addEventListener("keydown", event => {
   if (event.key !== "Escape" || event.defaultPrevented) return;
   if (document.querySelector("dialog[open]")) return;
-  if (!analysisInProgress && !runPanel.hidden && viewer.chart.data()) closeRunPanel();
+  if (!activeWorkflow && !runPanel.hidden && viewer.chart.data()) closeRunPanel();
 });
 
 function closeRunPanel() {
-  if (analysisInProgress || !viewer.chart.data()) return;
+  if (activeWorkflow || !viewer.chart.data()) return;
   runPanel.hidden = true;
-  plotActions.hidden = false;
-  editPlotButton.hidden = false;
-  newRunButton.hidden = false;
-  newRunButton.setAttribute("aria-expanded", "false");
-  cancelRunButton.hidden = true;
+  syncControls();
 }
 
 function openRunPanel() {
   runPanel.hidden = false;
-  newRunButton.setAttribute("aria-expanded", "true");
-  cancelRunButton.hidden = !viewer.chart.data();
-  cancelRunButton.textContent = "Back to plot";
   setRunStatus("");
-  closePlotEditor();
+  viewer.closeEditor();
+  syncControls();
 }
 
 newRunButton.addEventListener("click", () => {
-  setSelectedInputFiles([], { replace: true });
-  handleFileSelection();
+  runInputs.clear();
   openRunPanel();
-  filesInput.focus();
+  runInputs.focus();
 });
 cancelRunButton.addEventListener("click", () => {
   if (activeWorkflow) activeWorkflow.cancel();
   else closeRunPanel();
 });
-
-function closePlotEditor() {
-  viewer.closeEditor();
-}
-
-function parseInputFiles(
-  files,
-  prefilter,
-  { onProgress, onPrefilterStart, onPrefilterProgress },
-  workflow,
-) {
-  const worker = workflow.worker(WORKER_URL);
-  // These buffers belong to this run; transfer them once without another copy.
-  const taskFiles = files;
-
-  return new Promise((resolve, reject) => {
-    let nextFileIndex = 0;
-    let settled = false;
-    const startupTimeout = setTimeout(() => {
-      finish(reject, new Error("The analysis worker did not start. Reload the page and try again."));
-    }, 30000);
-    const finish = (callback, value) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(startupTimeout);
-      workflow.signal.removeEventListener("abort", cancel);
-      workflow.releaseWorker(worker);
-      callback(value);
-    };
-    const cancel = () => finish(reject, workflow.signal.reason);
-    workflow.signal.addEventListener("abort", cancel, { once: true });
-    const sendNextFile = () => {
-      if (settled) return;
-      if (nextFileIndex === taskFiles.length) {
-        if (prefilter.enabled) onPrefilterStart();
-        worker.postMessage({ type: "parse-finish" });
-        return;
-      }
-      const fileIndex = nextFileIndex;
-      const file = taskFiles[nextFileIndex++];
-      worker.postMessage(
-        { type: "parse-file", file, fileIndex },
-        [file.bytes.buffer],
-      );
-    };
-    const continueAfterPaint = () => {
-      if (document.hidden) {
-        setTimeout(sendNextFile, 0);
-      } else {
-        requestAnimationFrame(() => setTimeout(sendNextFile, 0));
-      }
-    };
-    worker.onmessage = ({ data }) => {
-      if (settled) return;
-      if (data.type === "error") finish(reject, new Error(data.message));
-      else if (data.type === "parse-ready") {
-        clearTimeout(startupTimeout);
-        sendNextFile();
-      }
-      else if (data.type === "file-parsed") {
-        onProgress(data.fileIndex + 1, taskFiles.length);
-        continueAfterPaint();
-      } else if (data.type === "filter-progress") {
-        onPrefilterProgress(data.completed, data.total);
-      } else if (data.type === "parsed") {
-        finish(resolve, { ...data.parsed, wasmModule: data.wasmModule });
-      }
-    };
-    worker.onerror = event => finish(reject, new Error(event.message || "Worker failed"));
-    worker.onmessageerror = () => finish(reject, new Error("Could not read the analysis worker response."));
-    worker.postMessage({ type: "parse-start", prefilter });
-  });
-}
 
 function progressPercent(completed, total) {
   if (total === 0) return 100;
@@ -689,64 +224,16 @@ function prefilterResult(aligned, possible) {
   return `Filtered out ${skipped.toLocaleString()} of ${possible.toLocaleString()} possible alignments (${formattedPercentage}%)`;
 }
 
-function bestLinkCount(plotData) {
-  // This mirrors the library's best-only rule for the status summary. The
-  // renderer still receives every link so the appearance control can switch
-  // between the reduced and complete link sets at runtime.
-  const clusterForGene = new Map();
-  plotData.clusters.forEach(cluster => {
-    cluster.loci.forEach(locus => {
-      locus.genes.forEach(gene => clusterForGene.set(gene.uid, cluster.uid));
-    });
-  });
-  const pairKey = (left, right) => [left, right].sort().join("\u0000");
-  const selectedByPair = new Map();
-
-  for (const link of [...plotData.links].sort((left, right) => right.identity - left.identity)) {
-    const queryCluster = clusterForGene.get(link.query.uid);
-    const targetCluster = clusterForGene.get(link.target.uid);
-    if (!queryCluster || !targetCluster) continue;
-
-    const key = pairKey(queryCluster, targetCluster);
-    const selected = selectedByPair.get(key) || [];
-    const superseded = selected.some(candidate =>
-      link.identity < candidate.identity
-      && (candidate.query.uid === link.query.uid
-        || candidate.query.uid === link.target.uid
-        || candidate.target.uid === link.query.uid
-        || candidate.target.uid === link.target.uid),
-    );
-    if (!superseded) selected.push(link);
-    selectedByPair.set(key, selected);
-  }
-
-  return [...selectedByPair.values()].reduce((count, links) => count + links.length, 0);
-}
-
 function mountImportedPlot(saved) {
   treeImport.close();
   viewer.loadProject(saved);
   treeImport.bind();
-  latestSimilarity = null;
-  matrixButton.disabled = true;
-  svgButton.disabled = false;
-  projectButton.disabled = false;
-  editPlotButton.disabled = false;
-  annotationImportButton.disabled = false;
-  closePlotEditor();
-  treeButton.disabled = false;
-  closeRunPanel();
-}
-
-function openAnalysisSession(session, workflow) {
-  return workflow.request(WORKER_URL, { type: "open-session", session });
+  viewer.closeEditor();
 }
 
 function retainAnalysisResult(result) {
   latestSimilarity = result.similarityMatrix;
   viewer.setAnalysis(result.analysisSession);
-  matrixButton.disabled = false;
-  projectButton.disabled = false;
 }
 
 loadClinkerFileButton.addEventListener("click", () => clinkerFileInput.click());
@@ -769,72 +256,14 @@ clinkerFileInput.addEventListener("change", () => {
   }, "Could not open project");
 });
 
-function postProcess(
-  layout,
-  proteins,
-  links,
-  groupDefinitions,
-  settings,
-  useFileOrder,
-  wasmModule,
-  onProgress,
-  workflow,
-) {
-  return workflow.request(WORKER_URL, {
-    type: "post-process",
-    layout,
-    proteins,
-    useFileOrder,
-    wasmModule,
-    settings,
-    reportProgress: true,
-    links: links.map(link => ({
-      query: link.query,
-      target: link.target,
-      identity: link.identity,
-      similarity: link.similarity,
-    })),
-    groupDefinitions,
-  }, onProgress);
-}
-
 async function analyseFiles(files, workflow) {
   const runTree = treeImport.runTree();
-  const identity = Number(identityInput.value) / 100;
-  if (!identityInput.value.trim() || !Number.isFinite(identity) || identity < 0 || identity > 1) {
-    setRunStatus("Minimum protein identity must be a percentage between 0 and 100.", { tone: "error" });
-    return;
-  }
-  const kmerSize = Number(kmerSizeInput.value);
-  const minSharedKmers = Number(minSharedKmersInput.value);
-  if (!noAlignInput.checked && prefilterInput.checked
-      && (!Number.isInteger(kmerSize) || kmerSize < 1 || kmerSize > 8)) {
-    setRunStatus("k-mer size must be a whole number between 1 and 8.", { tone: "error" });
-    return;
-  }
-  if (!noAlignInput.checked && prefilterInput.checked
-      && (!Number.isInteger(minSharedKmers) || minSharedKmers < 1)) {
-    setRunStatus("Minimum shared k-mers must be a positive whole number.", { tone: "error" });
-    return;
-  }
-  const ranges = collectRecordRanges();
-  const groupDefinitions = await readGroupDefinitions(workflow);
+  const { settings, useFileOrder, groupDefinitions } = await runInputs.readOptions(workflow);
   workflow.throwIfCancelled();
-  const prefilter = {
-    enabled: prefilterInput.checked && !noAlignInput.checked,
-    noAlign: noAlignInput.checked,
-    kmerSize,
-    minSharedKmers,
-    identityCutoff: identity,
-    genbank: {
-      ranges,
-      asSeparateClusters: separateRecordsInput.checked,
-      setOrigin: !keepOriginInput.checked,
-    },
-  };
-  showRunSteps({ includePrefilter: prefilter.enabled });
+  const identity = settings.identityCutoff;
+  showRunSteps({ includePrefilter: settings.enabled });
   setRunStep("parse", "active", `Parsing 0 of ${files.length} files…`, { progress: 0 });
-  const parsed = await parseInputFiles(files, prefilter, {
+  const parsed = await parseInputFiles(files, settings, {
     onProgress: (processed, total) => {
       setRunStep("parse", "active", `Parsed ${processed} of ${total} files…`, {
         progress: progressPercent(processed, total),
@@ -861,7 +290,7 @@ async function analyseFiles(files, workflow) {
     },
   }, workflow);
   workflow.throwIfCancelled();
-  const resolvedRunTree = await treeImport.resolveRunTree(parsed.layout.clusters, runTree, prefilter.genbank.asSeparateClusters, workflow);
+  const resolvedRunTree = await treeImport.resolveRunTree(parsed.layout.clusters, runTree, settings.genbank.asSeparateClusters, workflow);
   workflow.throwIfCancelled();
   setRunStep(
     "parse",
@@ -869,7 +298,7 @@ async function analyseFiles(files, workflow) {
     `Parsed ${files.length} ${files.length === 1 ? "file" : "files"} · ${parsed.proteins.length.toLocaleString()} genes`,
   );
   const { possiblePairs: possibleAlignments, plannedPairs: plannedAlignments } = parsed.alignmentCounts;
-  if (prefilter.enabled) {
+  if (settings.enabled) {
     setRunStep(
       "prefilter",
       "complete",
@@ -877,7 +306,7 @@ async function analyseFiles(files, workflow) {
     );
   }
   setRunStep("align", "active", "Aligning genes… 0%", { progress: 0 });
-  const alignmentResult = noAlignInput.checked
+  const alignmentResult = settings.noAlign
     ? { links: [], alignmentCount: 0 }
     : await analyseTilesInWorkerPool(
       parsed,
@@ -893,20 +322,14 @@ async function analyseFiles(files, workflow) {
   setRunStep(
     "align",
     "complete",
-    noAlignInput.checked
+    settings.noAlign
       ? "Skipped protein alignment"
       : `Ran ${alignmentCount.toLocaleString()} alignments · retained ${links.length.toLocaleString()} links`,
   );
-  const useFileOrder = noAlignInput.checked || fileOrderInput.checked;
   setRunStep("order", "active", "Scoring cluster pairs…", { progress: 0 });
   const result = await postProcess(
-    parsed.layout,
-    parsed.proteins,
-    links,
-    groupDefinitions,
-    prefilter,
-    useFileOrder,
-    parsed.wasmModule,
+    { layout: parsed.layout, proteins: parsed.proteins, links, groupDefinitions,
+      settings, useFileOrder, wasmModule: parsed.wasmModule },
     ({ stage, completed, total }) => {
       if (stage === "similarity") {
         setRunStep(
@@ -964,11 +387,8 @@ async function analyseFiles(files, workflow) {
   );
   workflow.throwIfCancelled();
   const plotData = result.plotData;
-  if (resolvedRunTree) plotData.tree = bindInputTree(resolvedRunTree, plotData.clusters, prefilter.genbank.asSeparateClusters);
-  latestSimilarity = result.similarityMatrix;
-  matrixButton.disabled = false;
-  const displayedBestLinks = bestLinkCount(plotData);
-  const summary = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links; ${displayedBestLinks} displayed best links.`;
+  if (resolvedRunTree) plotData.tree = bindInputTree(resolvedRunTree, plotData.clusters, settings.genbank.asSeparateClusters);
+  const summary = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links.`;
   setRunStep(
     "groups",
     "complete",
@@ -986,24 +406,20 @@ async function analyseFiles(files, workflow) {
 
   treeImport.close();
   viewer.mount(plotData, { analysis: result.analysisSession });
+  latestSimilarity = result.similarityMatrix;
   treeImport.bind();
   treeImport.setDendrogram(result.clusteringDendrogram);
   viewer.refreshEditor();
-  svgButton.disabled = false;
-  projectButton.disabled = false;
-  editPlotButton.disabled = false;
-  annotationImportButton.disabled = false;
   setPlotStatus(summary);
-  treeButton.disabled = false;
   return true;
 }
 
 analyseButton.addEventListener("click", () => {
-  if (filesInput.files.length === 0) return;
-  const selected = [...filesInput.files];
+  const selected = runInputs.files;
+  if (selected.length === 0) return;
   runWorkflow(async workflow => {
     setRunStatus("Preparing selected files…");
-    const validation = await workflow.wait(inputInspectionPromise);
+    const validation = await workflow.wait(runInputs.inspect());
     if (!validation.ready) throw new Error("Resolve the selected input-file problems before starting the analysis.");
     const files = [];
     for (const file of selected) {
@@ -1026,22 +442,14 @@ exampleButton.addEventListener("click", () => {
   }, "Example analysis failed");
 });
 
-const treeImport = mountTreeImport({
+treeImport = mountTreeImport({
   button: treeButton,
   getChart: () => viewer.chart,
-  getRunInputs: async () => {
-    let inspection;
-    let validation;
-    do {
-      inspection = inputInspectionPromise;
-      validation = await inspection;
-    } while (inspection !== inputInspectionPromise);
-    return { ready: validation.ready, clusters: inputTreeClusters(validation.filesWithRecords || [], separateRecordsInput.checked) };
-  },
+  getRunInputs: () => runInputs.treeInputs(),
   onAppearance: () => {
     return viewer.openTreeAppearance();
   },
-  onRunChange: ready => { analyseButton.disabled = analysisInProgress || !inputsReady || !ready; },
+  onRunChange: syncControls,
   onChange: message => {
     viewer.refreshEditor();
     setPlotStatus(message);
@@ -1053,3 +461,5 @@ mountAnnotationImport({
   getChart: () => viewer.chart,
   onImported: message => setPlotStatus(message),
 });
+
+syncControls();
