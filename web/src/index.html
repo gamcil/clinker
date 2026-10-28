@@ -78,12 +78,11 @@
                 <span class="file-drop-icon" aria-hidden="true">↑</span>
                 <span class="file-drop-title">Drop GenBank or GFF3 + FASTA files</span>
                 <span class="file-drop-action">Choose files</span>
-                <span id="file-summary" class="app-note text-truncate" hidden></span>
                 <input id="files" class="app-field visually-hidden" type="file" accept=".gb,.gbk,.genbank,.gbf,.gbff,.gff,.gff3,.fa,.fsa,.fna,.fasta,.faa" multiple>
               </label>
-              <div id="file-input-status" class="file-input-status app-panel" role="status" aria-live="polite" hidden>
+              <div id="file-input-status" class="file-input-status app-panel" hidden>
                 <div class="file-input-status-heading">
-                  <strong id="file-input-status-summary">Selected inputs</strong>
+                  <strong id="file-input-status-summary" role="status" aria-live="polite">Selected inputs</strong>
                   <button id="clear-input-files" class="app-button quiet-action compact-control" type="button">Clear</button>
                 </div>
                 <ul id="file-input-status-list"></ul>
@@ -125,12 +124,6 @@
                         <input id="min-shared-kmers" class="app-field compact-control" type="number" min="1" step="1" value="3">
                       </label>
                     </div>
-                  </section>
-                  <section class="settings-section" aria-labelledby="record-ranges-label">
-                    <h3 id="record-ranges-label" class="settings-title">Trim sequences</h3>
-                    <fieldset id="record-ranges" class="record-range-list app-panel" aria-labelledby="record-ranges-label" aria-live="polite">
-                      <p class="empty-setting">Choose input files to trim their sequences.</p>
-                    </fieldset>
                   </section>
                   <section class="settings-section" aria-labelledby="annotation-files-label">
                     <h3 id="annotation-files-label" class="settings-title">Gene annotations</h3>

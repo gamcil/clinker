@@ -7,7 +7,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
   const document = container.ownerDocument;
   const filesInput = container.querySelector("#files");
   const fileDropZone = container.querySelector("#file-drop-zone");
-  const fileSummary = container.querySelector("#file-summary");
+  const fileDropAction = fileDropZone.querySelector(".file-drop-action");
   const fileInputStatus = container.querySelector("#file-input-status");
   const fileInputStatusSummary = container.querySelector("#file-input-status-summary");
   const fileInputStatusList = container.querySelector("#file-input-status-list");
@@ -20,7 +20,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
   const minSharedKmersInput = container.querySelector("#min-shared-kmers");
   const separateRecordsInput = container.querySelector("#separate-records");
   const keepOriginInput = container.querySelector("#keep-origin");
-  const recordRangesElement = container.querySelector("#record-ranges");
+  let trimControls = new WeakMap();
   const geneFunctionsInput = container.querySelector("#gene-functions");
   const colourMapInput = container.querySelector("#colour-map");
   const geneFunctionsSummary = container.querySelector("#gene-functions-summary");
@@ -63,12 +63,10 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
     }));
   }
 
-  function syncFileSummary() {
+  function syncFilePicker() {
     const count = filesInput.files.length;
-    fileSummary.textContent = count === 0
-      ? ""
-      : `${count} input ${count === 1 ? "file" : "files"} selected`;
-    fileSummary.hidden = count === 0;
+    fileDropZone.classList.toggle("has-files", count > 0);
+    fileDropAction.textContent = count ? "Add files" : "Choose files";
   }
 
   function setSelectedInputFiles(files, { replace = false } = {}) {
@@ -93,7 +91,8 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
       ...validation.rows.filter(row => !row.ready),
       ...validation.rows.filter(row => row.ready),
     ];
-    for (const row of orderedRows) {
+    const recordsByName = new Map((validation.filesWithRecords || []).map(entry => [entry.file.name, entry]));
+    for (const [index, row] of orderedRows.entries()) {
       const item = document.createElement("li");
       item.dataset.state = row.ready ? "ready" : "error";
       const name = document.createElement("span");
@@ -110,7 +109,11 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
       remove.setAttribute("aria-label", `Remove ${row.name}`);
       remove.disabled = disabled;
       remove.addEventListener("click", () => {
-        for (const name of row.files || [row.name]) selectedInputFiles.delete(name.toLocaleLowerCase());
+        for (const name of row.files || [row.name]) {
+          const key = name.toLocaleLowerCase();
+          trimControls.delete(selectedInputFiles.get(key));
+          selectedInputFiles.delete(key);
+        }
         setSelectedInputFiles([], { replace: false });
         handleFileSelection();
       });
@@ -120,7 +123,23 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
       const label = document.createElement("div");
       label.className = "file-input-label";
       label.append(name, description);
-      item.append(label, state, remove);
+      const actions = document.createElement("div");
+      actions.className = "file-input-actions";
+      const entry = recordsByName.get(row.name);
+      if (row.ready && entry?.records.length) {
+        let trim = trimControls.get(entry.file);
+        if (!trim || trim.records !== entry.records) {
+          trim = createTrimControls(entry.file, entry.records);
+          trimControls.set(entry.file, trim);
+        }
+        trim.fields.id = `input-ranges-${index}`;
+        trim.button.setAttribute("aria-controls", trim.fields.id);
+        trim.button.disabled = trim.fields.disabled = disabled;
+        actions.append(trim.button);
+        item.append(trim.fields);
+      }
+      actions.append(remove);
+      item.prepend(label, state, actions);
       if (row.reason) {
         const reason = document.createElement("span");
         reason.className = "file-input-reason";
@@ -129,14 +148,6 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
       }
       fileInputStatusList.append(item);
     }
-  }
-
-  function emptyRecordRanges(message) {
-    recordRangesElement.replaceChildren();
-    const empty = document.createElement("p");
-    empty.className = "empty-setting";
-    empty.textContent = message;
-    recordRangesElement.append(empty);
   }
 
   function recordCoordinate(kind, value, minimum, maximum, description) {
@@ -148,91 +159,79 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
     input.min = String(minimum);
     input.max = String(maximum);
     input.step = "1";
-    input.value = String(value);
+    input.defaultValue = String(value);
     input.dataset.rangeCoordinate = kind;
     input.setAttribute("aria-label", `${description}: ${kind === "start" ? "Start" : "End"} (bp)`);
     wrapper.append(input);
     return wrapper;
   }
 
-  function renderRecordRanges(filesWithRecords) {
-    if (filesWithRecords.length === 0) {
-      emptyRecordRanges("Choose input files to trim their sequences.");
-      return;
-    }
-    recordRangesElement.replaceChildren();
-    const headings = document.createElement("table");
-    headings.className = "app-table sequence-regions sequence-region-headings";
-    const head = headings.createTHead().insertRow();
-    for (const text of ["File / sequence", "Start (bp)", "End (bp)"]) {
+  function createTrimControls(file, records) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "app-button quiet-action compact-control";
+    button.setAttribute("aria-expanded", "false");
+    const fields = document.createElement("fieldset");
+    fields.className = "file-trim-fields";
+    fields.hidden = true;
+    const legend = document.createElement("legend");
+    legend.textContent = "Sequence ranges (bp)";
+    fields.append(legend);
+    const table = document.createElement("table");
+    table.className = "app-table sequence-regions";
+    const head = table.createTHead().insertRow();
+    for (const text of ["Sequence", "Start (bp)", "End (bp)"]) {
       const cell = document.createElement("th");
       cell.scope = "col";
       cell.textContent = text;
       head.append(cell);
     }
-    const header = document.createElement("div");
-    header.className = "sequence-region-header";
-    header.append(headings);
-    const rows = document.createElement("div");
-    rows.className = "sequence-region-rows";
-    recordRangesElement.append(header, rows);
-    for (const { file, records } of filesWithRecords) {
-      const table = document.createElement("table");
-      table.className = "app-table sequence-regions";
-      table.setAttribute("aria-label", file.name);
-      const columns = document.createElement("colgroup");
-      for (let index = 0; index < 3; index += 1) {
-        const column = document.createElement("col");
-        if (index > 0) column.className = "sequence-coordinate-column";
-        columns.append(column);
-      }
-      table.append(columns);
-      rows.append(table);
-      const body = table.createTBody();
-      if (records.length > 1) table.classList.add("sequence-file-group");
-      if (records.length === 0) {
-        const cell = body.insertRow().insertCell();
-        cell.colSpan = 3;
-        cell.className = "empty-setting";
-        cell.textContent = `${file.name}: No sequences found; the complete file will be analysed.`;
-        continue;
-      }
-      for (const record of records) {
-        const availableStart = record.start ?? 1;
-        const availableEnd = record.end ?? record.length;
-        const row = body.insertRow();
-        row.dataset.recordRange = "";
-        row.dataset.file = file.name;
-        row.dataset.record = record.name;
-        row.dataset.length = String(record.length);
-        row.dataset.availableStart = String(availableStart);
-        row.dataset.availableEnd = String(availableEnd);
-        const description = `${file.name}: ${record.name}`;
-        const identity = document.createElement("th");
-        identity.scope = "row";
-        identity.title = `${description} (${availableStart.toLocaleString()}–${availableEnd.toLocaleString()} bp)`;
-        const fileName = document.createElement("span");
-        fileName.className = "sequence-file-name text-truncate";
-        fileName.textContent = file.name;
-        if (record !== records[0]) {
-          fileName.classList.add("sequence-file-name-placeholder");
-          fileName.setAttribute("aria-hidden", "true");
-        }
-        identity.append(fileName);
-        const name = document.createElement("span");
-        name.className = "record-range-name app-note text-truncate";
-        name.textContent = record.name;
-        identity.append(name);
-        row.append(identity);
-        row.insertCell().append(recordCoordinate("start", availableStart, availableStart, availableEnd, description));
-        row.insertCell().append(recordCoordinate("end", availableEnd, availableStart, availableEnd, description));
-      }
+    const body = table.createTBody();
+    for (const record of records) {
+      const start = record.start ?? 1, end = record.end ?? record.length;
+      const row = body.insertRow();
+      Object.assign(row.dataset, {
+        recordRange: "", file: file.name, record: record.name,
+        availableStart: String(start), availableEnd: String(end),
+      });
+      const name = document.createElement("th");
+      name.scope = "row";
+      name.title = `${record.name} (${start.toLocaleString()}–${end.toLocaleString()} bp)`;
+      const label = document.createElement("span");
+      label.className = "text-truncate";
+      label.textContent = record.name;
+      name.append(label);
+      row.append(name);
+      row.insertCell().append(recordCoordinate("start", start, start, end, `${file.name}: ${record.name}`));
+      row.insertCell().append(recordCoordinate("end", end, start, end, `${file.name}: ${record.name}`));
     }
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "app-button quiet-action compact-control";
+    reset.textContent = "Use full sequences";
+    const sync = () => {
+      const changed = [...fields.querySelectorAll("input")].some(input => input.value !== input.defaultValue);
+      button.textContent = changed ? "Trimmed · Edit…" : "Trim…";
+      button.setAttribute("aria-label", `${changed ? "Edit trimmed ranges for" : "Trim"} ${file.name}`);
+      reset.hidden = !changed;
+    };
+    button.addEventListener("click", () => {
+      fields.hidden = !fields.hidden;
+      button.setAttribute("aria-expanded", String(!fields.hidden));
+    });
+    fields.addEventListener("input", sync);
+    reset.addEventListener("click", () => {
+      for (const input of fields.querySelectorAll("input")) input.value = input.defaultValue;
+      sync();
+    });
+    fields.append(table, reset);
+    sync();
+    return { records, button, fields };
   }
 
   function collectRecordRanges() {
     const selections = new Map();
-    for (const row of recordRangesElement.querySelectorAll("[data-record-range]")) {
+    for (const row of fileInputStatusList.querySelectorAll("[data-record-range]")) {
       const availableStart = Number(row.dataset.availableStart);
       const availableEnd = Number(row.dataset.availableEnd);
       const start = Number(row.querySelector('[data-range-coordinate="start"]').value);
@@ -274,7 +273,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
   }
 
   function handleFileSelection() {
-    syncFileSummary();
+    syncFilePicker();
     inputInspection?.dispose();
     const inspection = new Workflow();
     inputInspection = inspection;
@@ -284,8 +283,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
     fileInputStatusList.replaceChildren();
     fileInputStatus.hidden = files.length === 0;
     if (files.length > 0) fileInputStatusSummary.textContent = "Checking selected inputs…";
-    recordRangesElement.setAttribute("aria-busy", "true");
-    emptyRecordRanges(files.length ? "Reading annotation records…" : "Choose input files to trim their sequences.");
+    fileInputStatus.setAttribute("aria-busy", "true");
     inputInspectionPromise = inspectInputFiles(files, {
       readText: file => inspection.readFile(file, true),
       cache: inputMetadata,
@@ -293,7 +291,6 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
       if (inspection.signal.aborted) return validation;
       inputsReady = validation.ready;
       renderInputValidation(validation);
-      renderRecordRanges(validation.filesWithRecords);
       onChange();
       return validation;
     }).catch(error => {
@@ -310,13 +307,12 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
         inputsReady = false;
         onChange();
         renderInputValidation(validation);
-        emptyRecordRanges("Could not inspect selected inputs.");
       }
       return validation;
     }).finally(() => {
       if (inputInspection === inspection) {
         inputInspection = null;
-        recordRangesElement.removeAttribute("aria-busy");
+        fileInputStatus.removeAttribute("aria-busy");
       }
       inspection.dispose();
     });
@@ -370,6 +366,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
   syncAnnotationFiles();
 
   function clear() {
+    trimControls = new WeakMap();
     setSelectedInputFiles([], { replace: true });
     handleFileSelection();
   }
@@ -377,9 +374,9 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
   function setDisabled(value) {
     disabled = value;
     for (const control of [filesInput, identityInput, noAlignInput, separateRecordsInput,
-      keepOriginInput, recordRangesElement, geneFunctionsInput, clearInputFilesButton,
+      keepOriginInput, geneFunctionsInput, clearInputFilesButton,
       container.querySelector("#run-tree-fields")]) control.disabled = disabled;
-    fileInputStatusList.querySelectorAll(".remove-input-file").forEach(button => { button.disabled = disabled; });
+    fileInputStatusList.querySelectorAll("button, fieldset").forEach(control => { control.disabled = disabled; });
     syncPrefilterControls();
     syncAnnotationFiles();
   }

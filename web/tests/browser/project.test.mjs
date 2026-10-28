@@ -22,6 +22,7 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
         window.workerAudit.live.add(this);
       }
       postMessage(message, ...args) {
+        if (message.type === 'parse-start') window.workerAudit.settings = message.prefilter;
         if (message.type === window.workerAudit.hold) {
           window.workerAudit.pending = { worker: this, lateMessage: this.onmessage };
           return;
@@ -72,15 +73,29 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
     input.dispatchEvent(new Event('change'));
     document.querySelector('#clear-input-files').click();
   });
-  await page.waitForFunction(() => !document.querySelector('#record-ranges').hasAttribute('aria-busy'));
+  await page.waitForFunction(() => !document.querySelector('#file-input-status').hasAttribute('aria-busy'));
   assert.deepEqual(await page.evaluate(() => window.inputAudit), { reads: ['old.gbk'], aborts: 1 });
   assert.equal(await page.locator('#analyse').isDisabled(), true);
   assert.equal(await page.locator('[data-record-range]').count(), 0);
   await page.locator('#files').setInputFiles([
     resolve(root, 'examples/A. versicolor CBS 583.65.gbk'),
     resolve(root, 'examples/A. burnettii MST-FP2249.gbk'),
-    resolve(root, 'examples/P. vexata CBS 129021.gbk'),
   ]);
+  await page.waitForFunction(() => !document.querySelector('#analyse').disabled);
+  const trim = page.getByRole('button', { name: 'Trim A. versicolor CBS 583.65.gbk', exact: true });
+  await trim.click();
+  const range = page.locator('[data-record-range]').filter({ has: page.locator('[aria-label="A. versicolor CBS 583.65.gbk: KV878126: Start (bp)"]') });
+  await range.locator('[data-range-coordinate="start"]').fill('100');
+  await range.locator('[data-range-coordinate="end"]').fill('20000');
+  await page.getByRole('button', { name: 'Edit trimmed ranges for A. versicolor CBS 583.65.gbk', exact: true }).click();
+  const thirdFile = resolve(root, 'examples/P. vexata CBS 129021.gbk');
+  await page.locator('#files').setInputFiles(thirdFile);
+  await page.waitForFunction(() => !document.querySelector('#analyse').disabled);
+  await page.getByRole('button', { name: 'Remove P. vexata CBS 129021.gbk', exact: true }).click();
+  await page.waitForFunction(() => !document.querySelector('#analyse').disabled);
+  assert.equal(await range.locator('[data-range-coordinate="start"]').inputValue(), '100', 'trims survive changes to other files');
+  assert.equal(await page.getByRole('button', { name: 'Edit trimmed ranges for A. versicolor CBS 583.65.gbk', exact: true }).getAttribute('aria-expanded'), 'false');
+  await page.locator('#files').setInputFiles(thirdFile);
   await page.waitForFunction(() => !document.querySelector('#analyse').disabled);
   const inspectionReads = await page.evaluate(() => window.inputAudit.reads);
   await page.locator('#files').dispatchEvent('change');
@@ -88,6 +103,7 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   assert.deepEqual(await page.evaluate(() => window.inputAudit.reads), inspectionReads);
   await page.locator('#analyse').click();
   await page.waitForFunction(() => document.querySelector('#run-panel').hidden, {}, { timeout: 60000 });
+  assert.deepEqual(await page.evaluate(() => window.workerAudit.settings.genbank.ranges), [{ record: 'KV878126', start: 99, end: 20000 }]);
   const expected = await page.evaluate(() => {
     const chart = document.querySelector('#plot-editor').chart;
     const gene = chart.data().clusters[0].loci[0].genes[0];
@@ -133,7 +149,8 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   await page.locator('#edit-plot').click();
   const editor = page.locator('#plot-editor');
   await editor.locator('clinker-view-switcher[data-kind-picker]').getByRole('button', { name: 'Genes', exact: true }).click();
-  const targetCluster = beforeDelete.data.clusters.find(cluster => cluster.loci.length === 1 && cluster.loci[0].genes.length);
+  const targetCluster = beforeDelete.data.clusters.find(cluster => cluster.loci.length === 1
+    && cluster.loci[0].genes.length && !cluster.loci[0].genes.some(gene => gene.uid === expected.gene));
   assert.ok(targetCluster, 'the example has a single-locus cluster for bulk gene selection');
   const deletedGenes = targetCluster.loci[0].genes.map(gene => gene.uid);
   const selection = editor.getByRole('checkbox', {
