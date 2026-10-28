@@ -859,6 +859,16 @@ html,
 }
 :where(.clinker-app) .file-input-status li:first-child { border-top: 0; }
 :where(.clinker-app) .file-input-actions { display: flex; align-items: center; gap: 4px; }
+:where(.clinker-app) .file-trim-toggle.is-trimmed::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+}
 :where(.clinker-app) .file-drop-zone.has-files { display: flex; min-height: 0; padding: 10px; }
 :where(.clinker-app) .file-drop-zone.has-files :is(.file-drop-icon, .file-drop-title) { display: none; }
 
@@ -973,10 +983,10 @@ html,
 :where(.clinker-app) .file-trim-range > .text-truncate { flex: 1 1 100px; }
 :where(.clinker-app) .file-trim-coordinates {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
-  width: 240px;
+  width: 290px;
   max-width: 100%;
 }
 :where(.clinker-app) .record-coordinate { display: block; }

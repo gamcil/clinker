@@ -171,7 +171,8 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
   function createTrimControls(file, records) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "app-button quiet-action compact-control";
+    button.className = "app-button file-trim-toggle quiet-action compact-control";
+    button.textContent = "Trim…";
     button.setAttribute("aria-expanded", "false");
     const fields = document.createElement("fieldset");
     fields.className = "file-trim-fields";
@@ -197,34 +198,39 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
       const unit = document.createElement("span");
       unit.className = "app-note";
       unit.textContent = "bp";
+      const reset = document.createElement("button");
+      reset.type = "button";
+      reset.className = "app-button quiet-action compact-control";
+      reset.textContent = "Reset";
+      reset.setAttribute("aria-label", `Reset range for ${file.name}: ${record.name}`);
+      reset.addEventListener("click", () => {
+        for (const input of row.querySelectorAll("input")) input.value = input.defaultValue;
+        sync();
+        row.querySelector("input").focus();
+      });
       coordinates.append(
         recordCoordinate("start", start, start, end, `${file.name}: ${record.name}`), separator,
-        recordCoordinate("end", end, start, end, `${file.name}: ${record.name}`), unit,
+        recordCoordinate("end", end, start, end, `${file.name}: ${record.name}`), unit, reset,
       );
       row.append(name, coordinates);
       fields.append(row);
     }
-    const reset = document.createElement("button");
-    reset.type = "button";
-    reset.className = "app-button quiet-action compact-control";
-    reset.textContent = "Use full sequences";
-    const sync = () => {
-      const changed = [...fields.querySelectorAll("input")].some(input => input.value !== input.defaultValue);
-      button.textContent = changed ? "Trimmed · Edit…" : "Trim…";
+    function sync() {
+      let changed = false;
+      for (const row of fields.querySelectorAll("[data-record-range]")) {
+        const trimmed = [...row.querySelectorAll("input")].some(input => input.value !== input.defaultValue);
+        row.querySelector("button").disabled = !trimmed;
+        changed ||= trimmed;
+      }
+      button.classList.toggle("is-trimmed", changed);
+      button.title = changed ? "Edit trimmed sequence ranges" : "Trim sequence ranges";
       button.setAttribute("aria-label", `${changed ? "Edit trimmed ranges for" : "Trim"} ${file.name}`);
-      reset.hidden = !changed;
-    };
+    }
     button.addEventListener("click", () => {
       fields.hidden = !fields.hidden;
       button.setAttribute("aria-expanded", String(!fields.hidden));
     });
     fields.addEventListener("input", sync);
-    reset.addEventListener("click", () => {
-      for (const input of fields.querySelectorAll("input")) input.value = input.defaultValue;
-      sync();
-      button.focus();
-    });
-    fields.append(reset);
     sync();
     return { records, button, fields };
   }
@@ -376,7 +382,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
     for (const control of [filesInput, identityInput, noAlignInput, separateRecordsInput,
       keepOriginInput, geneFunctionsInput, clearInputFilesButton,
       container.querySelector("#run-tree-fields")]) control.disabled = disabled;
-    fileInputStatusList.querySelectorAll("button, fieldset").forEach(control => { control.disabled = disabled; });
+    fileInputStatusList.querySelectorAll(".file-input-actions button, fieldset").forEach(control => { control.disabled = disabled; });
     syncPrefilterControls();
     syncAnnotationFiles();
   }
