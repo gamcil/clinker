@@ -43,7 +43,6 @@
   --app-hover: #354660;
   --app-accent: #85b7ff;
   --app-focus-ring: #85b7ff;
-  --app-disabled-text: #8993a1;
   --app-primary-disabled: #3b506b;
   --app-selection: #354660;
   --app-selection-border: #526b8e;
@@ -86,9 +85,7 @@
   font: var(--app-font);
   background: var(--app-background);
 }
-:where(.clinker-app) * {
-  box-sizing: border-box;
-}
+:where(.clinker-app) * { box-sizing: border-box; }
 html,
 .clinker-app {
   width: 100%;
@@ -98,10 +95,7 @@ html,
 .clinker-app {
   overflow: hidden;
 }
-:where(.clinker-app) [hidden] {
-  display: none !important;
-}
-:where(.clinker-app) .sr-only,
+:where(.clinker-app) [hidden] { display: none !important; }
 :where(.clinker-app) .visually-hidden {
   position: absolute;
   width: 1px;
@@ -244,6 +238,27 @@ html,
   border-color: var(--app-focus-ring);
   background: var(--app-hover);
 }
+
+/* Shared text and panels. */
+:where(.clinker-app) .text-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:where(.clinker-app) .app-note {
+  color: var(--app-muted);
+  font-size: .8rem;
+}
+:where(.clinker-app) .app-panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+:where(.clinker-app) .settings-card,
+:where(.clinker-app) .tree-matching-table { background: var(--app-subtle); }
 
 /* Menus. */
 :where(.clinker-app) .menu { position: relative; }
@@ -569,10 +584,6 @@ html,
 :where(.clinker-app) .import-file-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 :where(.clinker-app) .file-picker-name {
   flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--app-muted);
 }
 
@@ -591,10 +602,10 @@ html,
 :where(.clinker-app) .tree-import-status[data-tone="error"] { color: var(--app-danger); }
 :where(.clinker-app) .tree-match-error { display: block; margin-top: 5px; overflow-wrap: anywhere; }
 :where(.clinker-app) .tree-matching summary { cursor: pointer; font-weight: 600; }
-:where(.clinker-app) .tree-matching-table { border: 1px solid var(--app-border); border-radius: 7px; overflow: hidden; background: var(--app-subtle); }
+
 :where(.clinker-app) .tree-matching-scroll { max-height: 15rem; overflow-y: auto; }
 :where(.clinker-app) .tree-matching-table table { table-layout: fixed; font-size: .8rem; line-height: 1.2; }
-:where(.clinker-app) .tree-matching-table th { font-size: .74rem; }
+:where(.clinker-app) .tree-matching-table th { font-size: .75rem; }
 :where(.clinker-app) .tree-matching-table th:first-child,
 :where(.clinker-app) .tree-matching-table td:first-child { width: 35%; }
 :where(.clinker-app) .tree-matching-table td,
@@ -602,7 +613,10 @@ html,
 :where(.clinker-app) .tree-matching-table tbody tr { height: var(--input-row-height); }
 :where(.clinker-app) .tree-matching-table tbody tr:last-child td { border-bottom: 0; }
 :where(.clinker-app) .tree-inline-label { display: none; }
-:where(.clinker-app) .run-tree-fields { min-width: 0; margin: 16px 0 0; padding: 0; border: 1px solid var(--app-border); border-radius: 8px; overflow: hidden; background: var(--app-surface); }
+:where(.clinker-app) .run-tree-fields {
+  margin: 16px 0 0;
+  padding: 0;
+}
 :where(.clinker-app) .run-tree-fields .tree-inline-label { display: inline; flex-shrink: 0; font-weight: 600; }
 :where(.clinker-app) .tree-inline-label span { font-weight: 400; color: var(--app-muted); }
 :where(.clinker-app) .run-tree-fields .tree-file-picker { min-height: 36px; padding: 5px 8px; gap: 8px; font-size: .8rem; }
@@ -733,6 +747,7 @@ html,
   border-radius: 12px;
   background: var(--app-surface);
   box-shadow: 0 8px 28px rgba(23, 36, 54, .08);
+  font-size: .85rem;
 }
 :where(.clinker-app) .run-card-heading {
   display: flex;
@@ -743,14 +758,12 @@ html,
 }
 :where(.clinker-app) .run-title {
   margin: 0;
-  color: var(--app-foreground);
   font-size: 1.3rem;
 }
 :where(.clinker-app) .settings-title {
   margin: 0;
-  color: var(--app-foreground);
-  font-size: .84rem;
   font-weight: 650;
+  font-size: inherit;
 }
 :where(.clinker-app) .file-drop-zone {
   display: grid;
@@ -763,7 +776,6 @@ html,
   border: 1px dashed var(--app-border);
   border-radius: 9px;
   background: var(--app-subtle);
-  color: var(--app-foreground);
   cursor: pointer;
   text-align: center;
   transition: border-color .15s ease, background-color .15s ease;
@@ -808,23 +820,13 @@ html,
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-:where(.clinker-app) .file-summary {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--app-muted);
-  font-size: .74rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 :where(.clinker-app) .file-input-status {
   display: grid;
   gap: 0;
   margin-top: 8px;
   padding: 0;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface);
-  font-size: .78rem;
+  font-size: .8rem;
 }
 :where(.clinker-app) .file-input-status-heading {
   display: flex;
@@ -835,7 +837,7 @@ html,
   padding: 3px 8px;
   border-bottom: 1px solid var(--app-border);
 }
-:where(.clinker-app) .file-input-status-heading strong { font-size: .8rem; }
+
 :where(.clinker-app) .file-input-status ul {
   display: block;
   max-height: 15rem;
@@ -855,13 +857,7 @@ html,
   border-top: 1px solid var(--app-border);
 }
 :where(.clinker-app) .file-input-status li:first-child { border-top: 0; }
-:where(.clinker-app) .file-input-name {
-  overflow: hidden;
-  color: var(--app-foreground);
-  font-size: .8rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 :where(.clinker-app) .file-input-label {
   display: grid;
   min-width: 0;
@@ -869,13 +865,7 @@ html,
 }
 :where(.clinker-app) .file-input-name,
 :where(.clinker-app) .file-input-description { line-height: 1.2; }
-:where(.clinker-app) .file-input-description {
-  overflow: hidden;
-  color: var(--app-muted);
-  font-size: .72rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+:where(.clinker-app) .file-input-description { font-size: .75rem; }
 :where(.clinker-app) .file-input-state {
   color: var(--app-success);
   font-weight: 650;
@@ -902,8 +892,6 @@ html,
   align-items: center;
   gap: 12px;
   padding: 2px 3px 2px 9px;
-  color: var(--app-foreground);
-  font-size: .86rem;
 }
 :where(.clinker-app) .identity-setting {
   --setting-control-width: 90px;
@@ -927,9 +915,7 @@ html,
   align-items: center;
   gap: 8px;
   padding: 6px 9px;
-  color: var(--app-foreground);
   cursor: pointer;
-  font-size: .86rem;
 }
 :where(.clinker-app) .setting-check:hover:not(:has(input:disabled)) { background: var(--app-subtle); }
 :where(.clinker-app) .setting-check:has(input:disabled),
@@ -941,17 +927,13 @@ html,
   min-height: 0;
   padding: 0;
 }
-:where(.clinker-app) .setting-help {
-  margin: 0;
-  color: var(--app-muted);
-  font-size: .76rem;
-}
+:where(.clinker-app) .setting-help { margin: 0; }
 :where(.clinker-app) .prefilter-option .setting-help { margin-left: 24px; }
 :where(.clinker-app) .settings-subheading {
   margin: 0;
   padding: 8px 9px;
   color: var(--app-muted);
-  font-size: .78rem;
+  font-size: .8rem;
   font-weight: 600;
 }
 :where(.clinker-app) .run-advanced {
@@ -962,7 +944,6 @@ html,
   padding: 11px 0 2px;
   color: var(--app-muted);
   cursor: pointer;
-  font-size: .84rem;
   font-weight: 600;
 }
 :where(.clinker-app) .settings-sections {
@@ -979,13 +960,8 @@ html,
   display: flex;
   flex-direction: column;
   max-height: 230px;
-  min-width: 0;
   margin: 0;
-  overflow: hidden;
   padding: 0;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface);
 }
 :where(.clinker-app) .sequence-region-header {
   flex: none;
@@ -1001,7 +977,6 @@ html,
 }
 :where(.clinker-app) .sequence-regions {
   table-layout: fixed;
-  color: var(--app-foreground);
   font-size: .8rem;
 }
 :where(.clinker-app) .sequence-regions th,
@@ -1014,7 +989,7 @@ html,
 :where(.clinker-app) .sequence-regions thead th {
   padding-top: 7px;
   padding-bottom: 7px;
-  font-size: .73rem;
+  font-size: .75rem;
 }
 :where(.clinker-app) .sequence-regions thead th:not(:first-child) { width: 100px; }
 :where(.clinker-app) .sequence-coordinate-column { width: 100px; }
@@ -1041,17 +1016,11 @@ html,
 :where(.clinker-app) .sequence-file-name,
 :where(.clinker-app) .record-range-name {
   display: block;
-  overflow: hidden;
   line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 :where(.clinker-app) .sequence-file-name + .record-range-name { margin-top: 1px; }
 :where(.clinker-app) .sequence-file-name-placeholder { visibility: hidden; }
-:where(.clinker-app) .record-range-name {
-  color: var(--app-muted);
-  font-size: .72rem;
-}
+:where(.clinker-app) .record-range-name { font-size: .75rem; }
 :where(.clinker-app) .record-coordinate { display: block; }
 :where(.clinker-app) .record-range-list:disabled { opacity: .65; }
 :where(.clinker-app) .empty-setting {
@@ -1060,7 +1029,7 @@ html,
   font-size: .8rem;
 }
 :where(.clinker-app) .compact-file-row {
-  font-size: .78rem;
+  font-size: .8rem;
   display: grid;
   grid-template-columns: minmax(150px, 1fr) auto minmax(90px, 1fr);
   align-items: center;
@@ -1068,13 +1037,7 @@ html,
   min-height: 34px;
   padding: 2px 7px;
 }
-:where(.clinker-app) .settings-card {
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--app-border);
-  border-radius: 7px;
-  background: var(--app-subtle);
-}
+
 :where(.clinker-app) .settings-card > * + * { border-top: 1px solid var(--app-border); }
 :where(.clinker-app) .compact-file-description {
   display: flex;
@@ -1082,21 +1045,11 @@ html,
   min-width: 0;
   align-items: baseline;
   gap: 7px;
-  color: var(--app-foreground);
-  font-size: .82rem;
 }
 :where(.clinker-app) .compact-file-description small { color: var(--app-muted); }
-:where(.clinker-app) .compact-file-description code { font-size: .72rem; }
-:where(.clinker-app) .compact-file-summary {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--app-muted);
-  font-size: .76rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+:where(.clinker-app) .compact-file-description code { font-size: .75rem; }
+
 :where(.clinker-app) .run-actions {
-  font-size: .86rem;
   font-weight: 600;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1151,7 +1104,7 @@ html,
   border-radius: 50%;
   background: var(--app-surface);
   color: var(--app-muted);
-  font-size: .74rem;
+  font-size: .75rem;
   font-weight: 700;
 }
 :where(.clinker-app) .run-steps li[data-state="active"] .step-marker {
@@ -1185,15 +1138,9 @@ html,
   gap: 2px;
   padding-top: 2px;
 }
-:where(.clinker-app) .step-content strong {
-  color: var(--app-foreground);
-  font-size: .82rem;
-}
+:where(.clinker-app) .step-content strong { color: var(--app-foreground); }
 :where(.clinker-app) .run-steps li[data-state="waiting"] .step-content { opacity: .55; }
-:where(.clinker-app) .step-result {
-  color: var(--app-muted);
-  font-size: .79rem;
-}
+
 :where(.clinker-app) .step-content progress {
   display: block;
   width: 100%;
@@ -1206,7 +1153,6 @@ html,
   margin: 0;
   padding: 9px 10px;
   border-radius: 7px;
-  font-size: .84rem;
 }
 :where(.clinker-app) .run-feedback p[data-tone="error"] {
   margin-top: 7px;
@@ -1234,7 +1180,7 @@ html,
   :where(.clinker-app) .sequence-regions thead th:not(:first-child),
   :where(.clinker-app) .sequence-coordinate-column { width: 83px; }
   :where(.clinker-app) .compact-file-row { grid-template-columns: minmax(0, 1fr) auto; }
-  :where(.clinker-app) .compact-file-summary { grid-column: 1 / -1; }
+  :where(.clinker-app) .compact-file-row > .app-note { grid-column: 1 / -1; }
 }
 @media (max-width: 480px) {
   :where(.clinker-app) .run-actions .app-button.primary-action { grid-column: 1 / -1; }

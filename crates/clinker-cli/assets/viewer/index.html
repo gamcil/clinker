@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=13c559062129a7eb">
-    <script src="vendor/d3/d3.min.js?v=13c559062129a7eb"></script>
-    <script src="vendor/clustermap/clustermap.min.js?v=13c559062129a7eb"></script>
+    <link rel="stylesheet" href="style.css?v=a2e7325c97ba540a">
+    <script src="vendor/d3/d3.min.js?v=a2e7325c97ba540a"></script>
+    <script src="vendor/clustermap/clustermap.min.js?v=a2e7325c97ba540a"></script>
   </head>
   <body class="clinker-app">
     <main class="app-main">
@@ -178,7 +178,7 @@
         </div>
       </header>
       <div class="app-dialog__body annotation-import-body">
-        <div class="import-file-picker"><button id="choose-annotation-file" type="button" class="app-button">Choose TSV / CSV file</button><span id="annotation-file-name" class="file-picker-name">None selected</span><input id="annotation-file" class="app-field visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
+        <div class="import-file-picker"><button id="choose-annotation-file" type="button" class="app-button">Choose TSV / CSV file</button><span id="annotation-file-name" class="file-picker-name text-truncate">None selected</span><input id="annotation-file" class="app-field visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
         <details id="annotation-parsing-options" class="annotation-import-advanced">
           <summary class="app-disclosure">File and matching options</summary>
           <div class="import-options">
@@ -218,7 +218,7 @@
         <div class="import-file-picker tree-file-picker">
           <span class="tree-inline-label">Tree <span>(optional)</span></span>
           <button id="choose-tree-file" type="button" autofocus class="app-button">Choose Newick file</button>
-          <span id="tree-file-name" class="file-picker-name">None selected</span>
+          <span id="tree-file-name" class="file-picker-name text-truncate">None selected</span>
           <button id="tree-clear" class="app-button quiet-action" type="button" hidden>Remove</button>
           <input id="tree-file" class="app-field visually-hidden" tabindex="-1" type="file" accept=".nwk,.newick,.tree,.tre,.txt" aria-label="Newick file">
         </div>
@@ -226,7 +226,7 @@
         <details id="tree-matching" class="tree-matching" hidden>
           <summary class="app-disclosure">Leaf matching</summary>
           <p class="tree-import-note">Exact cluster names, sequence IDs and input filenames are matched automatically. Choose a different cluster to resolve a mismatch.</p>
-          <div class="tree-matching-table"><table class="app-table"><thead><tr><th>Tree leaf</th><th>Plotted cluster</th></tr></thead></table><div class="tree-matching-scroll"><table class="app-table"><tbody id="tree-matching-rows"></tbody></table></div></div>
+          <div class="tree-matching-table app-panel"><table class="app-table"><thead><tr><th>Tree leaf</th><th>Plotted cluster</th></tr></thead></table><div class="tree-matching-scroll"><table class="app-table"><tbody id="tree-matching-rows"></tbody></table></div></div>
           <p id="tree-missing" class="tree-match-error"></p>
         </details>
         <section id="tree-root-metadata" class="tree-root-metadata" hidden>
@@ -241,6 +241,6 @@
           </div>
         </details>
     </template>
-    <script type="module" src="local.js?v=13c559062129a7eb"></script>
+    <script type="module" src="local.js?v=a2e7325c97ba540a"></script>
   </body>
 </html>

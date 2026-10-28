@@ -97,7 +97,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
       const item = document.createElement("li");
       item.dataset.state = row.ready ? "ready" : "error";
       const name = document.createElement("span");
-      name.className = "file-input-name";
+      name.className = "file-input-name text-truncate";
       name.textContent = row.name;
       name.title = row.name;
       const state = document.createElement("span");
@@ -115,7 +115,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
         handleFileSelection();
       });
       const description = document.createElement("span");
-      description.className = "file-input-description";
+      description.className = "file-input-description app-note text-truncate";
       description.textContent = row.description || "";
       const label = document.createElement("div");
       label.className = "file-input-label";
@@ -212,7 +212,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
         identity.scope = "row";
         identity.title = `${description} (${availableStart.toLocaleString()}–${availableEnd.toLocaleString()} bp)`;
         const fileName = document.createElement("span");
-        fileName.className = "sequence-file-name";
+        fileName.className = "sequence-file-name text-truncate";
         fileName.textContent = file.name;
         if (record !== records[0]) {
           fileName.classList.add("sequence-file-name-placeholder");
@@ -220,7 +220,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
         }
         identity.append(fileName);
         const name = document.createElement("span");
-        name.className = "record-range-name";
+        name.className = "record-range-name app-note text-truncate";
         name.textContent = record.name;
         identity.append(name);
         row.append(identity);

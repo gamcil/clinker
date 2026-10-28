@@ -78,17 +78,17 @@
                 <span class="file-drop-icon" aria-hidden="true">↑</span>
                 <span class="file-drop-title">Drop GenBank or GFF3 + FASTA files</span>
                 <span class="file-drop-action">Choose files</span>
-                <span id="file-summary" class="file-summary" hidden></span>
+                <span id="file-summary" class="app-note text-truncate" hidden></span>
                 <input id="files" class="app-field visually-hidden" type="file" accept=".gb,.gbk,.genbank,.gbf,.gbff,.gff,.gff3,.fa,.fsa,.fna,.fasta,.faa" multiple>
               </label>
-              <div id="file-input-status" class="file-input-status" role="status" aria-live="polite" hidden>
+              <div id="file-input-status" class="file-input-status app-panel" role="status" aria-live="polite" hidden>
                 <div class="file-input-status-heading">
                   <strong id="file-input-status-summary">Selected inputs</strong>
                   <button id="clear-input-files" class="app-button quiet-action compact-control" type="button">Clear</button>
                 </div>
                 <ul id="file-input-status-list"></ul>
               </div>
-              <fieldset id="run-tree-fields" class="run-tree-fields" aria-label="Optional tree"></fieldset>
+              <fieldset id="run-tree-fields" class="run-tree-fields app-panel" aria-label="Optional tree"></fieldset>
               <div class="run-options">
                 <label class="setting-row identity-setting">
                   <span>Minimum protein identity</span>
@@ -102,7 +102,7 @@
                     <input id="prefilter" type="checkbox" aria-describedby="prefilter-help" class="app-field">
                     <span>Use k-mer prefilter</span>
                   </label>
-                  <p id="prefilter-help" class="setting-help">Can reduce comparison work; may miss distant homologues.</p>
+                  <p id="prefilter-help" class="setting-help app-note">Can reduce comparison work; may miss distant homologues.</p>
                 </div>
               </div>
               <details class="run-advanced">
@@ -110,7 +110,7 @@
                 <div class="settings-sections">
                   <section class="settings-section" aria-labelledby="alignment-settings-label">
                     <h3 id="alignment-settings-label" class="settings-title">Protein comparison</h3>
-                    <div class="settings-card">
+                    <div class="settings-card app-panel">
                       <label class="setting-check">
                         <input id="no-align" type="checkbox" class="app-field">
                         <span>Plot annotations without protein alignment</span>
@@ -128,14 +128,14 @@
                   </section>
                   <section class="settings-section" aria-labelledby="record-ranges-label">
                     <h3 id="record-ranges-label" class="settings-title">Trim sequences</h3>
-                    <fieldset id="record-ranges" class="record-range-list" aria-labelledby="record-ranges-label" aria-live="polite">
+                    <fieldset id="record-ranges" class="record-range-list app-panel" aria-labelledby="record-ranges-label" aria-live="polite">
                       <p class="empty-setting">Choose input files to trim their sequences.</p>
                     </fieldset>
                   </section>
                   <section class="settings-section" aria-labelledby="annotation-files-label">
                     <h3 id="annotation-files-label" class="settings-title">Gene annotations</h3>
-                    <p class="setting-help">Optional two-column CSV files.</p>
-                    <div class="settings-card">
+                    <p class="setting-help app-note">Optional two-column CSV files.</p>
+                    <div class="settings-card app-panel">
                       <div class="compact-file-row">
                         <span class="compact-file-description">
                           <strong>Gene functions</strong>
@@ -145,7 +145,7 @@
                           <span>Choose CSV</span>
                           <input id="gene-functions" class="app-field visually-hidden" type="file" accept=".csv,text/csv" aria-label="Choose gene functions CSV">
                         </label>
-                        <span id="gene-functions-summary" class="compact-file-summary">None selected</span>
+                        <span id="gene-functions-summary" class="app-note text-truncate">None selected</span>
                       </div>
                       <div class="compact-file-row">
                         <span class="compact-file-description">
@@ -156,13 +156,13 @@
                           <span>Choose CSV</span>
                           <input id="colour-map" class="app-field visually-hidden" type="file" accept=".csv,text/csv" aria-label="Choose function colours CSV" disabled>
                         </label>
-                        <span id="colour-map-summary" class="compact-file-summary">Add functions first</span>
+                        <span id="colour-map-summary" class="app-note text-truncate">Add functions first</span>
                       </div>
                     </div>
                   </section>
                   <section class="settings-section" aria-labelledby="other-settings-label">
                     <h3 id="other-settings-label" class="settings-title">Other</h3>
-                    <div class="settings-card">
+                    <div class="settings-card app-panel">
                       <label class="setting-check">
                         <input id="file-order" type="checkbox" class="app-field">
                         <span>Keep input file order</span>
@@ -191,7 +191,7 @@
                   <span class="step-marker" aria-hidden="true">1</span>
                   <div class="step-content">
                     <strong>Parse annotation files</strong>
-                    <span class="step-result">Waiting</span>
+                    <span class="step-result app-note">Waiting</span>
                     <progress max="100" hidden></progress>
                   </div>
                 </li>
@@ -199,7 +199,7 @@
                   <span class="step-marker" aria-hidden="true">2</span>
                   <div class="step-content">
                     <strong>Filter candidate alignments</strong>
-                    <span class="step-result">Waiting</span>
+                    <span class="step-result app-note">Waiting</span>
                     <progress max="100" hidden></progress>
                   </div>
                 </li>
@@ -207,7 +207,7 @@
                   <span class="step-marker" aria-hidden="true">3</span>
                   <div class="step-content">
                     <strong>Align genes</strong>
-                    <span class="step-result">Waiting</span>
+                    <span class="step-result app-note">Waiting</span>
                     <progress max="100" hidden></progress>
                   </div>
                 </li>
@@ -215,7 +215,7 @@
                   <span class="step-marker" aria-hidden="true">4</span>
                   <div class="step-content">
                     <strong>Score and order clusters</strong>
-                    <span class="step-result">Waiting</span>
+                    <span class="step-result app-note">Waiting</span>
                     <progress max="100" hidden></progress>
                   </div>
                 </li>
@@ -223,7 +223,7 @@
                   <span class="step-marker" aria-hidden="true">5</span>
                   <div class="step-content">
                     <strong>Build homology groups</strong>
-                    <span class="step-result">Waiting</span>
+                    <span class="step-result app-note">Waiting</span>
                     <progress max="100" hidden></progress>
                   </div>
                 </li>
@@ -231,7 +231,7 @@
                   <span class="step-marker" aria-hidden="true">6</span>
                   <div class="step-content">
                     <strong>Arrange loci</strong>
-                    <span class="step-result">Waiting</span>
+                    <span class="step-result app-note">Waiting</span>
                     <progress max="100" hidden></progress>
                   </div>
                 </li>
@@ -355,7 +355,7 @@
         </div>
       </header>
       <div class="app-dialog__body annotation-import-body">
-        <div class="import-file-picker"><button id="choose-annotation-file" type="button" class="app-button">Choose TSV / CSV file</button><span id="annotation-file-name" class="file-picker-name">None selected</span><input id="annotation-file" class="app-field visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
+        <div class="import-file-picker"><button id="choose-annotation-file" type="button" class="app-button">Choose TSV / CSV file</button><span id="annotation-file-name" class="file-picker-name text-truncate">None selected</span><input id="annotation-file" class="app-field visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
         <details id="annotation-parsing-options" class="annotation-import-advanced">
           <summary class="app-disclosure">File and matching options</summary>
           <div class="import-options">
@@ -395,7 +395,7 @@
         <div class="import-file-picker tree-file-picker">
           <span class="tree-inline-label">Tree <span>(optional)</span></span>
           <button id="choose-tree-file" type="button" autofocus class="app-button">Choose Newick file</button>
-          <span id="tree-file-name" class="file-picker-name">None selected</span>
+          <span id="tree-file-name" class="file-picker-name text-truncate">None selected</span>
           <button id="tree-clear" class="app-button quiet-action" type="button" hidden>Remove</button>
           <input id="tree-file" class="app-field visually-hidden" tabindex="-1" type="file" accept=".nwk,.newick,.tree,.tre,.txt" aria-label="Newick file">
         </div>
@@ -403,7 +403,7 @@
         <details id="tree-matching" class="tree-matching" hidden>
           <summary class="app-disclosure">Leaf matching</summary>
           <p class="tree-import-note">Exact cluster names, sequence IDs and input filenames are matched automatically. Choose a different cluster to resolve a mismatch.</p>
-          <div class="tree-matching-table"><table class="app-table"><thead><tr><th>Tree leaf</th><th>Plotted cluster</th></tr></thead></table><div class="tree-matching-scroll"><table class="app-table"><tbody id="tree-matching-rows"></tbody></table></div></div>
+          <div class="tree-matching-table app-panel"><table class="app-table"><thead><tr><th>Tree leaf</th><th>Plotted cluster</th></tr></thead></table><div class="tree-matching-scroll"><table class="app-table"><tbody id="tree-matching-rows"></tbody></table></div></div>
           <p id="tree-missing" class="tree-match-error"></p>
         </details>
         <section id="tree-root-metadata" class="tree-root-metadata" hidden>
