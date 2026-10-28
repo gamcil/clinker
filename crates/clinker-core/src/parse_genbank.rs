@@ -96,6 +96,9 @@ pub fn parse_genbank_with_options(
                 record: name.clone(),
                 length: record.len(),
             })?;
+        for feature in &mut record.features {
+            normalise_fuzzy_positions(&mut feature.location);
+        }
 
         let organism = record
             .source
@@ -161,6 +164,51 @@ fn common_organism(loci: &[(String, Option<String>, Locus)]) -> Option<String> {
     loci.iter()
         .all(|(_, organism, _)| organism.as_ref() == Some(first))
         .then(|| first.clone())
+}
+
+fn normalise_fuzzy_positions(location: &mut Location) {
+    match location {
+        Location::Complement(inner) => normalise_fuzzy_positions(inner),
+        Location::Join(parts)
+        | Location::Order(parts)
+        | Location::Bond(parts)
+        | Location::OneOf(parts) => {
+            for part in parts {
+                normalise_fuzzy_positions(part);
+            }
+        }
+        // gb-io reads standalone fuzzy positions, including compounds containing
+        // them, as external names. Equivalent one-base spans parse correctly.
+        Location::External(text, None) if text.contains(['<', '>']) => {
+            let expanded: String = text
+                .split_inclusive(['(', ')', ','])
+                .map(|part| {
+                    let point = part.trim_end_matches(['(', ')', ',']);
+                    let digits = point.strip_prefix('<').or_else(|| point.strip_prefix('>'));
+                    match digits {
+                        Some(digits)
+                            if !digits.is_empty() && digits.bytes().all(|c| c.is_ascii_digit()) =>
+                        {
+                            let span = if point.starts_with('<') {
+                                format!("<{digits}..{digits}")
+                            } else {
+                                format!("{digits}..>{digits}")
+                            };
+                            format!("{span}{}", &part[point.len()..])
+                        }
+                        _ => part.to_owned(),
+                    }
+                })
+                .collect();
+            if expanded != *text
+                && let Ok(parsed) = Location::from_gb_format(&expanded)
+                && !matches!(parsed, Location::External(_, None))
+            {
+                *location = parsed;
+            }
+        }
+        _ => {}
+    }
 }
 
 fn locus_from_record(

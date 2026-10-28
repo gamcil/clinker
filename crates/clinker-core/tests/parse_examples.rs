@@ -38,6 +38,52 @@ fn parses_the_existing_versicolor_example_into_one_locus() {
 }
 
 #[test]
+fn standalone_fuzzy_positions_support_bounds_strands_and_translation() {
+    let bytes = br#"LOCUS       FUZZY                      9 bp    DNA     linear   UNA 01-JAN-2000
+FEATURES             Location/Qualifiers
+     CDS             <1
+                     /protein_id="RDA95433.1"
+                     /translation="M"
+     CDS             >9
+                     /translation="A"
+     CDS             complement(<1)
+                     /translation="R"
+     CDS             join(<1,2..9)
+     CDS             complement(join(<1,2..9))
+ORIGIN
+        1 atggcttaa
+//
+"#;
+    let cluster = parse_genbank("fuzzy.gbk", bytes).unwrap();
+    let genes = &cluster.loci[0].genes;
+    assert_eq!(genes.len(), 5);
+    assert_eq!(genes[0].label, "RDA95433.1");
+    assert_eq!(
+        genes
+            .iter()
+            .map(|gene| (gene.start, gene.end, gene.strand))
+            .collect::<Vec<_>>(),
+        [(0, 1, 1), (8, 9, 1), (0, 1, -1), (0, 9, 1), (0, 9, -1)]
+    );
+    assert_eq!(genes[0].translation, "M");
+    assert_eq!(genes[3].translation, "MA");
+    assert_eq!(genes[4].translation, "LSH");
+
+    let text = std::str::from_utf8(bytes).unwrap();
+    for invalid in ["<0", "<10", "<ACCESSION", "OTHER"] {
+        assert!(parse_genbank("invalid.gbk", text.replace("<1", invalid).as_bytes()).is_err());
+    }
+
+    let circular = include_str!("fixtures/circular.gbk").replace(
+        "ORIGIN",
+        "     CDS             complement(<1)\n                     /translation=\"M\"\nORIGIN",
+    );
+    let rotated = parse_genbank("circular.gbk", circular.as_bytes()).unwrap();
+    let last = rotated.loci[0].genes.last().unwrap();
+    assert_eq!((last.start, last.end, last.strand), (6, 7, -1));
+}
+
+#[test]
 fn derives_translations_for_forward_and_reverse_cds_features() {
     let bytes = br#"LOCUS       TEST                      18 bp    DNA     linear   UNA 01-JAN-2000
 FEATURES             Location/Qualifiers
