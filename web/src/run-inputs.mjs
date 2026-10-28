@@ -162,7 +162,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
     }
     recordRangesElement.replaceChildren();
     const headings = document.createElement("table");
-    headings.className = "sequence-regions sequence-region-headings";
+    headings.className = "app-table sequence-regions sequence-region-headings";
     const head = headings.createTHead().insertRow();
     for (const text of ["File / sequence", "Start (bp)", "End (bp)"]) {
       const cell = document.createElement("th");
@@ -178,7 +178,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
     recordRangesElement.append(header, rows);
     for (const { file, records } of filesWithRecords) {
       const table = document.createElement("table");
-      table.className = "sequence-regions";
+      table.className = "app-table sequence-regions";
       table.setAttribute("aria-label", file.name);
       const columns = document.createElement("colgroup");
       for (let index = 0; index < 3; index += 1) {

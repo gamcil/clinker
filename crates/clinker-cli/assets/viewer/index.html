@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=517d88ceeda8b410">
-    <script src="vendor/d3/d3.min.js?v=517d88ceeda8b410"></script>
-    <script src="vendor/clustermap/clustermap.min.js?v=517d88ceeda8b410"></script>
+    <link rel="stylesheet" href="style.css?v=13c559062129a7eb">
+    <script src="vendor/d3/d3.min.js?v=13c559062129a7eb"></script>
+    <script src="vendor/clustermap/clustermap.min.js?v=13c559062129a7eb"></script>
   </head>
   <body class="clinker-app">
     <main class="app-main">
@@ -63,9 +63,9 @@
         </div>
       </header>
       <div class="plot-stage clinker-plot-workspace">
-        <div id="plot"></div>
+        <div id="plot" class="plot-container"></div>
         <p id="plot-status" class="plot-status" role="status" hidden></p>
-        <clinker-editor id="plot-editor" resizable hidden></clinker-editor>
+        <clinker-editor id="plot-editor" class="plot-editor" resizable hidden></clinker-editor>
       </div>
       <input id="clinker-file" type="file" accept="application/json,.json" hidden class="app-field">
     </main>
@@ -163,7 +163,7 @@
       </header>
       <div class="app-dialog__body tree-import-body">
         <div id="dialog-tree-fields"></div>
-        <p id="tree-import-note" class="tree-import-note" hidden>Importing a tree clears undo history.</p>
+        <p id="tree-import-note" class="tree-import-note tree-history-note" hidden>Importing a tree clears undo history.</p>
       </div>
       <footer class="app-dialog__actions">
         <form method="dialog"><button type="submit" class="app-button">Cancel</button></form>
@@ -189,21 +189,21 @@
         <p id="annotation-match-summary" class="annotation-match-summary" role="status">Choose a TSV or CSV file to begin.</p>
         <div id="annotation-match-review" class="annotation-match-review" hidden>
           <p>Choose a plotted cluster for unmatched or ambiguous rows, or skip them.</p>
-          <div class="annotation-table-scroll"><table><thead><tr><th>Table key</th><th>Plotted cluster</th></tr></thead><tbody id="annotation-match-rows"></tbody></table></div>
+          <div class="annotation-table-scroll"><table class="app-table"><thead><tr><th>Table key</th><th>Plotted cluster</th></tr></thead><tbody id="annotation-match-rows"></tbody></table></div>
         </div>
         <div id="annotation-column-settings" class="annotation-column-settings" hidden>
           <div class="annotation-layout-choice">
             <label>Display<select id="annotation-mode" aria-describedby="annotation-column-note" class="app-field"><option value="tracks">Separate tracks</option><option value="matrix">One heatmap</option></select></label>
             <p id="annotation-column-note" class="annotation-column-note">Each column has its own scale.</p>
           </div>
-          <details id="annotation-matrix-options" class="annotation-import-advanced" hidden>
+          <details id="annotation-matrix-options" class="annotation-import-advanced annotation-matrix-options" hidden>
             <summary class="app-disclosure">Heatmap options</summary>
             <div class="import-options">
             <label>Colour scale<select id="annotation-matrix-scale" class="app-field"><option value="auto">Automatic</option><option value="continuous">Numeric (continuous)</option><option value="binary">Presence / absence (0 / 1)</option><option value="categorical">Categories</option></select></label>
             <label>Panel title (optional)<input id="annotation-matrix-title" type="text" placeholder="e.g. Gene expression" class="app-field"></label>
             </div>
           </details>
-          <div class="annotation-table-scroll"><table><thead><tr><th>Column</th><th>Display</th><th>Scale</th></tr></thead><tbody id="annotation-columns"></tbody></table></div>
+          <div class="annotation-table-scroll"><table class="app-table"><thead><tr><th>Column</th><th>Display</th><th>Scale</th></tr></thead><tbody id="annotation-columns"></tbody></table></div>
         </div>
         <div id="annotation-preview" class="annotation-preview" hidden>
           <p id="annotation-preview-summary" role="status"></p>
@@ -226,7 +226,7 @@
         <details id="tree-matching" class="tree-matching" hidden>
           <summary class="app-disclosure">Leaf matching</summary>
           <p class="tree-import-note">Exact cluster names, sequence IDs and input filenames are matched automatically. Choose a different cluster to resolve a mismatch.</p>
-          <div class="tree-matching-table"><table><thead><tr><th>Tree leaf</th><th>Plotted cluster</th></tr></thead></table><div class="tree-matching-scroll"><table><tbody id="tree-matching-rows"></tbody></table></div></div>
+          <div class="tree-matching-table"><table class="app-table"><thead><tr><th>Tree leaf</th><th>Plotted cluster</th></tr></thead></table><div class="tree-matching-scroll"><table class="app-table"><tbody id="tree-matching-rows"></tbody></table></div></div>
           <p id="tree-missing" class="tree-match-error"></p>
         </details>
         <section id="tree-root-metadata" class="tree-root-metadata" hidden>
@@ -241,6 +241,6 @@
           </div>
         </details>
     </template>
-    <script type="module" src="local.js?v=517d88ceeda8b410"></script>
+    <script type="module" src="local.js?v=13c559062129a7eb"></script>
   </body>
 </html>
