@@ -14,6 +14,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
   const clearInputFilesButton = container.querySelector("#clear-input-files");
   const identityInput = container.querySelector("#identity");
   const prefilterInput = container.querySelector("#prefilter");
+  const prefilterOptions = container.querySelector("#prefilter-options");
   const noAlignInput = container.querySelector("#no-align");
   const fileOrderInput = container.querySelector("#file-order");
   const kmerSizeInput = container.querySelector("#kmer-size");
@@ -38,6 +39,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
     const prefilterDisabled = prefilterInput.disabled || !prefilterInput.checked;
     kmerSizeInput.disabled = prefilterDisabled;
     minSharedKmersInput.disabled = prefilterDisabled;
+    prefilterOptions.hidden = prefilterDisabled;
   }
 
   async function readGroupDefinitions(workflow) {
@@ -223,6 +225,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
     reset.addEventListener("click", () => {
       for (const input of fields.querySelectorAll("input")) input.value = input.defaultValue;
       sync();
+      button.focus();
     });
     fields.append(table, reset);
     sync();

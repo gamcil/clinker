@@ -257,7 +257,6 @@ html,
   border-radius: 8px;
   background: var(--app-surface);
 }
-:where(.clinker-app) .settings-card,
 :where(.clinker-app) .tree-matching-table { background: var(--app-subtle); }
 
 /* Menus. */
@@ -836,6 +835,7 @@ html,
   min-height: 32px;
   padding: 3px 8px;
   border-bottom: 1px solid var(--app-border);
+  background: var(--app-subtle);
 }
 
 :where(.clinker-app) .file-input-status ul {
@@ -895,7 +895,7 @@ html,
   min-height: 34px;
   align-items: center;
   gap: 12px;
-  padding: 2px 3px 2px 9px;
+  padding: 2px 0;
 }
 :where(.clinker-app) .identity-setting {
   --setting-control-width: 90px;
@@ -918,7 +918,7 @@ html,
   min-height: 34px;
   align-items: center;
   gap: 8px;
-  padding: 6px 9px;
+  padding: 6px 0;
   cursor: pointer;
 }
 :where(.clinker-app) .setting-check:hover:not(:has(input:disabled)) { background: var(--app-subtle); }
@@ -933,13 +933,7 @@ html,
 }
 :where(.clinker-app) .setting-help { margin: 0; }
 :where(.clinker-app) .prefilter-option .setting-help { margin-left: 24px; }
-:where(.clinker-app) .settings-subheading {
-  margin: 0;
-  padding: 8px 9px;
-  color: var(--app-muted);
-  font-size: .8rem;
-  font-weight: 600;
-}
+
 :where(.clinker-app) .run-advanced {
   margin-top: 15px;
   border-top: 1px solid var(--app-subtle);
@@ -952,8 +946,8 @@ html,
 }
 :where(.clinker-app) .settings-sections {
   display: grid;
-  gap: 14px;
-  margin-top: 11px;
+  gap: 20px;
+  margin-top: 16px;
 }
 :where(.clinker-app) .settings-section {
   display: grid;
@@ -991,10 +985,13 @@ html,
   align-items: center;
   gap: 8px;
   min-height: 34px;
-  padding: 2px 7px;
+  padding: 2px 0;
 }
 
-:where(.clinker-app) .settings-card > * + * { border-top: 1px solid var(--app-border); }
+:where(.clinker-app) .settings-fields { display: grid; gap: 8px; }
+:where(.clinker-app) .prefilter-options { margin-left: 24px; }
+:where(.clinker-app) .prefilter-options > summary { color: var(--app-muted); font-size: .8rem; cursor: pointer; }
+:where(.clinker-app) .prefilter-options .settings-fields { margin-top: 8px; }
 :where(.clinker-app) .compact-file-description {
   display: flex;
   flex-wrap: wrap;
