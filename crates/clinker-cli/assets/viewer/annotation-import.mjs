@@ -1,4 +1,4 @@
-import { parseDelimitedRows } from "./delimited.mjs?v=92e1a0756bf07976";
+import { parseDelimitedRows } from "./delimited.mjs?v=0bf682a09b259ab4";
 
 const NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const SKIP = "__skip__";
@@ -68,6 +68,7 @@ function element(document, tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (["input", "select", "textarea"].includes(tag)) node.classList.add("app-field");
+  if (tag === "select") node.classList.add("flat-control", "compact-control");
   if (tag === "button") node.classList.add("app-button");
   if (text !== undefined) node.textContent = text;
   return node;

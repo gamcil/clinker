@@ -1,5 +1,5 @@
-import { Workflow } from './workflow.mjs?v=92e1a0756bf07976';
-import { parseNewick, matchTreeLeaves } from './viewer/tree.mjs?v=92e1a0756bf07976';
+import { Workflow } from './workflow.mjs?v=0bf682a09b259ab4';
+import { parseNewick, matchTreeLeaves } from './viewer/tree.mjs?v=0bf682a09b259ab4';
 
 // One set of fields serves the inline new-run input and the plot import dialog.
 export function mountTreeInput(container, { inline = false, onChange = () => {}, isCurrent = () => true } = {}) {
@@ -7,6 +7,9 @@ export function mountTreeInput(container, { inline = false, onChange = () => {},
   const prefix = inline ? 'run-' : '';
   for (const element of fragment.querySelectorAll('[id]')) element.id = prefix + element.id;
   container.append(fragment);
+  if (inline) {
+    container.querySelectorAll('.app-button, select.app-field').forEach(control => control.classList.add('compact-control'));
+  }
   const find = id => container.querySelector(`#${prefix}${id}`);
   const input = find('tree-file');
   const choose = find('choose-tree-file');
@@ -50,7 +53,7 @@ export function mountTreeInput(container, { inline = false, onChange = () => {},
       leaf.textContent = row.label;
       const choice = document.createElement('td');
       const select = document.createElement('select');
-      select.className = 'app-field';
+      select.className = 'app-field flat-control compact-control';
       select.setAttribute('aria-label', `Cluster for tree leaf ${row.label}`);
       select.dataset.node = row.uid;
       select.append(new Option('Choose cluster…', ''));

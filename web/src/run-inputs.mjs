@@ -105,7 +105,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
       state.textContent = row.detail;
       const remove = document.createElement("button");
       remove.type = "button";
-      remove.className = "app-button remove-input-file quiet-action";
+      remove.className = "app-button remove-input-file quiet-action compact-control";
       remove.textContent = "Remove";
       remove.setAttribute("aria-label", `Remove ${row.name}`);
       remove.disabled = disabled;
@@ -143,7 +143,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
     const wrapper = document.createElement("label");
     wrapper.className = "record-coordinate";
     const input = document.createElement("input");
-    input.className = "app-field";
+    input.className = "app-field compact-control";
     input.type = "number";
     input.min = String(minimum);
     input.max = String(maximum);

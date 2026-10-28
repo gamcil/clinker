@@ -68,6 +68,7 @@ function element(document, tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (["input", "select", "textarea"].includes(tag)) node.classList.add("app-field");
+  if (tag === "select") node.classList.add("flat-control", "compact-control");
   if (tag === "button") node.classList.add("app-button");
   if (text !== undefined) node.textContent = text;
   return node;

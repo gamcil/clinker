@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=92e1a0756bf07976">
-    <script src="vendor/d3/d3.min.js?v=92e1a0756bf07976"></script>
-    <script src="vendor/clustermap/clustermap.min.js?v=92e1a0756bf07976"></script>
+    <link rel="stylesheet" href="style.css?v=0bf682a09b259ab4">
+    <script src="vendor/d3/d3.min.js?v=0bf682a09b259ab4"></script>
+    <script src="vendor/clustermap/clustermap.min.js?v=0bf682a09b259ab4"></script>
   </head>
   <body class="clinker-app">
     <main class="app-main">
@@ -66,25 +66,25 @@
       <input id="clinker-file" type="file" accept="application/json,.json" hidden class="app-field">
     </main>
     <dialog id="help-dialog" class="app-dialog help-dialog" aria-labelledby="help-title" aria-describedby="help-intro">
-      <header class="help-heading">
-        <div class="help-heading-row">
+      <header class="app-dialog__header">
+        <div class="app-dialog__heading">
           <div>
-            <h2 id="help-title">Plot help</h2>
+            <h2 id="help-title" class="app-dialog__title">Plot help</h2>
               <p id="help-intro">Add trees and annotation tables with Add data, arrange cluster rows with Row order, and open Edit figure for data and appearance settings. File contains project saving and figure exports. Theme changes the interface appearance; System follows your device.</p>
           </div>
-          <form method="dialog"><button class="app-button help-close" aria-label="Close help" autofocus>×</button></form>
+          <form method="dialog"><button class="app-button icon-button" aria-label="Close help" autofocus>×</button></form>
         </div>
         <nav class="help-topics" aria-label="Help topics">
-          <button type="button" data-help-section="help-navigate" class="app-button">Move around</button>
-          <button type="button" data-help-section="help-selection" class="app-button">Select loci</button>
-          <button type="button" data-help-section="help-arrange" class="app-button">Arrange and trim</button>
-          <button type="button" data-help-section="help-genes" class="app-button">Genes and legend</button>
-          <button type="button" data-help-section="help-editor" class="app-button">Batch editing</button>
-          <button type="button" data-help-section="help-save" class="app-button">Save your work</button>
-          <button type="button" data-help-section="help-about" class="app-button">About clinker</button>
+          <button type="button" data-help-section="help-navigate" class="app-button link-action">Move around</button>
+          <button type="button" data-help-section="help-selection" class="app-button link-action">Select loci</button>
+          <button type="button" data-help-section="help-arrange" class="app-button link-action">Arrange and trim</button>
+          <button type="button" data-help-section="help-genes" class="app-button link-action">Genes and legend</button>
+          <button type="button" data-help-section="help-editor" class="app-button link-action">Batch editing</button>
+          <button type="button" data-help-section="help-save" class="app-button link-action">Save your work</button>
+          <button type="button" data-help-section="help-about" class="app-button link-action">About clinker</button>
         </nav>
       </header>
-      <div class="help-body" tabindex="0" role="region" aria-label="Plot controls and shortcuts">
+      <div class="app-dialog__body" tabindex="0" role="region" aria-label="Plot controls and shortcuts">
         <div class="help-grid">
           <section aria-labelledby="help-navigate">
             <h3 id="help-navigate">Move around</h3>
@@ -150,31 +150,31 @@
         </section>
       </div>
     </dialog>
-    <dialog id="tree-dialog" class="app-dialog help-dialog import-dialog tree-dialog" aria-labelledby="tree-title">
-      <header class="help-heading">
-        <div class="help-heading-row">
-          <h2 id="tree-title">Import tree</h2>
-          <form method="dialog"><button class="app-button help-close" aria-label="Close tree import">×</button></form>
+    <dialog id="tree-dialog" class="app-dialog compact-dialog tree-dialog" aria-labelledby="tree-title">
+      <header class="app-dialog__header">
+        <div class="app-dialog__heading">
+          <h2 id="tree-title" class="app-dialog__title">Import tree</h2>
+          <form method="dialog"><button class="app-button icon-button" aria-label="Close tree import">×</button></form>
         </div>
       </header>
-      <div class="help-body tree-import-body">
+      <div class="app-dialog__body tree-import-body">
         <div id="dialog-tree-fields"></div>
         <p id="tree-import-note" class="tree-import-note" hidden>Importing a tree clears undo history.</p>
       </div>
-      <footer class="tree-import-actions">
+      <footer class="app-dialog__actions">
         <form method="dialog"><button type="submit" class="app-button">Cancel</button></form>
-        <button id="apply-tree" class="app-button primary" type="button" disabled>Apply tree</button>
+        <button id="apply-tree" class="app-button primary-action" type="button" disabled>Apply tree</button>
       </footer>
     </dialog>
-    <dialog id="annotation-dialog" class="app-dialog help-dialog import-dialog annotation-dialog" aria-labelledby="annotation-title">
-      <header class="help-heading">
-        <div class="help-heading-row">
-          <h2 id="annotation-title">Import annotations</h2>
-          <form method="dialog"><button class="app-button help-close" aria-label="Close annotation import">×</button></form>
+    <dialog id="annotation-dialog" class="app-dialog annotation-dialog" aria-labelledby="annotation-title">
+      <header class="app-dialog__header">
+        <div class="app-dialog__heading">
+          <h2 id="annotation-title" class="app-dialog__title">Import annotations</h2>
+          <form method="dialog"><button class="app-button icon-button" aria-label="Close annotation import">×</button></form>
         </div>
       </header>
-      <div class="help-body annotation-import-body">
-        <div class="import-file-picker"><button id="choose-annotation-file" type="button" class="app-button">Choose TSV / CSV file</button><span id="annotation-file-name">None selected</span><input id="annotation-file" class="app-field visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
+      <div class="app-dialog__body annotation-import-body">
+        <div class="import-file-picker"><button id="choose-annotation-file" type="button" class="app-button">Choose TSV / CSV file</button><span id="annotation-file-name" class="file-picker-name">None selected</span><input id="annotation-file" class="app-field visually-hidden" type="file" accept=".tsv,.csv,text/csv,text/tab-separated-values" tabindex="-1" aria-label="TSV or CSV annotation table"></div>
         <details id="annotation-parsing-options" class="annotation-import-advanced">
           <summary class="app-disclosure">File and matching options</summary>
           <div class="import-options">
@@ -205,16 +205,16 @@
           <p id="annotation-preview-summary" role="status"></p>
         </div>
       </div>
-      <footer class="tree-import-actions">
+      <footer class="app-dialog__actions">
         <form method="dialog"><button type="submit" class="app-button">Cancel</button></form>
-        <button id="apply-annotations" class="app-button primary" type="button" disabled>Import tracks</button>
+        <button id="apply-annotations" class="app-button primary-action" type="button" disabled>Import tracks</button>
       </footer>
     </dialog>
     <template id="tree-input-template">
         <div class="import-file-picker tree-file-picker">
           <span class="tree-inline-label">Tree <span>(optional)</span></span>
           <button id="choose-tree-file" type="button" autofocus class="app-button">Choose Newick file</button>
-          <span id="tree-file-name">None selected</span>
+          <span id="tree-file-name" class="file-picker-name">None selected</span>
           <button id="tree-clear" class="app-button quiet-action" type="button" hidden>Remove</button>
           <input id="tree-file" class="app-field visually-hidden" tabindex="-1" type="file" accept=".nwk,.newick,.tree,.tre,.txt" aria-label="Newick file">
         </div>
@@ -237,6 +237,6 @@
           </div>
         </details>
     </template>
-    <script type="module" src="local.js?v=92e1a0756bf07976"></script>
+    <script type="module" src="local.js?v=0bf682a09b259ab4"></script>
   </body>
 </html>

@@ -40,7 +40,10 @@ HTML is a separate renderer-only export. See [packaging](packaging.md).
 ## UI integration
 
 App controls use `.app-button`, `.app-field` and `.app-disclosure` under
-`.clinker-app`, with semantic `--app-*` theme variables. The
+`.clinker-app`, with semantic `--app-*` theme variables. Buttons and fields use
+explicit variants for primary/quiet actions, sizing and flat table controls.
+Dialogs share `.app-dialog__header`, `.app-dialog__body` and
+`.app-dialog__actions`; feature classes control their size and content layout. The
 `.clinker-plot-workspace` adapter maps these to clustermap's public `--cm-*`
 properties. Keep selectors out of library internals and editor shadow roots.
 
