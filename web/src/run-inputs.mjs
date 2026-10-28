@@ -176,36 +176,33 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
     const fields = document.createElement("fieldset");
     fields.className = "file-trim-fields";
     fields.hidden = true;
-    const legend = document.createElement("legend");
-    legend.textContent = "Sequence ranges (bp)";
-    fields.append(legend);
-    const table = document.createElement("table");
-    table.className = "app-table sequence-regions";
-    const head = table.createTHead().insertRow();
-    for (const text of ["Sequence", "Start (bp)", "End (bp)"]) {
-      const cell = document.createElement("th");
-      cell.scope = "col";
-      cell.textContent = text;
-      head.append(cell);
-    }
-    const body = table.createTBody();
+    fields.setAttribute("aria-label", `Trim ranges for ${file.name}`);
     for (const record of records) {
       const start = record.start ?? 1, end = record.end ?? record.length;
-      const row = body.insertRow();
+      const row = document.createElement("div");
+      row.className = "file-trim-range";
       Object.assign(row.dataset, {
         recordRange: "", file: file.name, record: record.name,
         availableStart: String(start), availableEnd: String(end),
       });
-      const name = document.createElement("th");
-      name.scope = "row";
+      const name = document.createElement("span");
+      name.className = "text-truncate";
+      name.textContent = record.name;
       name.title = `${record.name} (${start.toLocaleString()}–${end.toLocaleString()} bp)`;
-      const label = document.createElement("span");
-      label.className = "text-truncate";
-      label.textContent = record.name;
-      name.append(label);
-      row.append(name);
-      row.insertCell().append(recordCoordinate("start", start, start, end, `${file.name}: ${record.name}`));
-      row.insertCell().append(recordCoordinate("end", end, start, end, `${file.name}: ${record.name}`));
+      const coordinates = document.createElement("div");
+      coordinates.className = "file-trim-coordinates";
+      const separator = document.createElement("span");
+      separator.textContent = "–";
+      separator.setAttribute("aria-hidden", "true");
+      const unit = document.createElement("span");
+      unit.className = "app-note";
+      unit.textContent = "bp";
+      coordinates.append(
+        recordCoordinate("start", start, start, end, `${file.name}: ${record.name}`), separator,
+        recordCoordinate("end", end, start, end, `${file.name}: ${record.name}`), unit,
+      );
+      row.append(name, coordinates);
+      fields.append(row);
     }
     const reset = document.createElement("button");
     reset.type = "button";
@@ -227,7 +224,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
       sync();
       button.focus();
     });
-    fields.append(table, reset);
+    fields.append(reset);
     sync();
     return { records, button, fields };
   }

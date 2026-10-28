@@ -102,31 +102,39 @@
                     <span>Use k-mer prefilter</span>
                   </label>
                   <p id="prefilter-help" class="setting-help app-note">Can reduce comparison work; may miss distant homologues.</p>
-                  <details id="prefilter-options" class="prefilter-options" hidden>
-                    <summary class="app-disclosure">Prefilter options</summary>
-                    <div class="settings-fields">
-                      <label class="setting-row">
-                        <span>k-mer size</span>
-                        <input id="kmer-size" class="app-field compact-control" type="number" min="1" max="8" step="1" value="3">
-                      </label>
-                      <label class="setting-row">
-                        <span>Minimum shared k-mers</span>
-                        <input id="min-shared-kmers" class="app-field compact-control" type="number" min="1" step="1" value="3">
-                      </label>
-                    </div>
-                  </details>
+                  <div id="prefilter-options" class="prefilter-options" hidden>
+                    <label class="prefilter-parameter">
+                      <span>k-mer size</span>
+                      <input id="kmer-size" class="app-field compact-control" type="number" min="1" max="8" step="1" value="3">
+                    </label>
+                    <label class="prefilter-parameter">
+                      <span>Minimum shared k-mers</span>
+                      <input id="min-shared-kmers" class="app-field compact-control" type="number" min="1" step="1" value="3">
+                    </label>
+                  </div>
                 </div>
               </div>
-              <details class="run-advanced">
-                <summary class="app-disclosure">Advanced settings</summary>
+              <details class="run-other-settings">
+                <summary class="app-disclosure">Other settings</summary>
                 <div class="settings-sections">
-                  <section class="settings-section" aria-labelledby="alignment-settings-label">
-                    <h3 id="alignment-settings-label" class="settings-title">Protein comparison</h3>
+                  <div class="settings-fields">
                     <label class="setting-check">
                       <input id="no-align" type="checkbox" class="app-field">
                       <span>Plot annotations without protein alignment</span>
                     </label>
-                  </section>
+                    <label class="setting-check">
+                      <input id="file-order" type="checkbox" class="app-field">
+                      <span>Keep input file order</span>
+                    </label>
+                    <label class="setting-check">
+                      <input id="separate-records" type="checkbox" class="app-field">
+                      <span>Plot each GenBank record as a separate cluster</span>
+                    </label>
+                    <label class="setting-check">
+                      <input id="keep-origin" type="checkbox" class="app-field">
+                      <span>Keep the original origin of circular records</span>
+                    </label>
+                  </div>
                   <section class="settings-section" aria-labelledby="annotation-files-label">
                     <h3 id="annotation-files-label" class="settings-title">Gene annotations</h3>
                     <p class="setting-help app-note">Optional two-column CSV files.</p>
@@ -153,23 +161,6 @@
                         </label>
                         <span id="colour-map-summary" class="app-note text-truncate">Add functions first</span>
                       </div>
-                    </div>
-                  </section>
-                  <section class="settings-section" aria-labelledby="other-settings-label">
-                    <h3 id="other-settings-label" class="settings-title">Other</h3>
-                    <div class="settings-fields">
-                      <label class="setting-check">
-                        <input id="file-order" type="checkbox" class="app-field">
-                        <span>Keep input file order</span>
-                      </label>
-                      <label class="setting-check">
-                        <input id="separate-records" type="checkbox" class="app-field">
-                        <span>Plot each GenBank record as a separate cluster</span>
-                      </label>
-                      <label class="setting-check">
-                        <input id="keep-origin" type="checkbox" class="app-field">
-                        <span>Keep the original origin of circular records</span>
-                      </label>
                     </div>
                   </section>
                 </div>

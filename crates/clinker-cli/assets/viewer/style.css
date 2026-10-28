@@ -740,7 +740,7 @@ html,
   backdrop-filter: blur(3px);
 }
 :where(.clinker-app) .run-card {
-  width: min(580px, 100%);
+  width: min(720px, 100%);
   padding: 24px;
   border: 1px solid var(--app-border);
   border-radius: 12px;
@@ -934,11 +934,11 @@ html,
 :where(.clinker-app) .setting-help { margin: 0; }
 :where(.clinker-app) .prefilter-option .setting-help { margin-left: 24px; }
 
-:where(.clinker-app) .run-advanced {
+:where(.clinker-app) .run-other-settings {
   margin-top: 15px;
   border-top: 1px solid var(--app-subtle);
 }
-:where(.clinker-app) .run-advanced > summary {
+:where(.clinker-app) .run-other-settings > summary {
   padding: 11px 0 2px;
   color: var(--app-muted);
   cursor: pointer;
@@ -961,22 +961,23 @@ html,
   padding: 4px 0 8px;
   border: 0;
 }
-:where(.clinker-app) .file-trim-fields legend {
-  padding: 0;
-  color: var(--app-muted);
-  font-size: .75rem;
-  font-weight: 600;
-}
 :where(.clinker-app) .file-trim-fields:disabled { opacity: .65; }
-:where(.clinker-app) .sequence-regions { table-layout: fixed; }
-:where(.clinker-app) .sequence-regions th,
-:where(.clinker-app) .sequence-regions td {
-  padding: var(--input-row-padding) 8px;
-  font-weight: normal;
+:where(.clinker-app) .file-trim-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 4px 0;
 }
-:where(.clinker-app) .sequence-regions thead th { font-size: .75rem; }
-:where(.clinker-app) .sequence-regions thead th:not(:first-child) { width: 100px; }
-:where(.clinker-app) .sequence-regions tbody tr + tr { border-top: 1px solid var(--app-subtle); }
+:where(.clinker-app) .file-trim-range > .text-truncate { flex: 1 1 100px; }
+:where(.clinker-app) .file-trim-coordinates {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  width: 240px;
+  max-width: 100%;
+}
 :where(.clinker-app) .record-coordinate { display: block; }
 :where(.clinker-app) .compact-file-row {
   font-size: .8rem;
@@ -989,9 +990,14 @@ html,
 }
 
 :where(.clinker-app) .settings-fields { display: grid; gap: 8px; }
-:where(.clinker-app) .prefilter-options { margin-left: 24px; }
-:where(.clinker-app) .prefilter-options > summary { color: var(--app-muted); font-size: .8rem; cursor: pointer; }
-:where(.clinker-app) .prefilter-options .settings-fields { margin-top: 8px; }
+:where(.clinker-app) .prefilter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 4px 0 0 24px;
+}
+:where(.clinker-app) .prefilter-parameter { display: flex; align-items: center; gap: 8px; font-size: .8rem; }
+:where(.clinker-app) .prefilter-parameter .app-field { width: 64px; flex: none; }
 :where(.clinker-app) .compact-file-description {
   display: flex;
   flex-wrap: wrap;
@@ -1125,12 +1131,6 @@ html,
     padding: 14px;
   }
   :where(.clinker-app) .run-card { padding: 17px; }
-  :where(.clinker-app) .sequence-regions th,
-  :where(.clinker-app) .sequence-regions td {
-    padding-right: 5px;
-    padding-left: 5px;
-  }
-  :where(.clinker-app) .sequence-regions thead th:not(:first-child) { width: 83px; }
   :where(.clinker-app) .compact-file-row { grid-template-columns: minmax(0, 1fr) auto; }
   :where(.clinker-app) .compact-file-row > .app-note { grid-column: 1 / -1; }
 }
