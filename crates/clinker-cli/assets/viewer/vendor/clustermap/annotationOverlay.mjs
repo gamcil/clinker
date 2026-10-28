@@ -376,7 +376,13 @@ function createAnnotationOverlay({ container, getData, patch, annotationApi, edi
     if (menu.contains(document.activeElement)) document.activeElement.blur();
     close();
   };
-  const escape = (event) => { if (event.key === "Escape") { const open = Boolean(menuState); close(open); if (open) event.preventDefault(); } };
+  const escape = (event) => {
+    if (event.key !== "Escape" || event.defaultPrevented) return;
+    if (!event.composedPath().includes(container) && !container.contains(document.activeElement)) return;
+    const open = Boolean(menuState);
+    close(open);
+    if (open) event.preventDefault();
+  };
   const detach = () => {
     for (const surface of surfaces) {
       surface.removeEventListener("pointermove", move); surface.removeEventListener("pointerleave", leave);

@@ -990,6 +990,10 @@ function linear() {
   return linearish(scale);
 }
 
+Object.freeze({
+  show: true, fontSize: 10, fontWeight: 600, borderWidth: 3, borderOpacity: 1,
+});
+
 const sequential = ["#f7fbff", "#08306b"];
 const categorical = ["#4477aa", "#ee6677", "#228833", "#ccbb44", "#66ccee", "#aa3377", "#bbbbbb"];
 Object.freeze({ cellWidth: 32, cellHeight: 20, gap: 24,
@@ -1605,14 +1609,14 @@ class ClinkerDataPanelElement extends HTMLElementBase {
   disconnectedCallback() {
     this.#unsubscribe?.(); this.#unsubscribe = null;
     this.#table?.reset();
-    this.#chart?.highlight?.([]);
+    this.#chart?.highlight?.([], { owner: this });
   }
 
   get chart() { return this.#chart; }
   set chart(value) {
     if (value === this.#chart) return;
     this.#unsubscribe?.(); this.#unsubscribe = null;
-    this.#table?.cancelHover(); this.#chart?.highlight?.([]);
+    this.#table?.cancelHover(); this.#chart?.highlight?.([], { owner: this });
     this.#chart = value || null;
     this.#subscribe(); this.#syncTheme(); this.#refreshData({ replace: true });
   }
@@ -1927,7 +1931,7 @@ class ClinkerDataPanelElement extends HTMLElementBase {
   }
 
   #highlight(row) {
-    this.#chart?.highlight?.(this.#model.plotTarget(this.#kind, row ? row.selectIds || [row.id] : this.#selected));
+    this.#chart?.highlight?.(this.#model.plotTarget(this.#kind, row ? row.selectIds || [row.id] : this.#selected), { owner: this });
   }
 
 }
