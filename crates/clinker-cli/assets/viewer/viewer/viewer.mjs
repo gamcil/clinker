@@ -1,5 +1,5 @@
-import { mountPlotSelectionToolbar } from '../vendor/clustermap/editor.mjs?v=65753b40bd6366c3';
-import { createProject, validateProject } from './project.mjs?v=65753b40bd6366c3';
+import { mountPlotSelectionToolbar } from '../vendor/clustermap/editor.mjs?v=92e1a0756bf07976';
+import { createProject, validateProject } from './project.mjs?v=92e1a0756bf07976';
 
 const DEFAULT_CONFIG = {
   link: { bestOnly: true },
@@ -10,13 +10,13 @@ const DEFAULT_CONFIG = {
 // The host supplies elements and analysis results. This module never starts an
 // analysis worker, reads a file, or decides which application controls to show.
 export function createViewer({ plot, stage, editor, appearance = 'auto' }) {
-  const selection = globalThis.d3.select(plot);
   const makeChart = config => globalThis.ClusterMap.ClusterMap()
     .config(DEFAULT_CONFIG).config(config || {}).uiAppearance(appearance);
   let chart = makeChart();
   let analysis = null;
   let extensions = {};
   let disposeToolbar = null;
+  let chartHost = null;
   editor.chart = chart;
 
   const editAnnotation = event => {
@@ -27,7 +27,7 @@ export function createViewer({ plot, stage, editor, appearance = 'auto' }) {
   };
   plot.addEventListener('clustermap:edit-annotation', editAnnotation);
 
-  function configureMinimap(keepEnabled) {
+  function configureMinimap(chart, keepEnabled) {
     const config = chart.config().plot;
     if (!['canvas', 'webgpu'].includes(config.renderer) || (keepEnabled && config.minimap.show)) return;
     const bounds = chart.figureBounds();
@@ -50,18 +50,31 @@ export function createViewer({ plot, stage, editor, appearance = 'auto' }) {
 
   function mount(data, { config = chart.config(), state = null, analysis: session = null, keepMinimap = false } = {}) {
     const next = makeChart(config);
+    const nextHost = plot.ownerDocument.createElement('div');
+    nextHost.className = 'plot-chart';
+    plot.append(nextHost);
+    let nextToolbar = null;
+    try {
+      globalThis.d3.select(nextHost).datum(data).call(next);
+      if (state) next.state(state);
+      configureMinimap(next, keepMinimap);
+      nextToolbar = mountPlotSelectionToolbar(next, stage);
+      editor.chart = next;
+    } catch (error) {
+      nextToolbar?.();
+      next.destroy();
+      nextHost.remove();
+      if (editor.chart !== chart) editor.chart = chart;
+      throw error;
+    }
     disposeToolbar?.();
-    disposeToolbar = null;
-    const previous = chart;
+    chart.destroy();
+    chartHost?.remove();
     chart = next;
-    previous.destroy();
+    chartHost = nextHost;
+    disposeToolbar = nextToolbar;
     analysis = session;
     extensions = {};
-    selection.datum(data).call(chart);
-    if (state) chart.state(state);
-    configureMinimap(keepMinimap);
-    editor.chart = chart;
-    disposeToolbar = mountPlotSelectionToolbar(chart, stage);
     return chart;
   }
 
@@ -92,6 +105,7 @@ export function createViewer({ plot, stage, editor, appearance = 'auto' }) {
       editor.close();
       editor.chart = null;
       chart.destroy();
+      chartHost?.remove();
     },
   };
 }

@@ -587,6 +587,11 @@ html,
   min-height: 0;
   overflow: hidden;
 }
+:where(.clinker-app) .plot-chart {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
 :where(.clinker-app) .run-panel {
   position: absolute;
   z-index: 4;

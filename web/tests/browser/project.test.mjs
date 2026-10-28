@@ -240,6 +240,38 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   await openProject(JSON.stringify(incompatible));
   await checkRecovery();
   assert.match(await page.locator('#run-status').textContent(), /unsupported analysis-session version/);
+  await page.evaluate(() => {
+    const factory = window.ClusterMap.ClusterMap;
+    const chart = document.querySelector('#plot-editor').chart;
+    chart.locusSelection([chart.data().clusters[0].loci[0].uid]);
+    window.renderRecovery = {
+      factory, chart, canUndo: chart.canUndo(), camera: chart.state().camera, selection: chart.selection(),
+      surface: document.querySelector('#plot canvas.clusterMapCanvas, #plot svg.clusterMap'),
+    };
+    window.ClusterMap.ClusterMap = () => {
+      const next = factory();
+      const state = next.state;
+      next.state = function(...args) {
+        const result = state.apply(this, args);
+        if (args.length) throw new Error('Injected figure mount failure');
+        return result;
+      };
+      return next;
+    };
+  });
+  await openProject(project);
+  await checkRecovery();
+  assert.match(await page.locator('#run-status').textContent(), /Injected figure mount failure/);
+  assert.equal(await page.evaluate(() => {
+    const previous = window.renderRecovery;
+    window.ClusterMap.ClusterMap = previous.factory;
+    const chart = document.querySelector('#plot-editor').chart;
+    return chart === previous.chart && chart.canUndo() === previous.canUndo
+      && previous.surface.isConnected
+      && JSON.stringify(chart.selection()) === JSON.stringify(previous.selection)
+      && JSON.stringify(chart.state().camera) === JSON.stringify(previous.camera);
+  }), true, 'mount failure preserves the live figure, camera, selection, editor binding and undo history');
+  assert.match(await download('#download-svg'), /Audit edited gene/);
   await openProject(project);
   await page.waitForFunction(() => document.querySelector('#run-panel').hidden, {}, { timeout: 60000 });
   await page.reload();
