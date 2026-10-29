@@ -68,7 +68,7 @@ impl ClinkerProject {
         }
         if let Some(state) = &self.state
             && (!state.is_object()
-                || state["version"].as_u64() != Some(1)
+                || !matches!(state["version"].as_u64(), Some(1 | 2))
                 || !state["clusterOrder"].is_array())
         {
             return Err(ProjectError::InvalidFigure);

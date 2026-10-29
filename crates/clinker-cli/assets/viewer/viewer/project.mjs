@@ -1,4 +1,4 @@
-import { validateTree } from './tree.mjs?v=e4d08783786e12fa';
+import { validateTree } from './tree.mjs?v=6c4523b2771412d0';
 
 export const PROJECT_FORMAT = 'clinker-project';
 export const PROJECT_VERSION = 2;
@@ -158,7 +158,7 @@ export function validateProject(saved) {
     throw new Error('Invalid clustering tree source');
   }
   if (saved.state != null) {
-    if (typeof saved.state !== "object" || Array.isArray(saved.state) || saved.state.version !== 1) {
+    if (typeof saved.state !== "object" || Array.isArray(saved.state) || ![1, 2].includes(saved.state.version)) {
       throw new Error("unsupported project layout state");
     }
     const order = saved.state.clusterOrder;
@@ -169,6 +169,21 @@ export function validateProject(saved) {
     }
     if (treeOrder && order.length && order.some((uid, i) => uid !== treeOrder[i])) {
       throw new Error("project cluster order must agree with its tree child order");
+    }
+    if (saved.state.version === 1) {
+      const geneIds = new Map(saved.data.clusters.flatMap(cluster => cluster.loci.flatMap(locus =>
+        locus.genes.map(gene => [`${locus.uid}:${gene.uid}`, gene.uid]))));
+      const state = { ...saved.state, version: 2 };
+      if (state.genes !== undefined) {
+        if (!Array.isArray(state.genes)) throw new Error("unsupported project layout state");
+        state.genes = state.genes.map(entry => {
+          if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string') {
+            throw new Error("unsupported project layout state");
+          }
+          return [geneIds.get(entry[0]) ?? entry[0], entry[1]];
+        });
+      }
+      return { ...saved, state };
     }
   }
   return saved;

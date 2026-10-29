@@ -84,7 +84,7 @@ export function createViewer({ plot, stage, editor, appearance = 'auto' }) {
     get editorOpen() { return !editor.hidden; },
     mount,
     loadProject(saved) {
-      validateProject(saved);
+      saved = validateProject(saved);
       mount(saved.data, { config: saved.config, state: saved.state, analysis: saved.analysis, keepMinimap: true });
       extensions = saved;
     },

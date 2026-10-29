@@ -1,5 +1,5 @@
-import { mountPlotSelectionToolbar } from '../vendor/clustermap/editor.mjs?v=e4d08783786e12fa';
-import { createProject, validateProject } from './project.mjs?v=e4d08783786e12fa';
+import { mountPlotSelectionToolbar } from '../vendor/clustermap/editor.mjs?v=6c4523b2771412d0';
+import { createProject, validateProject } from './project.mjs?v=6c4523b2771412d0';
 
 const DEFAULT_CONFIG = {
   link: { bestOnly: true },
@@ -84,7 +84,7 @@ export function createViewer({ plot, stage, editor, appearance = 'auto' }) {
     get editorOpen() { return !editor.hidden; },
     mount,
     loadProject(saved) {
-      validateProject(saved);
+      saved = validateProject(saved);
       mount(saved.data, { config: saved.config, state: saved.state, analysis: saved.analysis, keepMinimap: true });
       extensions = saved;
     },

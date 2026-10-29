@@ -170,15 +170,22 @@ function defineActionMenu() {
   if (!customElements.get("clinker-action-menu")) customElements.define("clinker-action-menu", ActionMenu);
 }
 
+function selectionRange(orderedIds, anchor, id, range = false) {
+  const start = orderedIds.indexOf(anchor), end = orderedIds.indexOf(id);
+  const ranged = range && start >= 0 && end >= 0;
+  return {
+    ids: ranged ? orderedIds.slice(Math.min(start, end), Math.max(start, end) + 1) : [id],
+    anchor: range && start >= 0 ? anchor : id,
+    ranged,
+  };
+}
+
 /** Selection shared by flat rows, tree leaves and annotation matrices. */
 class RowSelection extends Set {
   #anchor = null;
 
   select(id, checked, { orderedIds = [], range = false, idsFor = (id) => [id] } = {}) {
-    const start = orderedIds.indexOf(this.#anchor), end = orderedIds.indexOf(id);
-    const ids = range && start >= 0 && end >= 0
-      ? orderedIds.slice(Math.min(start, end), Math.max(start, end) + 1) : [id];
-    const anchor = range && start >= 0 ? this.#anchor : id;
+    const { ids, anchor } = selectionRange(orderedIds, this.#anchor, id, range);
     this.setMany(ids.flatMap(idsFor), checked);
     this.#anchor = anchor;
   }

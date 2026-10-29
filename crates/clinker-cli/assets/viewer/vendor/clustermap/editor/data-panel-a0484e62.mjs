@@ -1,4 +1,4 @@
-import { b as defineDataTable, c as defineEditableField, i as installDataEditorStyle, a as installStyle, d as defineActionMenu, e as defineSelectionBar, f as defineAnnotationEditor, R as RowSelection, D as DATA_EDITOR_CSS, g as DATA_ROW_HEIGHT } from './annotation-editor-20ae8582.mjs';
+import { b as defineDataTable, c as defineEditableField, i as installDataEditorStyle, a as installStyle, d as defineActionMenu, e as defineSelectionBar, f as defineAnnotationEditor, R as RowSelection, D as DATA_EDITOR_CSS, g as DATA_ROW_HEIGHT } from './annotation-editor-3c63735d.mjs';
 import { r as rgb$1, i as color, e as colourHex, c as createTemplate, m as mountComponent, d as updateSelectOptions, f as defineSearchField, g as createActionRunner, a as controlStyles, u as upgradeProperty } from './search-field-595834d9.mjs';
 import { e as editorThemeStyles, a as applyEditorTheme } from './theme-8bd47f2f.mjs';
 

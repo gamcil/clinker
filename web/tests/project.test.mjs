@@ -29,7 +29,7 @@ function project() {
   return { format: 'clinker-project', version: 2, config: {},
     analysis: { analysis: { clusters: [{ loci: [{ genes: [{}, {}] }] }] } },
     data: { clusters: [{ uid: 'cluster-0', loci: [locus] }], links: [], groups: [] },
-    state: { version: 1, clusterOrder: [] },
+    state: { version: 2, clusterOrder: [] },
   };
 }
 
@@ -57,6 +57,18 @@ test("project validation permits edits and deletions but rejects broken IDs, coo
     assert.throws(() => parseProject(JSON.stringify(invalid)), error);
   }
   assert.throws(() => parseProject('null'), /not a clinker project/);
+});
+
+test("legacy layout states upgrade gene keys while preserving other edits", () => {
+  const saved = project();
+  saved.state = { version: 1, clusterOrder: [], camera: { x: 10, y: 20, k: 2 },
+    loci: [['locus-0-0', { start: 2, end: 25, flipped: true }]],
+    genes: [['locus-0-0:gene-0-0-0', { start: 3, end: 9, strand: -1 }]] };
+  const opened = parseProject(JSON.stringify(saved));
+  assert.deepEqual(opened.state, { ...saved.state, version: 2,
+    genes: [['gene-0-0-0', { start: 3, end: 9, strand: -1 }]] });
+  assert.equal(saved.state.version, 1);
+  assert.deepEqual(parseProject(JSON.stringify(opened)), opened);
 });
 
 test("CSV imports share quoted-field parsing and retain their format validation", () => {

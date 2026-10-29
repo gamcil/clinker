@@ -86,7 +86,7 @@ test('project trees retain metadata and authoritative child order, rejecting inv
   const order = ['cluster-2', 'cluster-0', 'cluster-1'];
   const saved = { format: 'clinker-project', version: 2, config: {},
     analysis: { analysis: { clusters: clusters.map(() => ({ loci: [] })) } },
-    data, state: { version: 1, clusterOrder: order } };
+    data, state: { version: 2, clusterOrder: order } };
   assert.deepEqual(parseProject(JSON.stringify(saved)), saved);
   assert.deepEqual(displayedClusterOrder({ data, state: { clusterOrder: [] } }), order);
   const cases = [
