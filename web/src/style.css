@@ -93,6 +93,20 @@ html,
   margin: 0;
 }
 .clinker-app {
+  --cm-background: var(--app-background);
+  --cm-surface: var(--app-surface);
+  --cm-subtle: var(--app-subtle);
+  --cm-hover: var(--app-hover);
+  --cm-foreground: var(--app-foreground);
+  --cm-muted: var(--app-muted);
+  --cm-border: var(--app-border);
+  --cm-accent: var(--app-accent);
+  --cm-focus-ring: var(--app-focus-ring);
+  --cm-selection: var(--app-selection);
+  --cm-danger: var(--app-danger);
+  --cm-font: var(--app-font);
+  --cm-control-height: var(--app-control-height);
+  --cm-control-radius: var(--app-control-radius);
   overflow: hidden;
 }
 :where(.clinker-app) [hidden] { display: none !important; }
