@@ -636,8 +636,8 @@ html,
 :where(.clinker-app) .annotation-table-scroll .annotation-column-colour:disabled { cursor: default; }
 :where(.clinker-app) .annotation-column-name-input { max-width: 100%; }
 :where(.clinker-app) .annotation-separate-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; }
-:where(.clinker-app) .annotation-column-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; max-width: 100%; min-width: 0; padding: 3px 5px 3px 8px; border: 1px solid var(--app-border); border-radius: 8px; background: var(--app-subtle); }
-:where(.clinker-app) .annotation-selection-count { padding: 3px 6px; border-radius: 5px; background: var(--app-selection); color: var(--app-selection-text); font-size: .85rem; font-weight: 600; white-space: nowrap; }
+:where(.clinker-app) .annotation-column-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; max-width: 100%; min-width: 0; }
+:where(.clinker-app) .annotation-selection-count { margin-right: 4px; color: var(--app-foreground); font-size: .85rem; font-weight: 600; white-space: nowrap; }
 :where(.clinker-app) .annotation-column-actions > .app-field { width: auto; min-width: 145px; max-width: min(200px, 28vw); }
 :where(.clinker-app) .annotation-panel-group-row > td { background: var(--app-subtle); font-weight: 600; }
 :where(.clinker-app) .annotation-panel-name-content { display: flex; align-items: center; gap: 2px; min-width: 0; }
@@ -651,7 +651,8 @@ html,
 :where(.clinker-app) .app-button.annotation-group-toggle { flex: 0 0 14px; width: 14px; min-width: 14px; min-height: 22px; height: 22px; padding: 0; text-decoration: none; }
 :where(.clinker-app) .annotation-group-toggle svg { width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform .12s ease; }
 :where(.clinker-app) .annotation-group-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
-:where(.clinker-app) .annotation-heatmap-group-title { flex: 1 1 180px; width: 180px; max-width: calc(100% - 18px); }
+:where(.clinker-app) .annotation-column-select-cell .annotation-group-toggle { margin-left: 1px; vertical-align: middle; }
+:where(.clinker-app) .annotation-heatmap-group-title { flex: 1 1 180px; width: 180px; max-width: 100%; }
 :where(.clinker-app) .annotation-group-scale-controls { display: flex; align-items: center; gap: 4px; min-width: 0; }
 :where(.clinker-app) .annotation-group-palette,
 :where(.clinker-app) .annotation-group-scale { width: 100%; min-width: 0; padding: 4px 22px 4px 7px; }
@@ -668,7 +669,7 @@ html,
 :where(.clinker-app) .annotation-dialog-buttons { display: flex; align-items: center; gap: 10px; }
 :where(.clinker-app) .annotation-separate-panels h3 { margin: 0; font-size: .9rem; }
 :where(.clinker-app) .annotation-columns-table { table-layout: fixed; }
-:where(.clinker-app) .annotation-columns-table .annotation-select-column { width: 64px; }
+:where(.clinker-app) .annotation-columns-table .annotation-select-column { width: 72px; }
 :where(.clinker-app) .annotation-columns-table .annotation-name-column { width: auto; }
 :where(.clinker-app) .annotation-columns-table .annotation-output-column { width: 142px; }
 :where(.clinker-app) .annotation-columns-table .annotation-palette-column { width: 132px; }

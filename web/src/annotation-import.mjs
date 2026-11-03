@@ -438,10 +438,8 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
         selectionAnchor = indices.at(-1) ?? selectionAnchor;
         renderColumns();
       });
-      selectCell.append(groupSelect, createPanelOrderHandle(groupOrderKey(group.id), group.title));
-
-      const nameCell = element(document, "td", "annotation-panel-name");
-      const name = element(document, "div", "annotation-panel-name-content");
+      const reorderHandle = createPanelOrderHandle(groupOrderKey(group.id), group.title);
+      selectCell.append(groupSelect, reorderHandle);
       const toggleGroup = element(document, "button", "app-button quiet-action compact-control annotation-group-toggle");
       toggleGroup.type = "button";
       toggleGroup.title = collapsedGroups.has(group.id) ? "Expand heatmap panel" : "Collapse heatmap panel";
@@ -456,15 +454,19 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
         else collapsedGroups.add(group.id);
         renderColumns();
       });
+      selectCell.append(toggleGroup);
+
+      const nameCell = element(document, "td", "annotation-panel-name");
+      const name = element(document, "div", "annotation-panel-name-content");
       const title = element(document, "clinker-editable-field", "annotation-heatmap-group-title");
       title.setAttribute("compact", ""); title.setAttribute("required", "");
       title.setAttribute("label", "Heatmap panel name"); title.value = group.title;
       title.addEventListener("value-commit", event => {
         group.title = event.detail.value.trim(); title.value = group.title;
-        selectCell.querySelector("[data-reorder-panel]")?.setAttribute("aria-label", `Reorder ${group.title}; use Arrow Up or Arrow Down to move it`);
+        reorderHandle.setAttribute("aria-label", `Reorder ${group.title}; use Arrow Up or Arrow Down to move it`);
         updateSelectionActions(); updateSummary();
       });
-      name.append(toggleGroup, title); nameCell.append(name);
+      name.append(title); nameCell.append(name);
 
       const displayCell = element(document, "td", "annotation-panel-type", "Heatmap");
       const paletteCell = element(document, "td", "annotation-column-colour-cell");
