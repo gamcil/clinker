@@ -172,6 +172,8 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
   const separateSelectedButton = dialog.querySelector("#separate-selected-columns");
   const groupTargetInput = dialog.querySelector("#annotation-group-target");
   const columnActions = dialog.querySelector("#annotation-column-actions");
+  const selectionCount = dialog.querySelector("#annotation-selection-count");
+  const clearSelectionButton = dialog.querySelector("#clear-annotation-selection");
   const separatePanels = dialog.querySelector("#annotation-separate-panels");
   const preview = dialog.querySelector("#annotation-preview");
   const previewSummary = dialog.querySelector("#annotation-preview-summary");
@@ -339,6 +341,7 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
     const hasGroupedSelection = selectedGroups.length > 0;
     const showActions = selected.length >= 2 || hasGroupedSelection;
     columnActions.hidden = !showActions;
+    selectionCount.textContent = `${selected.length} ${selected.length === 1 ? "column" : "columns"} selected`;
     const previousTarget = groupTargetInput.value;
     const suggestedTarget = selectedGroups.length === 1 ? selectedGroups[0] : "";
     groupTargetInput.replaceChildren();
@@ -357,13 +360,6 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
     groupSelectedButton.textContent = targetGroup ? "Add to heatmap" : "Group as heatmap";
     groupSelectedButton.hidden = !selectionNeedsGrouping;
     separateSelectedButton.hidden = !hasGroupedSelection;
-    const visibleColumns = table ? table.headers.flatMap((_, index) => index === Number(keyInput.value) ? [] : [index]) : [];
-    columnActions.state = {
-      selection: selectedColumnIndices,
-      ids: visibleColumns,
-      summary: `${visibleColumns.length.toLocaleString()} columns`,
-      noun: "column",
-    };
     for (const checkbox of columnsBody.querySelectorAll("[data-group-select]")) {
       const members = table.headers.flatMap((_, index) => columnGroups.get(index) === checkbox.dataset.groupSelect ? [index] : []);
       const selectedMembers = members.filter(index => selectedColumnIndices.has(index)).length;
@@ -790,7 +786,7 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
   chooseFileButton.addEventListener("click", () => fileInput.click());
   delimiterInput.addEventListener("change", loadFile);
   groupSelectedButton.addEventListener("click", groupSelectedColumns);
-  columnActions.addEventListener("clear-selection", () => {
+  clearSelectionButton.addEventListener("click", () => {
     selectedColumnIndices.clear(); selectionAnchor = null; renderAllColumns();
   });
   groupTargetInput.addEventListener("change", () => {
