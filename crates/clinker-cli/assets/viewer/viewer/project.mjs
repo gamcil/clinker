@@ -1,4 +1,4 @@
-import { validateTree } from './tree.mjs?v=71ae9295dfbc57ed';
+import { validateTree } from './tree.mjs?v=401f0800053ac230';
 
 export const PROJECT_FORMAT = 'clinker-project';
 export const PROJECT_VERSION = 2;

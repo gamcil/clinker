@@ -442,11 +442,10 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
         selectionAnchor = indices.at(-1) ?? selectionAnchor;
         renderColumns();
       });
-      selectCell.append(groupSelect);
+      selectCell.append(groupSelect, createPanelOrderHandle(groupOrderKey(group.id), group.title));
 
       const nameCell = element(document, "td", "annotation-panel-name");
       const name = element(document, "div", "annotation-panel-name-content");
-      name.append(createPanelOrderHandle(groupOrderKey(group.id), group.title));
       const toggleGroup = element(document, "button", "app-button quiet-action compact-control annotation-group-toggle");
       toggleGroup.type = "button";
       toggleGroup.title = collapsedGroups.has(group.id) ? "Expand heatmap panel" : "Collapse heatmap panel";
@@ -466,7 +465,7 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
       title.setAttribute("label", "Heatmap panel name"); title.value = group.title;
       title.addEventListener("value-commit", event => {
         group.title = event.detail.value.trim(); title.value = group.title;
-        name.querySelector("[data-reorder-panel]")?.setAttribute("aria-label", `Reorder ${group.title}; use Arrow Up or Arrow Down to move it`);
+        selectCell.querySelector("[data-reorder-panel]")?.setAttribute("aria-label", `Reorder ${group.title}; use Arrow Up or Arrow Down to move it`);
         updateSelectionActions(); updateSummary();
       });
       name.append(toggleGroup, title); nameCell.append(name);
@@ -526,12 +525,14 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
       row.dataset.orderKey = groupId ? groupOrderKey(groupId) : columnOrderKey(index);
       if (!groupId) row.dataset.panelRow = "";
       row.classList.toggle("is-selected", selectedColumnIndices.has(index));
-      const checkCell = element(document, "td", "annotation-column-select-cell"); checkCell.append(createColumnCheckbox(index));
+      const checkCell = element(document, "td", "annotation-column-select-cell");
+      checkCell.append(createColumnCheckbox(index));
+      if (!groupId) checkCell.append(createPanelOrderHandle(columnOrderKey(index), table.headers[index]));
       const nameCell = element(document, "td", groupId ? "annotation-column-name annotation-group-member-name" : "annotation-column-name");
       if (groupId) nameCell.append(createColumnNameField(index));
       else {
         const nameContent = element(document, "div", "annotation-panel-name-content");
-        nameContent.append(createPanelOrderHandle(columnOrderKey(index), table.headers[index]), createColumnNameField(index));
+        nameContent.append(createColumnNameField(index));
         nameCell.append(nameContent);
       }
       const displayCell = element(document, "td");
