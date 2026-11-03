@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
-    <link rel="stylesheet" href="style.css?v=6513a62b53729597">
-    <script src="vendor/d3/d3.min.js?v=6513a62b53729597"></script>
-    <script src="vendor/clustermap/clustermap.min.js?v=6513a62b53729597"></script>
+    <link rel="stylesheet" href="style.css?v=71ae9295dfbc57ed">
+    <script src="vendor/d3/d3.min.js?v=71ae9295dfbc57ed"></script>
+    <script src="vendor/clustermap/clustermap.min.js?v=71ae9295dfbc57ed"></script>
   </head>
   <body class="clinker-app">
     <main class="app-main">
@@ -172,12 +172,13 @@
           <section id="annotation-separate-panels" class="annotation-separate-panels">
             <div class="annotation-separate-heading">
               <h3>Panels</h3>
-              <div id="annotation-column-actions" class="annotation-column-actions" hidden>
-                <span id="annotation-selection-count"></span>
-                <select id="annotation-group-target" class="app-field" aria-label="Heatmap group"></select>
-                <button id="group-selected-columns" class="app-button compact-control" type="button">Group as heatmap</button>
-                <button id="separate-selected-columns" class="app-button compact-control" type="button" hidden>Separate</button>
-              </div>
+              <clinker-selection-bar id="annotation-column-actions" class="annotation-column-actions" hidden>
+                <div slot="actions" class="annotation-selection-actions">
+                  <select id="annotation-group-target" class="app-field" aria-label="Heatmap group"></select>
+                  <button id="group-selected-columns" class="app-button compact-control" type="button">Group as heatmap</button>
+                  <button id="separate-selected-columns" class="app-button compact-control" type="button" hidden>Separate</button>
+                </div>
+              </clinker-selection-bar>
             </div>
             <div class="annotation-table-scroll"><table class="app-table annotation-columns-table"><colgroup><col class="annotation-select-column"><col class="annotation-name-column"><col class="annotation-output-column"><col class="annotation-palette-column"><col class="annotation-scale-column"></colgroup><thead><tr><th aria-label="Select"></th><th>Panel / column</th><th>Display</th><th>Colour / palette</th><th>Range / scale</th></tr></thead><tbody id="annotation-columns"></tbody></table></div>
           </section>
@@ -220,6 +221,6 @@
           </div>
         </details>
     </template>
-    <script type="module" src="local.js?v=6513a62b53729597"></script>
+    <script type="module" src="local.js?v=71ae9295dfbc57ed"></script>
   </body>
 </html>

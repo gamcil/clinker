@@ -1,8 +1,8 @@
-import { createViewer } from './viewer/viewer.mjs?v=6513a62b53729597';
-import { mountViewerControls, readThemePreference } from './viewer/controls.mjs?v=6513a62b53729597';
-import { parseProject } from './viewer/project.mjs?v=6513a62b53729597';
-import { mountTreeImport } from './tree-import.mjs?v=6513a62b53729597';
-import { mountAnnotationImport } from './annotation-import.mjs?v=6513a62b53729597';
+import { createViewer } from './viewer/viewer.mjs?v=71ae9295dfbc57ed';
+import { mountViewerControls, readThemePreference } from './viewer/controls.mjs?v=71ae9295dfbc57ed';
+import { parseProject } from './viewer/project.mjs?v=71ae9295dfbc57ed';
+import { mountTreeImport } from './tree-import.mjs?v=71ae9295dfbc57ed';
+import { mountAnnotationImport } from './annotation-import.mjs?v=71ae9295dfbc57ed';
 
 const editor = document.querySelector('#plot-editor');
 const viewer = createViewer({

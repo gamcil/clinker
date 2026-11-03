@@ -334,12 +334,13 @@
           <section id="annotation-separate-panels" class="annotation-separate-panels">
             <div class="annotation-separate-heading">
               <h3>Panels</h3>
-              <div id="annotation-column-actions" class="annotation-column-actions" hidden>
-                <span id="annotation-selection-count"></span>
-                <select id="annotation-group-target" class="app-field" aria-label="Heatmap group"></select>
-                <button id="group-selected-columns" class="app-button compact-control" type="button">Group as heatmap</button>
-                <button id="separate-selected-columns" class="app-button compact-control" type="button" hidden>Separate</button>
-              </div>
+              <clinker-selection-bar id="annotation-column-actions" class="annotation-column-actions" hidden>
+                <div slot="actions" class="annotation-selection-actions">
+                  <select id="annotation-group-target" class="app-field" aria-label="Heatmap group"></select>
+                  <button id="group-selected-columns" class="app-button compact-control" type="button">Group as heatmap</button>
+                  <button id="separate-selected-columns" class="app-button compact-control" type="button" hidden>Separate</button>
+                </div>
+              </clinker-selection-bar>
             </div>
             <div class="annotation-table-scroll"><table class="app-table annotation-columns-table"><colgroup><col class="annotation-select-column"><col class="annotation-name-column"><col class="annotation-output-column"><col class="annotation-palette-column"><col class="annotation-scale-column"></colgroup><thead><tr><th aria-label="Select"></th><th>Panel / column</th><th>Display</th><th>Colour / palette</th><th>Range / scale</th></tr></thead><tbody id="annotation-columns"></tbody></table></div>
           </section>

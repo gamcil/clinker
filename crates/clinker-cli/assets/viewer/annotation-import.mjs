@@ -1,4 +1,4 @@
-import { parseDelimitedRows } from "./delimited.mjs?v=6513a62b53729597";
+import { parseDelimitedRows } from "./delimited.mjs?v=71ae9295dfbc57ed";
 
 const NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 const SKIP = "__skip__";
@@ -172,7 +172,6 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
   const separateSelectedButton = dialog.querySelector("#separate-selected-columns");
   const groupTargetInput = dialog.querySelector("#annotation-group-target");
   const columnActions = dialog.querySelector("#annotation-column-actions");
-  const selectionCount = dialog.querySelector("#annotation-selection-count");
   const separatePanels = dialog.querySelector("#annotation-separate-panels");
   const preview = dialog.querySelector("#annotation-preview");
   const previewSummary = dialog.querySelector("#annotation-preview-summary");
@@ -336,11 +335,12 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
 
   const updateSelectionActions = () => {
     const selected = [...selectedColumnIndices];
-    const hasGroupedSelection = selected.some(index => columnGroups.has(index));
+    const selectedGroups = [...new Set(selected.map(index => columnGroups.get(index)).filter(Boolean))];
+    const hasGroupedSelection = selectedGroups.length > 0;
     const showActions = selected.length >= 2 || hasGroupedSelection;
     columnActions.hidden = !showActions;
-    selectionCount.textContent = `${selected.length} selected`;
     const previousTarget = groupTargetInput.value;
+    const suggestedTarget = selectedGroups.length === 1 ? selectedGroups[0] : "";
     groupTargetInput.replaceChildren();
     const newGroup = element(document, "option", "", heatmapGroups.length ? "New heatmap group" : "Create heatmap group");
     newGroup.value = ""; groupTargetInput.append(newGroup);
@@ -348,11 +348,22 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
       const option = element(document, "option", "", group.title);
       option.value = group.id; groupTargetInput.append(option);
     }
-    groupTargetInput.value = heatmapGroups.some(group => group.id === previousTarget) ? previousTarget : "";
+    groupTargetInput.value = heatmapGroups.some(group => group.id === suggestedTarget)
+      ? suggestedTarget
+      : heatmapGroups.some(group => group.id === previousTarget) ? previousTarget : "";
     groupTargetInput.hidden = heatmapGroups.length === 0 || selected.length < 2;
-    groupSelectedButton.textContent = groupTargetInput.value ? "Add to group" : "Group as heatmap";
-    groupSelectedButton.hidden = selected.length < 2;
+    const targetGroup = groupTargetInput.value;
+    const selectionNeedsGrouping = selected.length >= 2 && (!targetGroup || selected.some(index => columnGroups.get(index) !== targetGroup));
+    groupSelectedButton.textContent = targetGroup ? "Add to heatmap" : "Group as heatmap";
+    groupSelectedButton.hidden = !selectionNeedsGrouping;
     separateSelectedButton.hidden = !hasGroupedSelection;
+    const visibleColumns = table ? table.headers.flatMap((_, index) => index === Number(keyInput.value) ? [] : [index]) : [];
+    columnActions.state = {
+      selection: selectedColumnIndices,
+      ids: visibleColumns,
+      summary: `${visibleColumns.length.toLocaleString()} columns`,
+      noun: "column",
+    };
     for (const checkbox of columnsBody.querySelectorAll("[data-group-select]")) {
       const members = table.headers.flatMap((_, index) => columnGroups.get(index) === checkbox.dataset.groupSelect ? [index] : []);
       const selectedMembers = members.filter(index => selectedColumnIndices.has(index)).length;
@@ -778,8 +789,13 @@ export function mountAnnotationImport({ button, getChart, onImported = () => {} 
   chooseFileButton.addEventListener("click", () => fileInput.click());
   delimiterInput.addEventListener("change", loadFile);
   groupSelectedButton.addEventListener("click", groupSelectedColumns);
+  columnActions.addEventListener("clear-selection", () => {
+    selectedColumnIndices.clear(); selectionAnchor = null; renderAllColumns();
+  });
   groupTargetInput.addEventListener("change", () => {
-    groupSelectedButton.textContent = groupTargetInput.value ? "Add to group" : "Group as heatmap";
+    const target = groupTargetInput.value;
+    groupSelectedButton.textContent = target ? "Add to heatmap" : "Group as heatmap";
+    groupSelectedButton.hidden = selectedColumnIndices.size < 2 || (target && [...selectedColumnIndices].every(index => columnGroups.get(index) === target));
   });
   separateSelectedButton.addEventListener("click", separateSelectedColumns);
   keyInput.addEventListener("change", () => {
