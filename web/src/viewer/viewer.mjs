@@ -2,9 +2,12 @@ import { mountPlotSelectionToolbar } from '../vendor/clustermap/editor.mjs';
 import { createProject, validateProject } from './project.mjs';
 
 const DEFAULT_CONFIG = {
+  cluster: { spacing: 10 },
   link: { bestOnly: true },
+  locus: { trimIndicators: { show: false } },
   plot: { renderer: 'webgpu' },
   legend: { columns: 4, position: 'bottom' },
+  tree: { width: 250 },
 };
 
 // The host supplies elements and analysis results. This module never starts an
