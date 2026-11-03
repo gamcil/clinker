@@ -631,32 +631,78 @@ html,
 :where(.clinker-app) .run-tree-fields .tree-match-error:not(:empty) { padding: 0 8px; font-size: .8rem; }
 
 /* Annotation import. */
-:where(.clinker-app) .annotation-layout-choice .app-field { width: auto; font-weight: 400; }
-:where(.clinker-app) .annotation-table-scroll .app-field { min-width: 10rem; }
+:where(.clinker-app) .annotation-table-scroll .app-field { min-width: 0; }
+:where(.clinker-app) .annotation-table-scroll .annotation-column-colour { width: 32px; min-width: 32px; min-height: 28px; height: 28px; padding: 2px; cursor: pointer; }
+:where(.clinker-app) .annotation-table-scroll .annotation-column-colour:disabled { cursor: default; }
+:where(.clinker-app) .annotation-column-name-input { max-width: 100%; }
+:where(.clinker-app) .annotation-separate-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; }
+:where(.clinker-app) .annotation-column-actions { display: flex; align-items: center; gap: 6px 8px; }
+:where(.clinker-app) .annotation-column-actions > span { color: var(--app-muted); font-size: .9rem; white-space: nowrap; }
+:where(.clinker-app) .annotation-column-actions > .app-field { width: auto; min-width: 150px; max-width: min(230px, 32vw); }
+:where(.clinker-app) .annotation-panel-group-row > td { background: var(--app-subtle); font-weight: 600; }
+:where(.clinker-app) .annotation-panel-name-content { display: flex; align-items: center; gap: 5px; min-width: 0; }
+:where(.clinker-app) .annotation-panel-reorder { flex: 0 0 22px; width: 22px; min-width: 22px; min-height: 28px; height: 28px; padding: 0; opacity: 0; cursor: grab; font-size: 15px; letter-spacing: -3px; text-decoration: none; }
+:where(.clinker-app) .annotation-panel-reorder:active { cursor: grabbing; }
+:where(.clinker-app) .annotation-columns-table tbody tr:hover .annotation-panel-reorder,
+:where(.clinker-app) .annotation-columns-table tbody tr:focus-within .annotation-panel-reorder,
+:where(.clinker-app) .annotation-panel-reorder:focus-visible { opacity: 1; }
+:where(.clinker-app) .annotation-columns-table tbody tr.is-drop-before > td { box-shadow: inset 0 2px var(--app-primary); }
+:where(.clinker-app) .annotation-columns-table tbody tr.is-drop-after > td { box-shadow: inset 0 -2px var(--app-primary); }
+:where(.clinker-app) .app-button.annotation-group-toggle { flex: 0 0 24px; width: 24px; min-width: 24px; min-height: 28px; height: 28px; padding: 3px; text-decoration: none; }
+:where(.clinker-app) .annotation-group-toggle svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform .12s ease; }
+:where(.clinker-app) .annotation-group-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
+:where(.clinker-app) .annotation-heatmap-group-title { flex: 1 1 180px; width: 180px; max-width: calc(100% - 60px); }
+:where(.clinker-app) .annotation-group-scale-controls { display: flex; align-items: center; gap: 4px; min-width: 0; }
+:where(.clinker-app) .annotation-group-palette,
+:where(.clinker-app) .annotation-group-scale { width: 100%; min-width: 0; padding: 4px 22px 4px 7px; }
+:where(.clinker-app) .annotation-group-scale-controls .annotation-group-scale { flex: 1 1 auto; width: auto; }
+:where(.clinker-app) .annotation-group-scale-controls .annotation-remove-group { flex: 0 0 28px; width: 28px; min-width: 28px; min-height: 28px; height: 28px; }
+:where(.clinker-app) .annotation-panel-type { color: var(--app-foreground); font-weight: 600; }
+:where(.clinker-app) .annotation-heatmap-member > td { background: var(--app-subtle); }
+:where(.clinker-app) .annotation-heatmap-member .annotation-group-member-name { padding-left: 25px; }
+:where(.clinker-app) .annotation-heatmap-member .annotation-column-scale { white-space: nowrap; }
+:where(.clinker-app) .annotation-columns-table tbody tr > td { border-bottom: 1px solid var(--app-border); }
+:where(.clinker-app) .annotation-columns-table tbody tr:hover > td { background: var(--app-hover); }
+:where(.clinker-app) .annotation-columns-table tbody tr.is-selected > td,
+:where(.clinker-app) .annotation-columns-table tbody tr.is-selected:hover > td { background: var(--app-selection); }
+:where(.clinker-app) .annotation-dialog-buttons { display: flex; align-items: center; gap: 10px; }
+:where(.clinker-app) .annotation-separate-panels h3 { margin: 0; font-size: .9rem; }
+:where(.clinker-app) .annotation-columns-table { table-layout: fixed; }
+:where(.clinker-app) .annotation-columns-table .annotation-select-column { width: 36px; }
+:where(.clinker-app) .annotation-columns-table .annotation-name-column { width: auto; }
+:where(.clinker-app) .annotation-columns-table .annotation-output-column { width: 142px; }
+:where(.clinker-app) .annotation-columns-table .annotation-palette-column { width: 132px; }
+:where(.clinker-app) .annotation-columns-table .annotation-scale-column { width: 190px; }
+:where(.clinker-app) .annotation-columns-table .annotation-column-kind { width: 100%; min-width: 0; padding: 3px 20px 3px 6px; }
+:where(.clinker-app) .annotation-columns-table .annotation-column-select-cell { text-align: center; }
+:where(.clinker-app) .annotation-columns-table .annotation-column-name { overflow: hidden; }
+:where(.clinker-app) .annotation-columns-table .annotation-column-scale { white-space: nowrap; font-variant-numeric: tabular-nums; }
+:where(.clinker-app) .annotation-column-colour-cell { text-align: center; }
 :where(.clinker-app) .annotation-dialog { max-height: min(88dvh, 900px); }
-:where(.clinker-app) .annotation-match-summary { margin: 14px 0 0; }
+:where(.clinker-app) .annotation-match-summary { margin: 10px 0 0; }
 :where(.clinker-app) .annotation-match-review,
-:where(.clinker-app) .annotation-column-settings { margin-top: 18px; }
+:where(.clinker-app) .annotation-column-settings { margin-top: 12px; }
 :where(.clinker-app) .annotation-match-review > p { margin: 0 0 10px; color: var(--app-muted); }
-:where(.clinker-app) .annotation-column-settings h3 { margin: 0 0 4px; font-size: 1rem; }
+:where(.clinker-app) .annotation-column-settings h3 { margin: 0; font-size: .9rem; }
 :where(.clinker-app) .annotation-preview { margin-top: 18px; }
 :where(.clinker-app) .annotation-preview p { margin: 0; font-size: .9rem; color: var(--app-muted); }
 :where(.clinker-app) .annotation-preview p[data-tone="error"] { color: var(--app-danger); }
 :where(.clinker-app) .annotation-import-advanced { margin-top: 12px; }
 :where(.clinker-app) .annotation-import-advanced summary { cursor: pointer; color: var(--app-muted); font-size: .9rem; }
-:where(.clinker-app) .annotation-layout-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 14px; }
-:where(.clinker-app) .annotation-layout-choice label { display: flex; align-items: center; gap: 10px; font-weight: 600; }
-:where(.clinker-app) .annotation-layout-choice .annotation-column-note { margin: 0; }
-:where(.clinker-app) .annotation-table-scroll th:first-child { width: 43%; }
 :where(.clinker-app) .annotation-column-scale { font-size: .85rem; color: var(--app-muted); }
-:where(.clinker-app) .annotation-matrix-options { margin-bottom: 14px; }
 :where(.clinker-app) .annotation-column-note { margin: 0 0 10px; color: var(--app-muted); font-size: .9rem; }
 :where(.clinker-app) .annotation-table-scroll { overflow: auto; }
 :where(.clinker-app) .annotation-table-scroll th,
-:where(.clinker-app) .annotation-table-scroll td { padding: 7px 9px; }
+:where(.clinker-app) .annotation-table-scroll td { padding: 4px 7px; }
 :where(.clinker-app) .annotation-table-scroll th { position: sticky; top: 0; font-size: .85rem; }
 :where(.clinker-app) .annotation-match-key,
 :where(.clinker-app) .annotation-column-name { overflow-wrap: anywhere; }
+
+@media (max-width: 760px) {
+  :where(.clinker-app) .annotation-columns-table .annotation-output-column { width: 132px; }
+  :where(.clinker-app) .annotation-columns-table .annotation-scale-column { width: 165px; }
+  :where(.clinker-app) .annotation-column-actions > .app-field { min-width: 0; }
+}
 
 /* Help. */
 :where(.clinker-app) .help-dialog {
