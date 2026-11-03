@@ -124,7 +124,11 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
     await page.locator('#import-annotations').click();
     await page.locator('#annotation-file').setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(text) });
     await page.waitForFunction(() => !document.querySelector('#apply-annotations').disabled);
-    if (mode) await page.locator('#annotation-mode').selectOption(mode);
+    if (mode === 'matrix') {
+      await page.locator('#annotation-columns tr[data-index="1"] .annotation-column-select').check();
+      await page.locator('#annotation-columns tr[data-index="2"] .annotation-column-select').check();
+      await page.locator('#group-selected-columns').click();
+    }
     await page.locator('#apply-annotations').click();
     await page.waitForFunction(() => !document.querySelector('#annotation-dialog').open);
   }
