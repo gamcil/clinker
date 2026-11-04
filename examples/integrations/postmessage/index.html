@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Send files to clinker</title>
+    <style>
+      :root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif; }
+      body { max-width: 760px; margin: 3rem auto; padding: 0 1rem; color: CanvasText; background: Canvas; }
+      h1 { margin-bottom: .25rem; }
+      p, li { max-width: 68ch; }
+      button { padding: .55rem .9rem; font: inherit; cursor: pointer; }
+      button:disabled { cursor: wait; }
+      #status { min-height: 1.5em; }
+      pre { overflow: auto; padding: 1rem; border: 1px solid GrayText; border-radius: .5rem; }
+      code { font: .875rem/1.5 ui-monospace, monospace; }
+      details { margin-top: 2rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Send files to clinker</h1>
+      <p>This external app demo loads two bundled GenBank examples into browser <code>File</code> objects, opens clinker, waits for it to signal readiness, and hands the files over with <code>postMessage</code>.</p>
+      <p>Clinker stages the files for review. It does not start analysis automatically.</p>
+      <button id="send-files" type="button" disabled>Loading example files…</button>
+      <p id="status" role="status" aria-live="polite"></p>
+      <details>
+        <summary>Minimal code for an external app</summary>
+        <pre><code>function sendFilesToClinker(files, clinkerUrl) {
+  const target = new URL(clinkerUrl);
+  target.searchParams.set("integration", "postmessage");
+  const requestId = crypto.randomUUID();
+
+  return new Promise((resolve, reject) =&gt; {
+    let clinker;
+    const timeout = setTimeout(() =&gt; finish(new Error("Clinker did not respond")), 30000);
+    function finish(error, result) {
+      clearTimeout(timeout);
+      window.removeEventListener("message", onMessage);
+      if (error) reject(error);
+      else resolve(result);
+    }
+    function onMessage(event) {
+      if (event.source !== clinker || event.origin !== target.origin) return;
+      if (event.data?.type === "clinker:ready") {
+        clinker.postMessage({ type: "clinker:import-files", requestId, files }, target.origin);
+      } else if (event.data?.type === "clinker:files-received"
+          &amp;&amp; event.data.requestId === requestId) {
+        if (event.data.ok) finish(null, clinker);
+        else finish(new Error(event.data.error));
+      }
+    }
+    window.addEventListener("message", onMessage);
+    clinker = window.open(target.href, "clinker-import");
+    if (!clinker) finish(new Error("Allow the popup, then try again"));
+  });
+}
+
+// `files` can be generated directly by the external app:
+const files = [new File([genbankText], "cluster.gbk", { type: "text/plain" })];
+sendFilesToClinker(files, "https://your-clinker.pages.dev/");</code></pre>
+      </details>
+    </main>
+    <script type="module">
+      const button = document.querySelector("#send-files");
+      const status = document.querySelector("#status");
+      const appUrl = new URL(new URLSearchParams(location.search).get("clinker") || "../../../", location.href);
+      const examples = [
+        "examples/A. versicolor CBS 583.65.gbk",
+        "examples/A. burnettii MST-FP2249.gbk",
+      ];
+
+      const files = await Promise.all(examples.map(async path => {
+        const url = new URL(path, appUrl);
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Could not load ${url.pathname}`);
+        return new File([await response.arrayBuffer()], path.split("/").at(-1), { type: "text/plain" });
+      }));
+      button.disabled = false;
+      button.textContent = `Send ${files.length} example files to clinker`;
+
+      function handoff() {
+        const target = new URL(appUrl);
+        target.searchParams.set("integration", "postmessage");
+        const requestId = crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+          let clinker;
+          let sent = false;
+          const timeout = setTimeout(() => finish(new Error("Clinker did not respond")), 30000);
+          function finish(error, result) {
+            clearTimeout(timeout);
+            window.removeEventListener("message", onMessage);
+            if (error) reject(error);
+            else resolve(result);
+          }
+          function onMessage(event) {
+            if (event.source !== clinker || event.origin !== target.origin) return;
+            if (event.data?.type === "clinker:ready" && !sent) {
+              sent = true;
+              clinker.postMessage({ type: "clinker:import-files", requestId, files }, target.origin);
+            } else if (event.data?.type === "clinker:files-received" && event.data.requestId === requestId) {
+              if (event.data.ok) finish(null, clinker);
+              else finish(new Error(event.data.error));
+            }
+          }
+          window.addEventListener("message", onMessage);
+          clinker = window.open(target.href, "clinker-import");
+          if (!clinker) finish(new Error("Allow the popup, then try again"));
+        });
+      }
+
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        status.textContent = "Waiting for clinker…";
+        try {
+          await handoff();
+          status.textContent = "Files sent. Review them in the clinker tab.";
+        } catch (error) {
+          status.textContent = error.message || String(error);
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

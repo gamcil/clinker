@@ -22,6 +22,8 @@ See [CLI usage](docs/cli.md) for installation and other options.
 ## Web app and development
 
 See [web/README.md](web/README.md) for build, preview and test commands.
+[External apps](examples/integrations/postmessage/index.html) can hand browser
+`File` objects to Clinker with `postMessage`.
 [Architecture](docs/architecture.md) describes the three Rust crates and shared
 viewer. Further documentation covers [features](docs/features.md),
 [project formats](docs/project-format.md), [packaging](docs/packaging.md) and
