@@ -1,8 +1,8 @@
-import { d as defineActionMenu, i as installDataEditorStyle, a as installStyle } from './editor/annotation-editor-3c63735d.mjs';
+import { d as defineActionMenu, i as installDataEditorStyle, a as installStyle } from './editor/annotation-editor-e0293750.mjs';
 import { c as createTemplate, m as mountComponent, a as controlStyles, u as upgradeProperty } from './editor/search-field-595834d9.mjs';
 import { a as applyEditorTheme, e as editorThemeStyles } from './editor/theme-8bd47f2f.mjs';
 import { d as defineAppearancePanel } from './editor/appearance-panel-7eb7be5b.mjs';
-import { b as bindOptionButtons, d as defineDataPanel } from './editor/data-panel-a0484e62.mjs';
+import { b as bindOptionButtons, d as defineDataPanel } from './editor/data-panel-1c4ebafa.mjs';
 
 const editable = "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
 

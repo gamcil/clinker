@@ -1372,4 +1372,4 @@ function defineAnnotationEditor() {
   if (!customElements.get("clinker-annotation-editor")) customElements.define("clinker-annotation-editor", AnnotationEditor);
 }
 
-export { DATA_EDITOR_CSS as D, RowSelection as R, installStyle as a, defineDataTable as b, defineEditableField as c, defineActionMenu as d, defineSelectionBar as e, defineAnnotationEditor as f, DATA_ROW_HEIGHT as g, defineAnnotationDataForm as h, installDataEditorStyle as i, createAnnotationPanel as j };
+export { DATA_EDITOR_CSS as D, RowSelection as R, installStyle as a, defineDataTable as b, defineEditableField as c, defineActionMenu as d, defineSelectionBar as e, defineAnnotationEditor as f, DATA_ROW_HEIGHT as g, defineAnnotationDataForm as h, installDataEditorStyle as i, createAnnotationPanel as j, selectionRange as s };
