@@ -64,7 +64,7 @@ sendFilesToClinker(files, "https://your-clinker.pages.dev/");</code></pre>
     <script type="module">
       const button = document.querySelector("#send-files");
       const status = document.querySelector("#status");
-      const appUrl = new URL(new URLSearchParams(location.search).get("clinker") || "../../../", location.href);
+      const appUrl = new URL("https://gamcil.github.io/clinker/");
       const examples = [
         "examples/A. versicolor CBS 583.65.gbk",
         "examples/A. burnettii MST-FP2249.gbk",
