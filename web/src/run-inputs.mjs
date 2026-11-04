@@ -377,6 +377,24 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
     handleFileSelection();
   }
 
+  function setFiles(files) {
+    if (disabled) return { ok: false, error: "The file input is currently unavailable." };
+    if (!Array.isArray(files) || files.length === 0 || files.some(file => !(file instanceof File))) {
+      return { ok: false, error: "Send one or more browser File objects." };
+    }
+    const unsupported = files.filter(file => !isSupportedInputFile(file));
+    if (unsupported.length) {
+      return {
+        ok: false,
+        error: `Unsupported file${unsupported.length === 1 ? "" : "s"}: ${unsupported.map(file => file.name).join(", ")}. Choose GenBank, GFF3/GFF, or FASTA files.`,
+      };
+    }
+    trimControls = new WeakMap();
+    setSelectedInputFiles(files, { replace: true });
+    handleFileSelection();
+    return { ok: true };
+  }
+
   function setDisabled(value) {
     disabled = value;
     for (const control of [filesInput, identityInput, noAlignInput, separateRecordsInput,
@@ -430,6 +448,7 @@ export function mountRunInputs(container, { onChange, onInputsChanged, onError }
       return { ready: validation.ready, clusters: inputTreeClusters(validation.filesWithRecords || [], separateRecordsInput.checked) };
     },
     clear,
+    setFiles,
     focus() { filesInput.focus(); },
   };
 }

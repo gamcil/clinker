@@ -202,6 +202,27 @@ function openRunPanel() {
   syncControls();
 }
 
+if (new URLSearchParams(window.location.search).get("integration") === "postmessage" && window.opener) {
+  const externalApp = window.opener;
+  window.addEventListener("message", event => {
+    const message = event.data;
+    if (event.source !== externalApp || event.origin === "null" || message?.type !== "clinker:import-files") return;
+    const result = runInputs.setFiles(message.files);
+    if (result.ok) {
+      openRunPanel();
+      setRunStatus("Files received. Review the inputs, then choose Analyze.");
+    } else {
+      setContextStatus(result.error, { tone: "error" });
+    }
+    externalApp.postMessage({
+      type: "clinker:files-received",
+      requestId: message.requestId,
+      ...result,
+    }, event.origin);
+  });
+  externalApp.postMessage({ type: "clinker:ready" }, "*");
+}
+
 newRunButton.addEventListener("click", () => {
   runInputs.clear();
   openRunPanel();
