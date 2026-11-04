@@ -1,4 +1,4 @@
-import { i as installDataEditorStyle, a as installStyle, h as defineAnnotationDataForm, j as createAnnotationPanel, s as selectionRange, f as defineAnnotationEditor } from './editor/annotation-editor-e0293750.mjs';
+import { i as installDataEditorStyle, a as installStyle, h as defineAnnotationDataForm, j as createAnnotationPanel, f as defineAnnotationEditor } from './editor/annotation-editor-3c63735d.mjs';
 import { g as createActionRunner, e as colourHex, j as createControls, k as classifyControl } from './editor/search-field-595834d9.mjs';
 
 /** Test world bounds after applying a preview translation. */
@@ -204,7 +204,7 @@ function createAnnotationOverlay({ container, getData, patch, annotationApi, edi
   const tooltip = element("div", "cm-ui annotation-tooltip"); tooltip.hidden = true;
   tooltip.setAttribute("role", "tooltip");
   let context = null, surfaces = [], hovered = null, menuState = null;
-  let tooltipKey = null, selected = new Set(), selectionAnchor = null;
+  let tooltipKey = null, selected = new Set();
   const selectionFrames = new Map();
   let panelAreas = [], addArea = null;
   let areaScene = null, areaPreview = null;
@@ -308,7 +308,7 @@ function createAnnotationOverlay({ container, getData, patch, annotationApi, edi
   const openPanel = (uid, button) => {
     const panel = getPanels().find((panel) => panel.uid === uid);
     if (!panel) return;
-    if (!selected.has(uid)) { selected = new Set([uid]); selectionAnchor = uid; }
+    if (!selected.has(uid)) selected = new Set([uid]);
     const ids = getPanels().filter((panel) => selected.has(panel.uid)).map((panel) => panel.uid);
     const state = beginMenu("panel", ids.length > 1 ? `${ids.length} annotation panels` : panel.title || uid, button, uid);
     state.ids = ids; state.panelOrder = getPanels().map((panel) => panel.uid);
@@ -317,7 +317,7 @@ function createAnnotationOverlay({ container, getData, patch, annotationApi, edi
       element("summary", "", chooser).textContent = `Panels (${ids.length} selected)`;
       const selectAll = element("button", "", chooser); selectAll.type = "button"; selectAll.textContent = "Select all panels";
       const choose = (next, focusUid) => {
-        selected = new Set(next); selectionAnchor = focusUid; openPanel(next[0], button);
+        selected = new Set(next); openPanel(next[0], button);
         menu.querySelector(".cm-annotation-selection").open = true;
         [...menu.querySelectorAll("[data-panel-select]")].find((input) => input.dataset.panelSelect === focusUid)?.focus({ preventScroll: true });
       };
@@ -484,15 +484,12 @@ function createAnnotationOverlay({ container, getData, patch, annotationApi, edi
       const point = worldPoint(event.currentTarget, event, context.getCamera());
       const area = [...panelAreas].reverse().find((area) => contains(area.bounds, point));
       if (area) {
-        const range = selectionRange(panelAreas.map((area) => area.uid), selectionAnchor, area.uid, event.shiftKey);
-        if (range.ranged) selected = new Set(range.ids);
-        else if (selected.has(area.uid)) selected.delete(area.uid); else selected.add(area.uid);
-        selectionAnchor = range.anchor;
+        if (selected.has(area.uid)) selected.delete(area.uid); else selected.add(area.uid);
         event.preventDefault(); event.stopImmediatePropagation(); close(); hovered = area.uid; refresh();
         return;
       }
     }
-    if (event.type === "pointerdown") { selected.clear(); selectionAnchor = null; }
+    if (event.type === "pointerdown") selected.clear();
     if (menu.contains(document.activeElement)) document.activeElement.blur();
     close(); refresh();
   };
@@ -500,7 +497,7 @@ function createAnnotationOverlay({ container, getData, patch, annotationApi, edi
     if (event.key !== "Escape" || event.defaultPrevented) return;
     if (!menuState && !selected.size && !event.composedPath().includes(container) && !container.contains(document.activeElement)) return;
     const open = Boolean(menuState);
-    if (!open) { selected.clear(); selectionAnchor = null; }
+    if (!open) selected.clear();
     close(open); refresh();
     if (open) event.preventDefault();
   };
