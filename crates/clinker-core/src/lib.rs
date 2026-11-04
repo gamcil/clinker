@@ -8,6 +8,7 @@ mod analyse;
 mod figure;
 mod groups;
 mod hierarchy;
+mod input;
 mod layout;
 mod model;
 mod parse_genbank;
@@ -27,13 +28,13 @@ pub use alignment::{
 };
 #[cfg(not(target_arch = "wasm32"))]
 pub use analyse::analyse_with_jobs;
-pub use analyse::{
-    AnalysisError, analyse, analyse_with_parse_options, parse_input_files,
-    parse_input_files_with_options, parse_input_files_with_progress,
-};
+pub use analyse::{AnalysisError, analyse, analyse_with_parse_options};
 pub use figure::{ClusteringDendrogram, FigureProgress, FigureStage, PreparedFigure, RowOrder};
 pub use groups::{GeneGroup, build_gene_groups, build_gene_groups_with_progress};
 pub use hierarchy::ClusterOrdering;
+pub use input::{
+    parse_input_files, parse_input_files_with_options, parse_input_files_with_progress,
+};
 pub use model::{
     Analysis, Cluster, Gene, GeneRef, InputFile, Link, Locus, MAX_SEQUENCE_COORDINATE,
 };
