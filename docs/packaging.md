@@ -35,32 +35,17 @@ covers project/HTML exports and serving the embedded viewer and saved project.
 Native jobs also extract their platform archive and run its executable outside
 the checkout.
 
-Before the first registry publication, the CLI needs a local override for its
-unpublished core dependency. These are the same steps used by CI, from a clean
-checkout (Bash):
+Now that `clinker-core` and `clinker-cli` are published, Cargo can resolve the
+CLI's core dependency from the registry. From a clean checkout, package and
+verify both published crates with:
 
 ```sh
-package_dir=$(mktemp -d)
-cargo package --locked --no-verify -p clinker-core -p clinker-cli --target-dir "$package_dir"
-for archive in "$package_dir"/package/*.crate; do
-  tar -xzf "$archive" -C "$package_dir"
-done
-core=("$package_dir"/clinker-core-*)
-cli=("$package_dir"/clinker-cli-*)
-patch="patch.crates-io.clinker-core.path=\"${core[0]}\""
-cargo test --manifest-path "${cli[0]}/Cargo.toml" --config "$patch" --target-dir "$package_dir/target"
-cargo install --locked --debug --path "${cli[0]}" --config "$patch" --target-dir "$package_dir/target" --root "$package_dir/install"
-(cd "$package_dir" && install/bin/clinker --version)
+cargo package --locked -p clinker-core -p clinker-cli
 ```
 
-Cargo updates the extracted CLI lockfile for the core path override during the
-test step; installation then uses that lockfile with `--locked`. Builds use a
-fresh temporary directory and leave the checkout unchanged.
-
-`--no-verify` skips Cargo's automatic registry verification of the unpublished
-peer; the extracted-package tests perform verification instead. After the core
-version is available on crates.io, replace these temporary extraction/override
-steps with `cargo package --locked -p clinker-core -p clinker-cli`.
+Cargo creates the `.crate` archives under `target/package/` and verifies each
+archive builds from its extracted contents. The CI source-package workflow also
+tests and installs the extracted CLI, including its embedded viewer.
 
 CI uploads the `.crate` files from its temporary package directory for tagged
 GitHub releases. Debug installation keeps the source check fast; native jobs
@@ -69,17 +54,19 @@ separately build optimized binaries on each supported OS.
 ## Registry publication
 
 Registry publication is a separate release action, not part of the GitHub
-workflow. Confirm crate-name ownership and registry permissions before the first
-publication. From the clean release commit, publish in order:
+workflow. Version `0.1.0` of both public crates has been published. For each
+subsequent release, update the workspace version and the CLI's `clinker-core`
+dependency version together, then publish from a clean release commit in order:
 
 ```sh
+cargo publish --dry-run --locked -p clinker-core
 cargo publish --locked -p clinker-core
+cargo info clinker-core
+cargo publish --dry-run --locked -p clinker-cli
 cargo publish --locked -p clinker-cli
 ```
 
-Wait for the core version to become available before publishing the CLI. Cargo
-polls the registry after uploading; see
+Wait for the core version to appear in the registry before publishing the CLI.
+Cargo polls the registry after uploading; see
 [Cargo publish](https://doc.rust-lang.org/cargo/commands/cargo-publish.html).
 Then confirm a registry installation with `cargo install --locked clinker-cli`.
-The isolated archive check exercises installation before that first publication;
-it does not claim to verify registry ownership or upload credentials.
