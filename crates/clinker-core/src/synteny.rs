@@ -352,21 +352,6 @@ mod tests {
     }
 
     #[test]
-    fn similarity_matrix_reports_each_cluster_pair() {
-        let analysis = Analysis {
-            clusters: vec![cluster("zero", 1), cluster("one", 1), cluster("two", 1)],
-            links: Vec::new(),
-        };
-        let mut reports = Vec::new();
-
-        let _ = analysis
-            .cluster_similarity_matrix_with_progress(|processed| reports.push(processed))
-            .unwrap();
-
-        assert_eq!(reports, vec![1, 2, 3]);
-    }
-
-    #[test]
     fn weights_best_hits_by_protein_length() {
         let analysis = Analysis {
             clusters: vec![

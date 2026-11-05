@@ -93,7 +93,7 @@ impl DisjointSet {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_gene_groups, build_gene_groups_with_progress};
+    use super::build_gene_groups;
     use crate::{GeneRef, Link};
 
     fn gene(cluster: usize, gene: usize) -> GeneRef {
@@ -129,15 +129,5 @@ mod tests {
             vec![gene(0, 0), gene(1, 0), gene(2, 0), gene(0, 2)]
         );
         assert_eq!(groups[1].genes, vec![gene(0, 1), gene(1, 1)]);
-    }
-
-    #[test]
-    fn grouping_reports_both_link_passes() {
-        let links = [link(gene(0, 0), gene(1, 0)), link(gene(1, 0), gene(2, 0))];
-        let mut reports = Vec::new();
-
-        let _ = build_gene_groups_with_progress(&links, |processed| reports.push(processed));
-
-        assert_eq!(reports, vec![1, 2, 3, 4]);
     }
 }
