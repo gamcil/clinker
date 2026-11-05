@@ -4,10 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 readme = "README.md"
 description = "Shared analysis core for clinker"
 
-include = ["src/**", "examples/**", "tests/**", "README.md", "LICENSE", "Cargo.toml"]
+include = ["src/**", "tests/**", "README.md", "LICENSE", "Cargo.toml"]
 keywords = ["bioinformatics", "genomics", "alignment"]
 categories = ["science"]
 
