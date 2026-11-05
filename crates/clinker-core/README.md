@@ -1,8 +1,9 @@
 # clinker-core
 
-Shared Rust parsing, protein alignment, grouping, cluster ordering and figure
-preparation for the clinker CLI and browser app. Inputs are named byte slices;
-no filesystem or frontend tools are required.
+Clinker compares gene clusters from GenBank or GFF3/FASTA files and prepares
+editable figures. `clinker-core` provides the shared Rust parsing, alignment,
+grouping, ordering, and figure-preparation library used by the native CLI and
+browser app.
 
 ```rust
 use clinker_core::{AnalysisOptions, InputFile, RowOrder, analyse};
@@ -17,9 +18,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-`prepare_figure` scores, orders and arranges a figure. `to_plot_data(order,
-definitions)` converts existing analysis without scoring or changing locus
-placement. `AnalysisSession` retains analysis for continuation; `ClinkerProject`
-also preserves the editable figure.
-
-See the [repository](https://github.com/gamcil/clinker) for usage and documentation.
+See the [API documentation](https://docs.rs/clinker-core) for library details,
+and the [Clinker README](https://github.com/gamcil/clinker/blob/rust-port/README.md)
+for the project overview, browser app, and citation.
