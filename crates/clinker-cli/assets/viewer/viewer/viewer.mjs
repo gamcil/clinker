@@ -1,5 +1,5 @@
-import { mountPlotSelectionToolbar } from '../vendor/clustermap/editor.mjs?v=bf5a7880d0c1d0f2';
-import { createProject, validateProject } from './project.mjs?v=bf5a7880d0c1d0f2';
+import { mountPlotSelectionToolbar } from '../vendor/clustermap/editor.mjs?v=8412ef8703155aa1';
+import { createProject, validateProject } from './project.mjs?v=8412ef8703155aa1';
 
 const DEFAULT_CONFIG = {
   cluster: { spacing: 10 },
