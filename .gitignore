@@ -19,3 +19,5 @@ __pycache__/
 # Analysis benchmark output and isolated environment
 /benchmark-results/
 /bench/.venv/
+/bench/.cache/
+/.snakemake/
