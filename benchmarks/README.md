@@ -19,7 +19,7 @@ Install Snakemake and Conda or Mamba, then run:
 
 ```sh
 cd benchmarks
-snakemake --use-conda --cores 4 --resources benchmark_slot=1
+snakemake --use-conda --conda-frontend conda --cores 4 --resources benchmark_slot=1
 ```
 
 The first run creates isolated Python and Rust environments, installs the
