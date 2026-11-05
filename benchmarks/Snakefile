@@ -1,0 +1,211 @@
+import csv
+import json
+import os
+import platform
+import statistics
+from pathlib import Path
+
+configfile: "config.yaml"
+
+DATASETS = list(config["datasets"])
+MODES = ["python", "rust", "rust-kmer"]
+REPEATS = range(1, config["repeats"] + 1)
+
+LINK_OUTPUTS = expand(
+    "results/links/{dataset}.{mode}.{repeat}.txt",
+    dataset=DATASETS,
+    mode=MODES,
+    repeat=REPEATS,
+)
+TIME_OUTPUTS = expand(
+    "results/timing/{dataset}.{mode}.{repeat}.tsv",
+    dataset=DATASETS,
+    mode=MODES,
+    repeat=REPEATS,
+)
+
+
+rule all:
+    input:
+        "results/raw.csv",
+        "results/summary.csv",
+        "results/metadata.json",
+
+
+rule extract_fixture:
+    input:
+        "fixtures/{dataset}.tar.gz"
+    output:
+        directory(".cache/data/{dataset}")
+    shell:
+        """
+        mkdir -p .cache/data
+        rm -rf {output:q}
+        tar -xzf {input:q} -C .cache/data
+        """
+
+
+rule install_python:
+    input:
+        "python-env.yaml"
+    output:
+        "results/setup/python-version.txt"
+    conda:
+        "python-env.yaml"
+    shell:
+        """
+        mkdir -p results/setup
+        clinker --version > {output:q}
+        """
+
+
+rule install_rust:
+    input:
+        environment="rust-env.yaml",
+        config="config.yaml",
+    output:
+        binary=".tools/rust/bin/clinker",
+        version="results/setup/rust-version.txt",
+    params:
+        version=config["versions"]["rust_cli"]
+    conda:
+        "rust-env.yaml"
+    shell:
+        """
+        cargo install --locked --force --version {params.version} \\
+          --root .tools/rust clinker-cli
+        mkdir -p results/setup
+        .tools/rust/bin/clinker --version > {output.version:q}
+        """
+
+
+rule benchmark:
+    input:
+        dataset=".cache/data/{dataset}",
+        python_tool="results/setup/python-version.txt",
+        rust_tool="results/setup/rust-version.txt",
+    output:
+        links="results/links/{dataset}.{mode}.{repeat}.txt"
+    log:
+        "results/logs/{dataset}.{mode}.{repeat}.log"
+    benchmark:
+        "results/timing/{dataset}.{mode}.{repeat}.tsv"
+    threads:
+        config["threads"]
+    resources:
+        benchmark_slot=1
+    params:
+        executable=lambda wildcards: (
+            "clinker" if wildcards.mode == "python" else ".tools/rust/bin/clinker"
+        ),
+        options=lambda wildcards, threads: (
+            f"--identity {config['identity']} --jobs {threads} --force "
+            "--hide_link_headers --hide_aln_headers"
+            if wildcards.mode == "python"
+            else f"--identity {config['identity']} --jobs {threads} --force "
+            "--hide-link-headers --hide-alignment-headers"
+            + (
+                f" --prefilter --kmer-size {config['kmer_size']} "
+                f"--min-shared-kmers {config['min_shared_kmers']}"
+                if wildcards.mode == "rust-kmer"
+                else ""
+            )
+        ),
+    conda:
+        lambda wildcards: (
+            "python-env.yaml" if wildcards.mode == "python" else "rust-env.yaml"
+        )
+    shell:
+        """
+        mkdir -p results/links results/logs results/timing
+        rm -f {output.links:q}
+        {params.executable:q} {input.dataset:q}/*.gbk {params.options} \\
+          --output {output.links:q} > {log:q} 2>&1
+        """
+
+
+rule report:
+    input:
+        links=LINK_OUTPUTS,
+        timings=TIME_OUTPUTS,
+    output:
+        raw="results/raw.csv",
+        summary="results/summary.csv",
+        metadata="results/metadata.json",
+    run:
+        records = []
+        for dataset in DATASETS:
+            for mode in MODES:
+                for repeat in REPEATS:
+                    stem = f"{dataset}.{mode}.{repeat}"
+                    link_path = Path(f"results/links/{stem}.txt")
+                    timing_path = Path(f"results/timing/{stem}.tsv")
+                    with timing_path.open(newline="") as stream:
+                        timing = next(csv.DictReader(stream, delimiter="\t"))
+                    with link_path.open() as stream:
+                        link_count = sum(bool(line.strip()) for line in stream)
+                    records.append({
+                        "dataset": dataset,
+                        "role": config["datasets"][dataset]["role"],
+                        "clusters": config["datasets"][dataset]["clusters"],
+                        "proteins": config["datasets"][dataset]["proteins"],
+                        "mode": mode,
+                        "repeat": repeat,
+                        "elapsed_seconds": float(timing["s"]),
+                        "retained_links": link_count,
+                    })
+
+        raw_fields = list(records[0])
+        with Path(output.raw).open("w", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=raw_fields)
+            writer.writeheader()
+            writer.writerows(records)
+
+        grouped = {}
+        for record in records:
+            grouped.setdefault((record["dataset"], record["mode"]), []).append(record)
+
+        summary = []
+        for dataset in DATASETS:
+            python_time = statistics.median(
+                row["elapsed_seconds"] for row in grouped[(dataset, "python")]
+            )
+            rust_links = statistics.median(
+                row["retained_links"] for row in grouped[(dataset, "rust")]
+            )
+            for mode in MODES:
+                rows = grouped[(dataset, mode)]
+                elapsed = statistics.median(row["elapsed_seconds"] for row in rows)
+                links = statistics.median(row["retained_links"] for row in rows)
+                summary.append({
+                    "dataset": dataset,
+                    "role": config["datasets"][dataset]["role"],
+                    "clusters": config["datasets"][dataset]["clusters"],
+                    "proteins": config["datasets"][dataset]["proteins"],
+                    "mode": mode,
+                    "median_elapsed_seconds": elapsed,
+                    "median_retained_links": links,
+                    "speedup_vs_python": python_time / elapsed,
+                    "links_vs_full_rust_percent": 100 * links / rust_links,
+                })
+
+        summary_fields = list(summary[0])
+        with Path(output.summary).open("w", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=summary_fields)
+            writer.writeheader()
+            writer.writerows(summary)
+
+        metadata = {
+            "python_clinker": Path("results/setup/python-version.txt").read_text().strip(),
+            "rust_clinker": Path("results/setup/rust-version.txt").read_text().strip(),
+            "identity_cutoff": config["identity"],
+            "threads": config["threads"],
+            "repeats": config["repeats"],
+            "kmer_size": config["kmer_size"],
+            "min_shared_kmers": config["min_shared_kmers"],
+            "platform": platform.platform(),
+            "processor": platform.processor(),
+            "logical_cpus": os.cpu_count(),
+            "datasets": config["datasets"],
+        }
+        Path(output.metadata).write_text(json.dumps(metadata, indent=2) + "\n")

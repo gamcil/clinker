@@ -1,0 +1,7 @@
+channels:
+  - conda-forge
+dependencies:
+  - rust=1.85
+  - c-compiler
+  - cxx-compiler
+  - cmake

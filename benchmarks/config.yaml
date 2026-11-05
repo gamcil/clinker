@@ -1,0 +1,22 @@
+versions:
+  rust_cli: 0.1.0
+
+identity: 0.3
+threads: 4
+repeats: 3
+kmer_size: 5
+min_shared_kmers: 8
+
+datasets:
+  bgcs_gcf_export_5:
+    role: small workload
+    clusters: 15
+    proteins: 221
+  bgcs_gcf_export_6:
+    role: many clusters
+    clusters: 150
+    proteins: 1424
+  bgcs_gcf_export_9:
+    role: many proteins
+    clusters: 61
+    proteins: 2110
