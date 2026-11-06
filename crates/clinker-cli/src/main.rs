@@ -15,8 +15,8 @@ use std::{
 
 use clap::Parser;
 use clinker_core::{
-    AlignmentSettings, Analysis, AnalysisSession, ClinkerProject, GeneGroupDefinition,
-    KmerPrefilter, ParseOptions, RowOrder, SequenceRange,
+    AlignmentSettings, AlignmentStats, Analysis, AnalysisSession, ClinkerProject,
+    GeneGroupDefinition, KmerPrefilter, ParseOptions, RowOrder, SequenceRange,
 };
 
 /// Analyse GenBank or GFF3 input with clinker.
@@ -117,6 +117,10 @@ struct Args {
     /// Hide cluster-pair headings in the link summary.
     #[arg(long)]
     hide_alignment_headers: bool,
+
+    /// Report potential pairs, pairs skipped before alignment, and alignments performed to stderr.
+    #[arg(long)]
+    stats: bool,
 
     /// Write the normalized synteny distance matrix as CSV.
     #[arg(long, value_name = "PATH")]
@@ -229,6 +233,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     let identity_cutoff = args.identity.unwrap_or(session.identity_cutoff());
     let alignment = alignment_settings(&args, session.alignment());
+    let mut alignment_stats: Option<AlignmentStats> = None;
     alignment.validate(identity_cutoff)?;
     let explicit_settings =
         args.identity.is_some() || args.prefilter || args.no_prefilter || args.no_align;
@@ -240,7 +245,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             .analysis
             .append_clusters_without_alignment(clusters)?;
         if let Some(options) = alignment.options(identity_cutoff) {
-            session.analysis.reanalyse(options, args.jobs)?;
+            alignment_stats = Some(session.analysis.reanalyse(options, args.jobs)?);
         } else {
             session.analysis.links.clear();
         }
@@ -252,9 +257,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         )?;
     } else if !clusters.is_empty() {
         if let Some(options) = alignment.options(identity_cutoff) {
-            session
-                .analysis
-                .append_clusters_with_jobs(clusters, options, args.jobs)?;
+            alignment_stats = Some(
+                session
+                    .analysis
+                    .append_clusters_with_jobs(clusters, options, args.jobs)?,
+            );
         } else {
             session
                 .analysis
@@ -334,6 +341,22 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         output.write(&outputs::distance_matrix(analysis, similarities)?)?;
     }
     outputs.commit(&session)?;
+    if args.stats {
+        let alignment_stats = alignment_stats.map(|stats| {
+            serde_json::json!({
+                "potential_pairs": stats.counts.possible_pairs,
+                "pairs_skipped_before_alignment": stats
+                    .counts
+                    .possible_pairs
+                    .saturating_sub(stats.aligned_pairs),
+                "alignments_performed": stats.aligned_pairs,
+            })
+        });
+        eprintln!(
+            "CLINKER_STATS\t{}",
+            serde_json::to_string(&alignment_stats)?
+        );
+    }
     if args.output.is_none() {
         if session.alignment() == Some(AlignmentSettings::Skipped) {
             println!(

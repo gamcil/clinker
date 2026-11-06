@@ -1,6 +1,3 @@
-versions:
-  rust_cli: 0.1.0
-
 identity: 0.3
 threads: 4
 repeats: 3
