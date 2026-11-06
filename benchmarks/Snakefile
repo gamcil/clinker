@@ -55,7 +55,7 @@ rule install_python:
     shell:
         """
         mkdir -p results/setup
-        clinker --version > {output:q}
+        "$CONDA_PREFIX/bin/clinker" --version > {output:q}
         """
 
 
@@ -105,7 +105,9 @@ rule benchmark:
         benchmark_slot=1
     params:
         executable=lambda wildcards: (
-            "clinker" if wildcards.mode == "python" else ".tools/rust/bin/clinker"
+            "$CONDA_PREFIX/bin/clinker"
+            if wildcards.mode == "python"
+            else ".tools/rust/bin/clinker"
         ),
         options=lambda wildcards, threads: (
             f"--identity {config['identity']} --jobs {threads} --force "
@@ -128,7 +130,7 @@ rule benchmark:
         """
         mkdir -p results/links results/logs results/timing
         rm -f {output.links:q}
-        {params.executable:q} {input.dataset:q}/*.gbk {params.options} \\
+        {params.executable} {input.dataset:q}/*.gbk {params.options} \\
           --output {output.links:q} > {log:q} 2>&1
         """
 
