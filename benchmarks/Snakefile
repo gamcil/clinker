@@ -14,6 +14,14 @@ def median_optional(rows, key):
 configfile: "config.yaml"
 
 DATASETS = list(config["datasets"])
+selected_dataset = config.get("dataset", "all")
+if selected_dataset != "all":
+    if selected_dataset not in DATASETS:
+        raise ValueError(
+            f"Unknown dataset {selected_dataset!r}; choose 'all' or one of: "
+            + ", ".join(DATASETS)
+        )
+    DATASETS = [selected_dataset]
 MODES = ["python", "rust", "rust-kmer"]
 REPEATS = range(1, config["repeats"] + 1)
 
@@ -250,6 +258,6 @@ rule report:
             "platform": platform.platform(),
             "processor": platform.processor(),
             "logical_cpus": os.cpu_count(),
-            "datasets": config["datasets"],
+            "datasets": {dataset: config["datasets"][dataset] for dataset in DATASETS},
         }
         Path(output.metadata).write_text(json.dumps(metadata, indent=2) + "\n")
