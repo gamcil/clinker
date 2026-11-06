@@ -25,3 +25,4 @@ __pycache__/
 /benchmarks/.snakemake/
 /benchmarks/.tools/
 /benchmarks/results/
+/benchmarks/rust-stage/target/

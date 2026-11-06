@@ -9,6 +9,7 @@ configfile: "config.yaml"
 
 DATASETS = list(config["datasets"])
 MODES = ["python", "rust", "rust-kmer"]
+ALIGNMENT_MODES = ["python", "rust", "rust-kmer", "wasm"]
 REPEATS = range(1, config["repeats"] + 1)
 
 LINK_OUTPUTS = expand(
@@ -21,6 +22,12 @@ TIME_OUTPUTS = expand(
     "results/timing/{dataset}.{mode}.{repeat}.tsv",
     dataset=DATASETS,
     mode=MODES,
+    repeat=REPEATS,
+)
+ALIGNMENT_OUTPUTS = expand(
+    "results/alignment/{dataset}.{mode}.{repeat}.json",
+    dataset=DATASETS,
+    mode=ALIGNMENT_MODES,
     repeat=REPEATS,
 )
 
@@ -59,6 +66,20 @@ rule install_python:
         """
 
 
+rule install_node:
+    input:
+        "node-env.yaml"
+    output:
+        "results/setup/node-version.txt"
+    conda:
+        "node-env.yaml"
+    shell:
+        """
+        mkdir -p results/setup
+        node --version > {output:q}
+        """
+
+
 rule install_rust:
     input:
         environment="rust-env.yaml",
@@ -85,6 +106,30 @@ rule install_rust:
         fi
         .tools/rust/bin/clinker --version > {output.version:q}
         "$CONDA_PREFIX/bin/rustc" --version > {output.compiler:q}
+        """
+
+
+rule install_rust_stage:
+    input:
+        environment="rust-env.yaml",
+        manifest="rust-stage/Cargo.toml",
+        lock="rust-stage/Cargo.lock",
+        source="rust-stage/src/main.rs",
+    output:
+        binary=".tools/rust-stage/bin/clinker-alignment-benchmark",
+    log:
+        "results/logs/rust-stage-install.log"
+    conda:
+        "rust-env.yaml"
+    shell:
+        """
+        mkdir -p .tools/rust-stage results/logs
+        if ! RUSTC="$CONDA_PREFIX/bin/rustc" "$CONDA_PREFIX/bin/cargo" \\
+          install --locked --force --jobs 4 --path rust-stage --root .tools/rust-stage \\
+          > {log:q} 2>&1; then
+          tail -n 80 {log:q}
+          exit 1
+        fi
         """
 
 
@@ -133,10 +178,60 @@ rule benchmark:
         """
 
 
+rule benchmark_alignment:
+    input:
+        dataset=".cache/data/{dataset}",
+        python_tool="results/setup/python-version.txt",
+        rust_tool="results/setup/rust-version.txt",
+        node_tool=lambda wildcards: "results/setup/node-version.txt" if wildcards.mode == "wasm" else [],
+        wasm_js=lambda wildcards: "../web/.build/pkg/clinker_wasm.js" if wildcards.mode == "wasm" else [],
+        wasm_binary=lambda wildcards: "../web/.build/pkg/clinker_wasm_bg.wasm" if wildcards.mode == "wasm" else [],
+        rust_stage=lambda wildcards: (
+            ".tools/rust-stage/bin/clinker-alignment-benchmark"
+            if wildcards.mode in {"rust", "rust-kmer"}
+            else []
+        ),
+    output:
+        "results/alignment/{dataset}.{mode}.{repeat}.json"
+    log:
+        "results/logs/alignment-{dataset}.{mode}.{repeat}.log"
+    threads:
+        config["threads"]
+    resources:
+        benchmark_slot=1
+    params:
+        command=lambda wildcards, threads: (
+            f"python alignment/python.py .cache/data/{wildcards.dataset} "
+            f"{config['identity']} {threads}"
+            if wildcards.mode == "python"
+            else (
+                f".tools/rust-stage/bin/clinker-alignment-benchmark "
+                f".cache/data/{wildcards.dataset} {config['identity']} {threads} "
+                f"{'kmer' if wildcards.mode == 'rust-kmer' else 'full'} "
+                f"{config['kmer_size']} {config['min_shared_kmers']}"
+                if wildcards.mode in {"rust", "rust-kmer"}
+                else f"node alignment/wasm.mjs .cache/data/{wildcards.dataset} "
+                f"{config['identity']} {threads}"
+            )
+        ),
+    conda:
+        lambda wildcards: (
+            "python-env.yaml" if wildcards.mode == "python"
+            else "node-env.yaml" if wildcards.mode == "wasm"
+            else "rust-env.yaml"
+        )
+    shell:
+        """
+        mkdir -p results/alignment results/logs
+        {params.command} {output:q} > {log:q} 2>&1
+        """
+
+
 rule report:
     input:
         links=LINK_OUTPUTS,
         timings=TIME_OUTPUTS,
+        alignment=ALIGNMENT_OUTPUTS,
     output:
         raw="results/raw.csv",
         summary="results/summary.csv",
@@ -154,6 +249,7 @@ rule report:
                     with link_path.open() as stream:
                         link_count = sum(bool(line.strip()) for line in stream)
                     records.append({
+                        "stage": "end_to_end",
                         "dataset": dataset,
                         "role": config["datasets"][dataset]["role"],
                         "clusters": config["datasets"][dataset]["clusters"],
@@ -164,6 +260,22 @@ rule report:
                         "retained_links": link_count,
                     })
 
+            for mode in ALIGNMENT_MODES:
+                for repeat in REPEATS:
+                    stem = f"{dataset}.{mode}.{repeat}"
+                    measurement = json.loads(Path(f"results/alignment/{stem}.json").read_text())
+                    records.append({
+                        "stage": "alignment",
+                        "dataset": dataset,
+                        "role": config["datasets"][dataset]["role"],
+                        "clusters": config["datasets"][dataset]["clusters"],
+                        "proteins": config["datasets"][dataset]["proteins"],
+                        "mode": mode,
+                        "repeat": repeat,
+                        "elapsed_seconds": measurement["elapsed_seconds"],
+                        "retained_links": measurement["retained_links"],
+                    })
+
         raw_fields = list(records[0])
         with Path(output.raw).open("w", newline="") as stream:
             writer = csv.DictWriter(stream, fieldnames=raw_fields)
@@ -172,31 +284,33 @@ rule report:
 
         grouped = {}
         for record in records:
-            grouped.setdefault((record["dataset"], record["mode"]), []).append(record)
+            grouped.setdefault((record["stage"], record["dataset"], record["mode"]), []).append(record)
 
         summary = []
         for dataset in DATASETS:
-            python_time = statistics.median(
-                row["elapsed_seconds"] for row in grouped[(dataset, "python")]
-            )
-            rust_links = statistics.median(
-                row["retained_links"] for row in grouped[(dataset, "rust")]
-            )
-            for mode in MODES:
-                rows = grouped[(dataset, mode)]
-                elapsed = statistics.median(row["elapsed_seconds"] for row in rows)
-                links = statistics.median(row["retained_links"] for row in rows)
-                summary.append({
-                    "dataset": dataset,
-                    "role": config["datasets"][dataset]["role"],
-                    "clusters": config["datasets"][dataset]["clusters"],
-                    "proteins": config["datasets"][dataset]["proteins"],
-                    "mode": mode,
-                    "median_elapsed_seconds": elapsed,
-                    "median_retained_links": links,
-                    "speedup_vs_python": python_time / elapsed,
-                    "links_vs_full_rust_percent": 100 * links / rust_links,
-                })
+            for stage, modes in (("end_to_end", MODES), ("alignment", ALIGNMENT_MODES)):
+                python_time = statistics.median(
+                    row["elapsed_seconds"] for row in grouped[(stage, dataset, "python")]
+                )
+                rust_links = statistics.median(
+                    row["retained_links"] for row in grouped[(stage, dataset, "rust")]
+                )
+                for mode in modes:
+                    rows = grouped[(stage, dataset, mode)]
+                    elapsed = statistics.median(row["elapsed_seconds"] for row in rows)
+                    links = statistics.median(row["retained_links"] for row in rows)
+                    summary.append({
+                        "stage": stage,
+                        "dataset": dataset,
+                        "role": config["datasets"][dataset]["role"],
+                        "clusters": config["datasets"][dataset]["clusters"],
+                        "proteins": config["datasets"][dataset]["proteins"],
+                        "mode": mode,
+                        "median_elapsed_seconds": elapsed,
+                        "median_retained_links": links,
+                        "speedup_vs_python": python_time / elapsed,
+                        "links_vs_full_rust_percent": 100 * links / rust_links,
+                    })
 
         summary_fields = list(summary[0])
         with Path(output.summary).open("w", newline="") as stream:
@@ -208,6 +322,7 @@ rule report:
             "python_clinker": Path("results/setup/python-version.txt").read_text().strip(),
             "rust_clinker": Path("results/setup/rust-version.txt").read_text().strip(),
             "rustc": Path("results/setup/rustc-version.txt").read_text().strip(),
+            "node": Path("results/setup/node-version.txt").read_text().strip(),
             "identity_cutoff": config["identity"],
             "threads": config["threads"],
             "repeats": config["repeats"],
