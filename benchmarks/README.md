@@ -26,6 +26,8 @@ The first run creates isolated Python and Rust environments, installs the
 published packages, and extracts the fixtures. Python and Rust installations
 are isolated because both packages install a `clinker` executable. Benchmark
 outputs and environments stay under this directory and are ignored by Git.
+If the Rust package build fails, its Cargo output is saved to
+`results/logs/rust-install.log`.
 
 `results/raw.csv` contains each timed repetition. `results/summary.csv` reports
 per-fixture medians, speedup relative to Python, and retained links relative to

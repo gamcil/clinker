@@ -66,15 +66,21 @@ rule install_rust:
     output:
         binary=".tools/rust/bin/clinker",
         version="results/setup/rust-version.txt",
+    log:
+        "results/logs/rust-install.log"
     params:
         version=config["versions"]["rust_cli"]
     conda:
         "rust-env.yaml"
     shell:
         """
-        cargo install --locked --force --version {params.version} \\
-          --root .tools/rust clinker-cli
         mkdir -p results/setup
+        mkdir -p results/logs
+        if ! cargo install --locked --force --jobs 4 --version {params.version} \\
+          --root .tools/rust clinker-cli > {log:q} 2>&1; then
+          tail -n 80 {log:q}
+          exit 1
+        fi
         .tools/rust/bin/clinker --version > {output.version:q}
         """
 
