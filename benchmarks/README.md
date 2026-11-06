@@ -27,7 +27,8 @@ published packages, and extracts the fixtures. Python and Rust installations
 are isolated because both packages install a `clinker` executable. Benchmark
 outputs and environments stay under this directory and are ignored by Git.
 If the Rust package build fails, its Cargo output is saved to
-`results/logs/rust-install.log`.
+`results/logs/rust-install.log`. The Rust environment uses the current stable
+compiler, whose exact version is recorded in `results/metadata.json`.
 
 `results/raw.csv` contains each timed repetition. `results/summary.csv` reports
 per-fixture medians, speedup relative to Python, and retained links relative to

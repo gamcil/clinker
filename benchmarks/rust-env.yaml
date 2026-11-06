@@ -1,4 +1,4 @@
 channels:
   - conda-forge
 dependencies:
-  - rust=1.85
+  - rust

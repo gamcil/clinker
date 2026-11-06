@@ -66,6 +66,7 @@ rule install_rust:
     output:
         binary=".tools/rust/bin/clinker",
         version="results/setup/rust-version.txt",
+        compiler="results/setup/rustc-version.txt",
     log:
         "results/logs/rust-install.log"
     params:
@@ -76,12 +77,14 @@ rule install_rust:
         """
         mkdir -p results/setup
         mkdir -p results/logs
-        if ! cargo install --locked --force --jobs 4 --version {params.version} \\
+        if ! RUSTC="$CONDA_PREFIX/bin/rustc" "$CONDA_PREFIX/bin/cargo" \\
+          install --locked --force --jobs 4 --version {params.version} \\
           --root .tools/rust clinker-cli > {log:q} 2>&1; then
           tail -n 80 {log:q}
           exit 1
         fi
         .tools/rust/bin/clinker --version > {output.version:q}
+        "$CONDA_PREFIX/bin/rustc" --version > {output.compiler:q}
         """
 
 
@@ -204,6 +207,7 @@ rule report:
         metadata = {
             "python_clinker": Path("results/setup/python-version.txt").read_text().strip(),
             "rust_clinker": Path("results/setup/rust-version.txt").read_text().strip(),
+            "rustc": Path("results/setup/rustc-version.txt").read_text().strip(),
             "identity_cutoff": config["identity"],
             "threads": config["threads"],
             "repeats": config["repeats"],
