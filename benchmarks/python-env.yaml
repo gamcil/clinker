@@ -1,7 +1,0 @@
-channels:
-  - conda-forge
-dependencies:
-  - python=3.11
-  - pip
-  - pip:
-      - clinker==0.0.32
