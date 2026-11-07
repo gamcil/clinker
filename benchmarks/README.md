@@ -26,5 +26,14 @@ alignments performed; retained links are counted from each output.
 The Python environment and extracted inputs are cached in `benchmarks/.cache/`;
 Cargo uses the repository's usual `target/` directory. The first run needs
 network access to install Python clinker and fetch any uncached Rust crates.
+On a remote node, put these caches on scratch storage if the checkout volume is
+small:
+
+```sh
+CLINKER_BENCH_CACHE_DIR=/scratch/$USER/clinker-cache \
+CARGO_TARGET_DIR=/scratch/$USER/clinker-target \
+python3 benchmarks/run.py
+```
+
 Results, build files, and caches are ignored by Git. Fixture archives and
 checksums are in `benchmarks/fixtures/` and `benchmarks/SHA256SUMS`.

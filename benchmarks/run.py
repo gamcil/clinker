@@ -30,12 +30,18 @@ MIN_SHARED_KMERS = 8
 MODES = ("python", "rust", "rust-kmer")
 
 
+def cache_dir():
+    return Path(
+        os.environ.get("CLINKER_BENCH_CACHE_DIR", HERE / ".cache")
+    ).expanduser().resolve()
+
+
 def run(command, **kwargs):
     return subprocess.run(command, check=True, text=True, **kwargs)
 
 
 def prepare_tools():
-    cache = HERE / ".cache"
+    cache = cache_dir()
     cache.mkdir(exist_ok=True)
     venv = cache / "python-venv"
     python_clinker = venv / "bin" / "clinker"
@@ -47,17 +53,19 @@ def prepare_tools():
         run([python, "-m", "venv", str(venv)])
         run([
             str(venv / "bin" / "python"), "-m", "pip", "install",
-            f"clinker=={PYTHON_CLINKER_VERSION}",
+            "--no-cache-dir", f"clinker=={PYTHON_CLINKER_VERSION}",
         ])
 
     cargo = shutil.which("cargo")
     if not cargo:
         raise SystemExit("Cargo is required to build the Rust CLI")
+    target = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target"))
+    target = target.expanduser().resolve()
     run([
         cargo, "build", "--locked", "--release", "--manifest-path",
-        str(ROOT / "Cargo.toml"), "-p", "clinker-cli",
+        str(ROOT / "Cargo.toml"), "-p", "clinker-cli", "--target-dir", str(target),
     ])
-    return python_clinker, ROOT / "target" / "release" / "clinker"
+    return python_clinker, target / "release" / "clinker"
 
 
 def prepare_fixture(name):
@@ -71,10 +79,10 @@ def prepare_fixture(name):
     if digest != expected:
         raise SystemExit(f"Fixture checksum failed: {archive}")
 
-    fixture_dir = HERE / ".cache" / "data" / name
+    data_dir = cache_dir() / "data"
+    fixture_dir = data_dir / name
     files = sorted(fixture_dir.glob("*.gbk")) if fixture_dir.exists() else []
     if not files:
-        data_dir = HERE / ".cache" / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
         with tarfile.open(archive, "r:gz") as fixture:
             fixture.extractall(data_dir)
