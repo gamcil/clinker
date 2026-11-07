@@ -85,7 +85,10 @@ def prepare_fixture(name):
     if not files:
         data_dir.mkdir(parents=True, exist_ok=True)
         with tarfile.open(archive, "r:gz") as fixture:
-            fixture.extractall(data_dir)
+            if hasattr(tarfile, "data_filter"):
+                fixture.extractall(data_dir, filter="data")
+            else:
+                fixture.extractall(data_dir)
         files = sorted(fixture_dir.glob("*.gbk"))
     if not files:
         raise SystemExit(f"No GenBank files found in fixture {name}")
@@ -96,7 +99,10 @@ def command_for(mode, executable, inputs, args, output):
     command = [str(executable), *(str(path) for path in inputs)]
     command += ["--identity", str(args.identity), "--jobs", str(args.threads), "--force"]
     if mode == "python":
-        command += ["--hide_link_headers", "--hide_aln_headers"]
+        # Python clinker 0.0.32's human formatter crashes on empty pairwise link sets.
+        command += [
+            "--hide_link_headers", "--hide_aln_headers", "--delimiter", ",",
+        ]
     else:
         command += ["--hide-link-headers", "--hide-alignment-headers", "--stats"]
         if mode == "rust-kmer":
