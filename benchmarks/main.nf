@@ -97,10 +97,11 @@ workflow {
                   metadata.sha256, archive)
         }
 
-    extracted_fixtures = EXTRACT_FIXTURE(archives).collect()
+    extracted_fixtures = EXTRACT_FIXTURE(archives).collect(flat: false)
 
     jobs = extracted_fixtures.flatMap { fixtures ->
-        fixtures.collectMany { id, role, clusters, proteins, directory ->
+        fixtures.collectMany { fixture ->
+            def (id, role, clusters, proteins, directory) = fixture
             ['python', 'rust', 'rust-kmer'].collectMany { mode ->
                 (1..(params.repeats as int)).collect { repeat ->
                     tuple(id, role, clusters, proteins, directory, mode, repeat)
