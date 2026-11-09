@@ -1,7 +1,6 @@
 nextflow.enable.dsl = 2
 
 params.fixtures = "${projectDir}/fixtures/*.tar.gz"
-params.outdir = "results"
 params.repeats = 3
 params.threads = 4
 params.identity = 0.3

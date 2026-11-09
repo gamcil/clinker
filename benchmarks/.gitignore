@@ -3,3 +3,4 @@ work/
 results/
 *.sif
 *.log
+.nextflow.log*

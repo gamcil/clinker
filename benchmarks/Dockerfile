@@ -11,6 +11,10 @@ FROM python:3.11.18-slim-bookworm@sha256:a83ba18aef0f865b1a4a611c2cf460fe446f279
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y procps \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt /opt/benchmark/requirements.txt
 RUN python -m venv /opt/python-clinker \
     && /opt/python-clinker/bin/pip install --no-cache-dir \
