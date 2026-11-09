@@ -1,4 +1,4 @@
-FROM rust:1.87.0-slim-bookworm@sha256:437507c3e719e4f968033b88d851ffa9f5aceeb2dcc2482cc6cb7647811a55eb AS rust-build
+FROM rust:1.88.0-slim-bookworm@sha256:38bc5a86d998772d4aec2348656ed21438d20fcdce2795b56ca434cf21430d89 AS rust-build
 
 ARG CLINKER_CLI_VERSION=0.1.0
 RUN cargo install clinker-cli \

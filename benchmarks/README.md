@@ -61,13 +61,14 @@ archive checksum. The extraction process checks the checksum before unpacking.
 
 The Dockerfile pins Python Clinker 0.0.32 and Rust `clinker-cli` 0.1.0, plus
 the Python dependency versions in `requirements.txt`. It builds the Rust CLI
-with Rust 1.87 in a separate stage, then places the commands at
+with Rust 1.88 in a separate stage, then places the commands at
 `/opt/python-clinker/bin/clinker` and `/usr/local/bin/clinker-rust`. Rust 1.87
-is needed by the CLI's locked `bio` dependency. The base images are pinned by
-manifest-list digest. Build and publish the image once, then use its immutable
-digest for release measurements. For local rebuilds, use a new image tag when
-using `-resume`; otherwise Nextflow could reuse completed tasks from the
-previous image with the same tag.
+is needed by the CLI's locked `bio` dependency, and Rust 1.88 supports the
+edition-2024 let chains and `slice::as_chunks` used by the published CLI. The
+base images are pinned by manifest-list digest. Build and publish the image
+once, then use its immutable digest for release measurements. For local
+rebuilds, use a new image tag when using `-resume`; otherwise Nextflow could
+reuse completed tasks from the previous image with the same tag.
 
 The workflow caps benchmark concurrency at one task to avoid CPU contention
 between measured runs. Nextflow can still resume successful tasks after a
