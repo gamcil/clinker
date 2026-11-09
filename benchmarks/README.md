@@ -31,6 +31,9 @@ Keep Nextflow's `work/` and `.nextflow/` directories between attempts so
 logs, link files, a trace, execution report, and timeline are written under
 `results/`.
 
+The published `clinker-cli` 0.1.0 does not expose alignment-count statistics,
+so the potential-pair, skipped-pair, and performed-alignment columns are blank.
+
 To select one fixture or alter repetitions and threads:
 
 ```sh

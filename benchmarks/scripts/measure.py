@@ -44,7 +44,7 @@ def main():
     if args.mode == "python":
         command += ["--hide_link_headers", "--hide_aln_headers", "--delimiter", ","]
     else:
-        command += ["--hide-link-headers", "--hide-alignment-headers", "--stats"]
+        command += ["--hide-link-headers", "--hide-alignment-headers"]
         if args.mode == "rust-kmer":
             command += [
                 "--prefilter",
