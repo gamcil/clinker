@@ -18,8 +18,10 @@ ROOT = Path(__file__).resolve().parents[1]
 HERE = Path(__file__).resolve().parent
 FIXTURES = {
     "bgcs_gcf_export_5": {"role": "small workload", "clusters": 15, "proteins": 221},
-    "bgcs_gcf_export_6": {"role": "many clusters", "clusters": 150, "proteins": 1424},
+    "bgcs_gcf_export_10": {"role": "medium balanced workload", "clusters": 50, "proteins": 490},
     "bgcs_gcf_export_9": {"role": "many proteins", "clusters": 61, "proteins": 2110},
+    "bgcs_gcf_export_11": {"role": "mixed workload", "clusters": 75, "proteins": 1359},
+    "bgcs_gcf_export_6": {"role": "many clusters", "clusters": 150, "proteins": 1424},
 }
 PYTHON_CLINKER_VERSION = "0.0.32"
 IDENTITY = 0.3
