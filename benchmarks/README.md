@@ -13,13 +13,24 @@ node with a writable working directory:
 
 ```sh
 apptainer pull clinker-benchmarks.sif \
-  docker://ghcr.io/gamcil/clinker-benchmarks:1.0.0
+  docker://ghcr.io/gamcil/clinker-benchmarks:0.1.0
 mkdir -p benchmark-run
 apptainer run --bind "$PWD/benchmark-run:/work" \
   clinker-benchmarks.sif --threads 4 --repeats 3
 ```
 
-The image is not published yet. To build it locally, from the repository root:
+To publish an image from `rust-port`, tag the desired commit and push the tag:
+
+```sh
+git tag -a benchmark-v0.1.0 -m "Benchmark image 0.1.0"
+git push origin benchmark-v0.1.0
+```
+
+The benchmark image workflow builds `linux/amd64` and publishes tag `0.1.0` to
+GHCR. Its Actions summary records the source commit and image digest. The
+workflow also supports manual dispatch once it exists on the default branch.
+
+To build the image locally, from the repository root:
 
 ```sh
 docker build -f benchmarks/Dockerfile -t clinker-benchmarks:local .
