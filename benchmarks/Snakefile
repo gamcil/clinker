@@ -1,0 +1,99 @@
+import csv
+from pathlib import Path
+
+ROOT = Path(workflow.basedir)
+SCRIPTS = ROOT / 'scripts' if (ROOT / 'scripts').exists() else ROOT.parent
+with (ROOT / 'fixtures.tsv').open() as stream:
+    FIXTURES = {row['id']: row for row in csv.DictReader(stream, delimiter='\t')}
+
+selected = str(config.get('fixtures', 'all'))
+DATASETS = list(FIXTURES) if selected == 'all' else selected.split(',')
+if not DATASETS or any(dataset not in FIXTURES for dataset in DATASETS):
+    raise ValueError(f'Unknown fixture: {selected}')
+MODES = ['python', 'rust', 'rust-kmer', 'wasm', 'wasm-kmer']
+REPEATS = range(1, int(config.get('repeats', 3)) + 1)
+THREADS = int(config.get('threads', 4))
+IDENTITY = float(config.get('identity', 0.3))
+KMER = int(config.get('kmer_size', 5))
+SHARED = int(config.get('min_shared_kmers', 8))
+IMAGE = str(config.get('image', 'local image (digest not recorded)'))
+if not 1 <= THREADS <= 4 or len(REPEATS) < 1:
+    raise ValueError('Threads must be 1–4 and repeats must be positive')
+if not 0 <= IDENTITY <= 1 or not 1 <= KMER <= 8 or SHARED < 1:
+    raise ValueError('Invalid identity or k-mer settings')
+
+RECORDS = expand('results/{dataset}.{mode}.{repeat}.json',
+                 dataset=DATASETS, mode=MODES, repeat=REPEATS)
+
+
+rule all:
+    input:
+        'results/runs.csv', 'results/summary.csv', 'results/run-metadata.json',
+        'results/benchmark-results.html', 'results/benchmark-runtime.svg',
+        'results/benchmark-links.svg'
+
+
+rule extract:
+    input:
+        archive=lambda wc: ROOT / 'fixtures' / f'{wc.dataset}.tar.gz'
+    output:
+        directory('work/fixtures/{dataset}')
+    params:
+        sha=lambda wc: FIXTURES[wc.dataset]['sha256']
+    shell:
+        """
+        printf '%s  %s\\n' {params.sha:q} {input.archive:q} | sha256sum --check --status
+        mkdir -p {output:q}
+        tar -xzf {input.archive:q} --strip-components=1 -C {output:q}
+        """
+
+
+rule benchmark:
+    input:
+        fixture='work/fixtures/{dataset}',
+        script=lambda wc: SCRIPTS / ('measure-wasm.mjs' if wc.mode.startswith('wasm') else 'measure.py')
+    output:
+        record='results/{dataset}.{mode}.{repeat}.json',
+        links='results/{dataset}.{mode}.{repeat}.links'
+    log:
+        'results/{dataset}.{mode}.{repeat}.log'
+    threads: THREADS
+    resources:
+        benchmark_slot=1
+    params:
+        stem=lambda wc: f'results/{wc.dataset}.{wc.mode}.{wc.repeat}',
+        role=lambda wc: FIXTURES[wc.dataset]['role'],
+        clusters=lambda wc: FIXTURES[wc.dataset]['clusters'],
+        proteins=lambda wc: FIXTURES[wc.dataset]['proteins'],
+        identity=IDENTITY, kmer=KMER, shared=SHARED, image=IMAGE,
+        command=lambda wc: 'node' if wc.mode.startswith('wasm') else 'python',
+        options=lambda wc: ('--timing-boundary retained-links-v1 ' if wc.mode.startswith('wasm') else '')
+    shell:
+        """
+        {params.command} {input.script:q} --fixture {input.fixture:q} \\
+          --role {params.role:q} --clusters {params.clusters} --proteins {params.proteins} \\
+          --mode {wildcards.mode:q} --repeat {wildcards.repeat} --threads {threads} \\
+          --identity {params.identity} --kmer-size {params.kmer} --min-shared-kmers {params.shared} \\
+          {params.options} --output {params.stem:q}
+        """
+
+
+rule summarize:
+    input:
+        records=RECORDS,
+        script=SCRIPTS / 'summarize.py'
+    output:
+        'results/runs.csv', 'results/summary.csv', 'results/run-metadata.json'
+    params:
+        image=IMAGE
+    shell:
+        'python {input.script:q} {params.image:q} results {input.records:q}'
+
+
+rule report:
+    input:
+        runs='results/runs.csv', summary='results/summary.csv', script=SCRIPTS / 'plot-results.R'
+    output:
+        'results/benchmark-results.html', 'results/benchmark-runtime.svg', 'results/benchmark-links.svg'
+    shell:
+        'Rscript {input.script:q} results'

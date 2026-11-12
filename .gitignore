@@ -25,3 +25,5 @@ __pycache__/
 /benchmarks/.snakemake/
 /benchmarks/.tools/
 /benchmarks/results/
+/benchmark-run/
+/.nextflow.log*

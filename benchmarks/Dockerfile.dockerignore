@@ -1,0 +1,10 @@
+.git
+**/target
+**/node_modules
+web/.build
+web/dist
+benchmarks/.snakemake
+benchmarks/work
+benchmarks/results
+benchmark-run
+.nextflow.log*

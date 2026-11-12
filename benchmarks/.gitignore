@@ -1,3 +1,4 @@
+.snakemake/
 .nextflow/
 work/
 results/
