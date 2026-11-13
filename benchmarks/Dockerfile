@@ -6,6 +6,10 @@ RUN cargo install clinker-cli \
     --locked \
     --root /opt/clinker-cli
 
+COPY benchmarks/rust-adapter/ /src/rust-adapter/
+RUN cargo build --release --locked --manifest-path /src/rust-adapter/Cargo.toml \
+    && cp /src/rust-adapter/target/release/clinker-benchmark /opt/clinker-cli/bin/
+
 FROM node:22-bookworm AS web-build
 
 RUN apt-get update \
@@ -55,7 +59,7 @@ RUN ln -s /opt/clinker-cli/bin/clinker /usr/local/bin/clinker-rust \
     && node /opt/benchmark/node_modules/playwright/cli.js install --with-deps --only-shell chromium \
     && rm -rf /var/lib/apt/lists/*
 
-RUN { sha256sum /opt/clinker-cli/bin/clinker /opt/clinker-web/build.json \
+RUN { sha256sum /opt/clinker-cli/bin/clinker /opt/clinker-cli/bin/clinker-benchmark /opt/clinker-web/build.json \
       /opt/benchmark/requirements.txt /opt/benchmark/*.py /opt/benchmark/*.mjs \
       /opt/benchmark/*.R /opt/benchmark/workflow/Snakefile; \
       /opt/python-clinker/bin/pip freeze; python -m pip freeze; node --version; dpkg-query -W; \

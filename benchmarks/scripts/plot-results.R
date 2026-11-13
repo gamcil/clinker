@@ -33,7 +33,7 @@ runtime <- base_plot +
              size = 1.5, alpha = 0.45) +
   geom_point(aes(y = median_elapsed_seconds), position = position_dodge(width = 0.5), size = 3) +
   scale_y_log10() +
-  labs(y = "Median time to retained links (seconds, log scale)")
+  labs(y = "Time to figure JSON (seconds, log scale)")
 
 links <- base_plot +
   geom_point(data = runs, aes(y = links_vs_full_rust_percent),
@@ -53,9 +53,10 @@ escape_html <- function(x) {
   gsub(">", "&gt;", x, fixed = TRUE)
 }
 columns <- c("dataset", "clusters", "proteins", "mode", "median_elapsed_seconds",
-             "speedup_vs_python", "median_retained_links", "links_vs_full_rust_percent")
+             "speedup_vs_python", "median_retained_links", "median_links_shared_with_rust",
+             "median_groups", "median_groups_shared_with_rust", "links_vs_full_rust_percent")
 headers <- c("Fixture", "Clusters", "Proteins", "Mode", "Time (s)",
-             "Speedup vs Python", "Retained links", "Links vs Rust (%)")
+             "Speedup vs Python", "Retained links", "Shared links", "Groups", "Shared groups", "Links vs Rust (%)")
 table <- results[columns]
 for (column in columns) {
   if (is.numeric(table[[column]])) table[[column]] <- round(table[[column]], 2)
@@ -65,10 +66,10 @@ rows <- apply(table, 1, function(row) paste0("<tr>", paste0("<td>", row, "</td>"
 writeLines(c(
   "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Clinker benchmark results</title>",
   "<style>body{font:16px sans-serif;max-width:1100px;margin:2em auto;padding:0 1em;color:#222}table{border-collapse:collapse}th,td{padding:.5em;border-bottom:1px solid #ddd;text-align:left}img{max-width:100%}</style></head><body>",
-  "<h1>Clinker benchmark results</h1><p>The table shows medians; plots show each repeat and its median. Link percentages compare counts with unfiltered Rust.</p>",
+  "<h1>Clinker benchmark results</h1><p>The table shows medians; plots show each repeat and its median. Link percentages compare counts with unfiltered Rust. Shared links and groups compare gene identities with unfiltered Rust.</p>",
   paste0("<table><thead><tr>", paste0("<th>", headers, "</th>", collapse = ""), "</tr></thead><tbody>"),
   rows, "</tbody></table>",
   "<h2>Elapsed time</h2><img src=\"benchmark-runtime.svg\" alt=\"Median elapsed time by fixture and mode\">",
   "<h2>Retained links</h2><img src=\"benchmark-links.svg\" alt=\"Retained links relative to unfiltered Rust\">",
-  "<p>CLI time includes process startup and writing the link file. Browser time starts with an open app and ends when alignment completes; figure preparation follows. See summary.csv for all recorded fields.</p></body></html>"
+  "<p>Time covers reading inputs through figure JSON serialization, including alignment, grouping and figure preparation. Runtime startup and writing results are excluded. See run-metadata.json and runs.csv for details and comparison limitations.</p></body></html>"
 ), "benchmark-results.html")

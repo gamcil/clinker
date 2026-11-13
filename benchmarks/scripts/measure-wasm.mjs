@@ -40,13 +40,12 @@ async function waitForServer(url, serverProcess) {
 const args = argumentsFrom(process.argv.slice(2));
 const mode = args.mode || 'wasm';
 if (!['wasm', 'wasm-kmer'].includes(mode)) throw new Error(`Invalid mode: ${mode}`);
-if (args.timing_boundary !== 'retained-links-v1') throw new Error('Invalid timing boundary.');
 const fixture = resolve(args.fixture);
 const output = resolve(args.output);
 const stem = `${output}`;
 const logPath = `${stem}.log`;
 const jsonPath = `${stem}.json`;
-const linksPath = `${stem}.links`;
+const figurePath = `${stem}.figure.json`;
 const inputs = (await readdir(fixture))
   .filter(name => /\.(gb|gbk|genbank|gbf|gbff)$/i.test(name))
   .sort()
@@ -75,58 +74,47 @@ try {
     if (message.type() === 'error') log.push(`console: ${message.text()}`);
   });
   page.on('pageerror', error => log.push(`pageerror: ${error.stack || error}`));
-  await page.goto(appUrl);
-  await page.locator('#identity').fill(String(Number(args.identity) * 100));
-  if (mode === 'wasm-kmer') {
-    await page.locator('#prefilter').check();
-    await page.locator('#kmer-size').fill(args.kmer_size);
-    await page.locator('#min-shared-kmers').fill(args.min_shared_kmers);
-  } else {
-    await page.locator('#prefilter').uncheck();
-  }
+  await page.route('**/benchmark-input', route => route.fulfill({
+    contentType: 'text/html', body: '<!doctype html><input id="files" type="file" multiple>',
+  }));
+  await page.goto(`${appUrl}benchmark-input`);
   await page.locator('#files').setInputFiles(inputs);
-  await page.waitForFunction(() => !document.querySelector('#analyse').disabled);
-
-  await page.evaluate(() => {
-    const step = document.querySelector('[data-run-step="align"]');
-    const result = step.querySelector('.step-result');
-    const textContent = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
-    // Capture the completion synchronously, before figure preparation begins.
-    Object.defineProperty(result, 'textContent', {
-      configurable: true,
-      get() { return textContent.get.call(this); },
-      set(value) {
-        textContent.set.call(this, value);
-        if (step.dataset.state === 'complete' && !window.__benchmarkAlignment) {
-          window.__benchmarkAlignment = {
-            elapsedSeconds: (performance.now() - window.__benchmarkStartedAt) / 1000,
-            summary: value,
-          };
-        }
-      },
-    });
-    window.__benchmarkStartedAt = performance.now();
-    document.querySelector('#analyse').click();
+  await page.evaluate(async () => {
+    window.benchmarkModules = await Promise.all([
+      import('/analysis.mjs'), import('/alignment.mjs'), import('/workflow.mjs'),
+    ]);
   });
-  await page.waitForFunction(() => {
-    const editor = document.querySelector('#plot-editor');
-    const panel = document.querySelector('#run-panel');
-    const data = editor?.chart?.data?.();
-    return panel?.hidden && Array.isArray(data?.links);
-  }, null, { timeout: 30 * 60 * 1000 });
-  const result = await page.evaluate(() => {
-    const links = document.querySelector('#plot-editor').chart.data().links;
-    const alignment = window.__benchmarkAlignment;
-    if (!alignment) throw new Error('Alignment completion was not recorded.');
-    return {
-      elapsedSeconds: alignment.elapsedSeconds,
-      links,
-      alignmentSummary: alignment.summary.trim(),
+  const result = await page.evaluate(async ({ mode, identity, threads, kmerSize, shared }) => {
+    const [{ parseInputFiles, postProcess }, { analyseTilesInWorkerPool }, { Workflow }] = window.benchmarkModules;
+    const workflow = new Workflow();
+    const settings = {
+      enabled: mode === 'wasm-kmer', noAlign: false, identityCutoff: identity,
+      kmerSize, minSharedKmers: shared,
+      genbank: { ranges: [], asSeparateClusters: false, setOrigin: true },
     };
-  });
+    const started = performance.now();
+    const files = [];
+    for (const file of document.querySelector('#files').files) {
+      files.push({ name: file.name, bytes: new Uint8Array(await workflow.readFile(file)) });
+    }
+    const parsed = await parseInputFiles(files, settings, {
+      onProgress() {}, onPrefilterStart() {}, onPrefilterProgress() {},
+    }, workflow);
+    const aligned = await analyseTilesInWorkerPool(parsed, identity, parsed.wasmModule, () => {}, workflow, threads);
+    const prepared = await postProcess({
+      layout: parsed.layout, proteins: parsed.proteins, links: aligned.links,
+      groupDefinitions: [], settings, useFileOrder: false, wasmModule: parsed.wasmModule,
+    }, () => {}, workflow);
+    const figure = JSON.stringify(prepared.plotData);
+    const jsonBytes = new TextEncoder().encode(figure).byteLength;
+    const elapsedSeconds = (performance.now() - started) / 1000;
+    workflow.dispose();
+    return { figure, jsonBytes, elapsedSeconds, retainedLinks: prepared.plotData.links.length,
+      groups: prepared.plotData.groups.length, alignmentCount: aligned.alignmentCount };
+  }, { mode, identity: Number(args.identity), threads: Number(args.threads),
+       kmerSize: Number(args.kmer_size), shared: Number(args.min_shared_kmers) });
   if (log.some(line => line.startsWith('pageerror:'))) throw new Error('The web app reported a browser error.');
 
-  const alignmentCount = result.alignmentSummary.match(/^Ran ([\d,]+) alignments/);
   const record = {
     dataset: basename(fixture),
     role: args.role,
@@ -140,12 +128,13 @@ try {
     min_shared_kmers: mode === 'wasm-kmer' ? Number(args.min_shared_kmers) : null,
     browser_version: browser.version(),
     elapsed_seconds: result.elapsedSeconds,
-    timing_boundary: args.timing_boundary,
-    retained_links: result.links.length,
-    alignments_performed: alignmentCount ? Number(alignmentCount[1].replaceAll(',', '')) : null,
-    alignment_summary: result.alignmentSummary,
+    timing_boundary: 'figure-json-v1',
+    retained_links: result.retainedLinks,
+    groups: result.groups,
+    json_bytes: result.jsonBytes,
+    alignments_performed: result.alignmentCount,
   };
-  await writeFile(linksPath, `${JSON.stringify(result.links)}\n`);
+  await writeFile(figurePath, result.figure);
   await writeFile(jsonPath, `${JSON.stringify(record, null, 2)}\n`);
   log.push(JSON.stringify(record));
   process.stdout.write(`${JSON.stringify(record)}\n`);

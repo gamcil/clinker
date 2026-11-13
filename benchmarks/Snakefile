@@ -54,7 +54,7 @@ rule benchmark:
         script=lambda wc: SCRIPTS / ('measure-wasm.mjs' if wc.mode.startswith('wasm') else 'measure.py')
     output:
         record='results/{dataset}.{mode}.{repeat}.json',
-        links='results/{dataset}.{mode}.{repeat}.links'
+        figure='results/{dataset}.{mode}.{repeat}.figure.json'
     log:
         'results/{dataset}.{mode}.{repeat}.log'
     threads: THREADS
@@ -66,21 +66,22 @@ rule benchmark:
         clusters=lambda wc: FIXTURES[wc.dataset]['clusters'],
         proteins=lambda wc: FIXTURES[wc.dataset]['proteins'],
         identity=IDENTITY, kmer=KMER, shared=SHARED, image=IMAGE,
-        command=lambda wc: 'node' if wc.mode.startswith('wasm') else 'python',
-        options=lambda wc: ('--timing-boundary retained-links-v1 ' if wc.mode.startswith('wasm') else '')
+        command=lambda wc: 'node' if wc.mode.startswith('wasm') else 'python'
     shell:
         """
         {params.command} {input.script:q} --fixture {input.fixture:q} \\
           --role {params.role:q} --clusters {params.clusters} --proteins {params.proteins} \\
           --mode {wildcards.mode:q} --repeat {wildcards.repeat} --threads {threads} \\
           --identity {params.identity} --kmer-size {params.kmer} --min-shared-kmers {params.shared} \\
-          {params.options} --output {params.stem:q}
+          --output {params.stem:q}
         """
 
 
 rule summarize:
     input:
         records=RECORDS,
+        figures=expand('results/{dataset}.{mode}.{repeat}.figure.json',
+                       dataset=DATASETS, mode=MODES, repeat=REPEATS),
         script=SCRIPTS / 'summarize.py'
     output:
         'results/runs.csv', 'results/summary.csv', 'results/run-metadata.json'

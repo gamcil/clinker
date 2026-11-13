@@ -51,10 +51,22 @@ image digest so it is recorded with the results.
 Results are written to `benchmark-run/results/`: `runs.csv` contains individual
 measurements, `summary.csv` contains medians, and `run-metadata.json` records
 software and machine details. Open `benchmark-results.html` for the table and
-plots. Link files and logs are also retained. Percentages compare link counts,
-not identities, with unfiltered Rust.
+plots. Prepared figure JSON and logs are retained for each run.
 
-All timings cover parsing and alignment through producing retained links. CLI
-timings include process startup and writing a link file. Browser timings start
-with the app open and end at alignment completion, before figure preparation;
-browser startup and writing links are not included.
+Each measurement starts before input files are read and ends after figure data
+is serialized to JSON. It includes parsing, alignment, gene grouping and
+figure preparation. Process and browser startup, loading Python and JavaScript
+modules, browser rendering, and writing the resulting JSON are outside the
+timed interval. The browser measurement still includes its worker and WASM
+initialization and transfers. Implementations use their own figure preparation
+and JSON representations, which are not identical; this is a comparison of the
+same workflow boundary rather than identical instructions or output bytes.
+
+The native adapter uses the published `clinker-core` 0.1.0; the browser uses
+the source checkout recorded in the image. Python uses its plotting data API,
+not HTML generation. Runs report retained link and group counts. After timing,
+shared links and identical gene groups are compared with unfiltered Rust using
+cluster, locus and gene labels. `runs.csv` flags duplicate labels or differing
+gene identities, which can make those comparisons incomplete. Link percentages
+in the report compare counts, not link identities. Use a fresh working directory
+when changing benchmark versions so older measurements cannot be mixed in.

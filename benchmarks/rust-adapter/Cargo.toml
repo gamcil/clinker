@@ -1,0 +1,12 @@
+[package]
+name = "clinker-benchmark"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[workspace]
+
+[dependencies]
+clinker-core = "=0.1.0"
+serde_json = "1"
