@@ -55,12 +55,12 @@ plots. Prepared figure JSON and logs are retained for each run.
 
 The Python and native Rust measurements cover process startup, reading input,
 parsing, alignment, gene grouping, figure preparation, JSON serialization, and
-transferring JSON through stdout. Saving the result file is excluded. The WASM
-measurement starts with Chromium already running and covers input reading through
-JSON serialization, including worker and WASM initialization and transfers.
-Browser rendering and result-file writing are excluded. Python and Rust use
-different JSON representations and layout implementations; the benchmark
-compares complete figure-data workflows, not identical instructions.
+writing the result file. Both also generate a link summary. The WASM measurement
+starts with Chromium already running and covers input reading through writing
+figure JSON, including worker initialization and browser-to-runner transfer.
+Browser rendering is excluded. Python and Rust use different JSON representations
+and layout implementations; this compares figure-data workflows rather than
+identical instructions.
 
 The image builds the CLI and browser WASM from the same workspace checkout and
 `Cargo.lock`. For release runs, use an image built from the intended release

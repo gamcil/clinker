@@ -44,8 +44,7 @@ Saving in the viewer downloads a project; it does not overwrite a file on disk.
 
 With a filename, `--plot figure.html` writes the separate self-contained,
 renderer-only HTML export, which opens directly in a browser. It does not include
-the full editor. `--plot data.json` writes raw plot data to a file;
-`--plot-json` writes the same data to standard output without a link summary.
+the full editor. `--plot data.json` continues to write raw plot data.
 
 `--project comparison.json` writes a complete version 2 project that opens in the
 browser app through **File → Open project**. It retains the analysis data needed

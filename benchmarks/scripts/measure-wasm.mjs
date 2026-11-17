@@ -84,6 +84,7 @@ try {
       import('/analysis.mjs'), import('/alignment.mjs'), import('/workflow.mjs'),
     ]);
   });
+  const started = process.hrtime.bigint();
   const result = await page.evaluate(async ({ mode, identity, threads, kmerSize, shared }) => {
     const [{ parseInputFiles, postProcess }, { analyseTilesInWorkerPool }, { Workflow }] = window.benchmarkModules;
     const workflow = new Workflow();
@@ -92,7 +93,6 @@ try {
       kmerSize, minSharedKmers: shared,
       genbank: { ranges: [], asSeparateClusters: false, setOrigin: true },
     };
-    const started = performance.now();
     const files = [];
     for (const file of document.querySelector('#files').files) {
       files.push({ name: file.name, bytes: new Uint8Array(await workflow.readFile(file)) });
@@ -107,14 +107,16 @@ try {
     }, () => {}, workflow);
     const figure = JSON.stringify(prepared.plotData);
     const jsonBytes = new TextEncoder().encode(figure).byteLength;
-    const elapsedSeconds = (performance.now() - started) / 1000;
+
     workflow.dispose();
-    return { figure, jsonBytes, elapsedSeconds, retainedLinks: prepared.plotData.links.length,
+    return { figure, jsonBytes, retainedLinks: prepared.plotData.links.length,
       groups: prepared.plotData.groups.length, alignmentCount: aligned.alignmentCount };
   }, { mode, identity: Number(args.identity), threads: Number(args.threads),
        kmerSize: Number(args.kmer_size), shared: Number(args.min_shared_kmers) });
   if (log.some(line => line.startsWith('pageerror:'))) throw new Error('The web app reported a browser error.');
 
+  await writeFile(figurePath, result.figure);
+  const elapsedSeconds = Number(process.hrtime.bigint() - started) / 1e9;
   const record = {
     dataset: basename(fixture),
     role: args.role,
@@ -127,14 +129,13 @@ try {
     kmer_size: mode === 'wasm-kmer' ? Number(args.kmer_size) : null,
     min_shared_kmers: mode === 'wasm-kmer' ? Number(args.min_shared_kmers) : null,
     browser_version: browser.version(),
-    elapsed_seconds: result.elapsedSeconds,
-    timing_boundary: 'figure-json-v1',
+    elapsed_seconds: elapsedSeconds,
+    timing_boundary: 'browser-figure-json-file-v3',
     retained_links: result.retainedLinks,
     groups: result.groups,
     json_bytes: result.jsonBytes,
     alignments_performed: result.alignmentCount,
   };
-  await writeFile(figurePath, result.figure);
   await writeFile(jsonPath, `${JSON.stringify(record, null, 2)}\n`);
   log.push(JSON.stringify(record));
   process.stdout.write(`${JSON.stringify(record)}\n`);

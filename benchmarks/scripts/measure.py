@@ -27,13 +27,13 @@ def main():
     json_path = Path(f"{output_stem}.json")
     if args.mode == "python":
         command = ["/opt/python-clinker/bin/python", "/opt/benchmark/measure-python.py",
-                   str(args.fixture), str(args.identity), str(args.threads)]
+                   str(args.fixture), str(args.identity), str(args.threads), str(figure_path)]
     else:
         inputs = sorted(args.fixture.glob("*.gbk"))
         if not inputs:
             raise SystemExit(f"No GenBank files found in {args.fixture}")
         command = ["/usr/local/bin/clinker-rust", *(str(path) for path in inputs),
-                   "--plot-json", "--stats", "--identity", str(args.identity),
+                   "--plot", str(figure_path), "--force", "--stats", "--identity", str(args.identity),
                    "--jobs", str(args.threads)]
         if args.mode == "rust-kmer":
             command += ["--prefilter", "--kmer-size", str(args.kmer_size),
@@ -41,16 +41,15 @@ def main():
     started = time.perf_counter()
     completed = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     elapsed = time.perf_counter() - started
-    log_path.write_bytes(completed.stderr)
+    log_path.write_bytes(completed.stdout + completed.stderr)
     if completed.returncode:
         raise SystemExit(f"{args.mode} failed; see {log_path}")
-    figure_path.write_bytes(completed.stdout)
-    figure = json.loads(completed.stdout)
+    figure = json.loads(figure_path.read_text())
     stats = next((json.loads(line.split("\t", 1)[1])
                   for line in completed.stderr.decode().splitlines()
                   if line.startswith("CLINKER_STATS\t")), None)
     metrics = {"elapsed_seconds": elapsed, "retained_links": len(figure["links"]),
-               "groups": len(figure["groups"]), "json_bytes": len(completed.stdout),
+               "groups": len(figure["groups"]), "json_bytes": figure_path.stat().st_size,
                "alignments_performed": stats.get("alignments_performed") if stats else None}
 
     record = {
@@ -65,7 +64,7 @@ def main():
         "kmer_size": args.kmer_size if args.mode == "rust-kmer" else None,
         "min_shared_kmers": args.min_shared_kmers if args.mode == "rust-kmer" else None,
         **metrics,
-        "timing_boundary": "cli-figure-json-v2",
+        "timing_boundary": "cli-figure-json-file-v3",
     }
     json_path.write_text(json.dumps(record, indent=2) + "\n")
     print(json.dumps(record), flush=True)

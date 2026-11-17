@@ -71,5 +71,5 @@ writeLines(c(
   rows, "</tbody></table>",
   "<h2>Elapsed time</h2><img src=\"benchmark-runtime.svg\" alt=\"Median elapsed time by fixture and mode\">",
   "<h2>Retained links</h2><img src=\"benchmark-links.svg\" alt=\"Retained links relative to unfiltered Rust\">",
-  "<p>CLI time includes process startup and JSON transfer. Browser time starts with Chromium running and includes worker startup and transfers. Saving results and browser rendering are excluded. See runs.csv for comparison limitations.</p></body></html>"
+  "<p>CLI time includes process startup, link summary and writing JSON. Browser time starts with Chromium running and includes worker startup, transfer and writing JSON; rendering is excluded. See runs.csv for comparison limitations.</p></body></html>"
 ), "benchmark-results.html")

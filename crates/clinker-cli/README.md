@@ -15,7 +15,6 @@ Open an interactive viewer or save a portable figure or editable project:
 ```sh
 clinker clusters/*.gbk --plot
 clinker cluster.gff3 --plot figure.html
-clinker clusters/*.gbk --plot-json > figure.json
 clinker clusters/*.gbk --project comparison.json
 ```
 
