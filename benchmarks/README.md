@@ -3,7 +3,7 @@
 This workflow compares Python Clinker 0.0.32 with the Rust CLI and browser app
 built from the image's source checkout. Each fixture is run with
 Python, Rust, and WebAssembly; Rust and WebAssembly are also run with the k-mer
-prefilter (size 5, minimum 8 shared k-mers). Runs are sequential, with up to
+prefilter (size 5, minimum 5 shared k-mers). Runs are sequential, with up to
 four threads each. The five fixtures and their checksums are in `fixtures.tsv`.
 
 ## Run

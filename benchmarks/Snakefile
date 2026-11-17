@@ -15,7 +15,7 @@ REPEATS = range(1, int(config.get('repeats', 3)) + 1)
 THREADS = int(config.get('threads', 4))
 IDENTITY = float(config.get('identity', 0.3))
 KMER = int(config.get('kmer_size', 5))
-SHARED = int(config.get('min_shared_kmers', 8))
+SHARED = int(config.get('min_shared_kmers', 5))
 IMAGE = str(config.get('image', 'local image (digest not recorded)'))
 if not 1 <= THREADS <= 4 or len(REPEATS) < 1:
     raise ValueError('Threads must be 1–4 and repeats must be positive')

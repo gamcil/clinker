@@ -11,7 +11,7 @@ def main():
     parser.add_argument('--fixture', action='append', help='Fixture ID; repeat to select multiple fixtures')
     parser.add_argument('--identity', type=float, default=0.3)
     parser.add_argument('--kmer-size', type=int, default=5)
-    parser.add_argument('--min-shared-kmers', type=int, default=8)
+    parser.add_argument('--min-shared-kmers', type=int, default=5)
     args = parser.parse_args()
     if not 1 <= args.threads <= 4 or args.repeats < 1:
         parser.error('threads must be 1–4 and repeats must be positive')
