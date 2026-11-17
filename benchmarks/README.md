@@ -53,16 +53,15 @@ measurements, `summary.csv` contains medians, and `run-metadata.json` records
 software and machine details. Open `benchmark-results.html` for the table and
 plots. Prepared figure JSON and logs are retained for each run.
 
-The Python and native Rust measurements cover process startup, reading input,
-parsing, alignment, gene grouping, figure preparation, JSON serialization, and
-writing the result file. Both also generate a link summary. The WASM measurement
-starts with Chromium already running and covers input reading through writing
-figure JSON, including worker initialization and browser-to-runner transfer.
-Browser rendering is excluded. Python and Rust use different JSON representations
-and layout implementations; this compares figure-data workflows rather than
-identical instructions.
+Each timer starts immediately before reading input files and stops after the
+figure data is serialized to UTF-8 JSON in memory. Parsing, alignment, gene
+grouping and figure preparation are included. Process and browser startup,
+link-summary generation, JSON file writing and browser rendering are excluded.
+The browser run includes worker initialization and transfers. Implementations use
+different figure representations and layout logic, so this compares equivalent
+workflow boundaries, not identical algorithms or output bytes.
 
-The image builds the CLI and browser WASM from the same workspace checkout and
+The image builds the Rust benchmark runner and browser WASM from the same workspace checkout and
 `Cargo.lock`. For release runs, use an image built from the intended release
 commit. Runs report retained link and group counts. After timing, shared links
 and identical groups are compared with unfiltered Rust. Duplicate gene labels

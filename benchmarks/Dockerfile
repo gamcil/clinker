@@ -13,9 +13,10 @@ RUN rustup target add wasm32-unknown-unknown \
 WORKDIR /src
 COPY Cargo.toml Cargo.lock LICENSE ./
 COPY crates/ crates/
+COPY benchmarks/rust-runner/ benchmarks/rust-runner/
 COPY examples/ examples/
 COPY web/ web/
-RUN cargo build --release --locked -p clinker-cli \
+RUN cargo build --release --locked -p clinker-cli -p clinker-benchmark \
     && sh web/build.sh
 
 FROM python:3.11.18-slim-bookworm@sha256:a83ba18aef0f865b1a4a611c2cf460fe446f2795673bbb9fe43be570439e3b39
@@ -36,6 +37,7 @@ RUN python -m venv /opt/python-clinker \
         --requirement /opt/benchmark/requirements.txt
 
 COPY --from=web-build /src/target/release/clinker /usr/local/bin/clinker-rust
+COPY --from=web-build /src/target/release/clinker-benchmark /usr/local/bin/clinker-benchmark
 COPY --from=web-build /usr/local/bin/node /usr/local/bin/node
 COPY --from=web-build /src/web/dist /opt/clinker-web
 COPY --from=web-build /src/web/node_modules/playwright /opt/benchmark/node_modules/playwright
@@ -47,7 +49,7 @@ COPY benchmarks/fixtures/ /opt/benchmark/workflow/fixtures/
 RUN node /opt/benchmark/node_modules/playwright/cli.js install --with-deps --only-shell chromium \
     && rm -rf /var/lib/apt/lists/*
 
-RUN { sha256sum /usr/local/bin/clinker-rust /opt/clinker-web/build.json \
+RUN { sha256sum /usr/local/bin/clinker-rust /usr/local/bin/clinker-benchmark /opt/clinker-web/build.json \
       /opt/benchmark/requirements.txt /opt/benchmark/*.py /opt/benchmark/*.mjs \
       /opt/benchmark/*.R /opt/benchmark/workflow/Snakefile; \
       /opt/python-clinker/bin/pip freeze; python -m pip freeze; node --version; dpkg-query -W; \

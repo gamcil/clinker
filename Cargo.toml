@@ -3,6 +3,7 @@ members = [
     "crates/clinker-core",
     "crates/clinker-cli",
     "crates/clinker-wasm",
+    "benchmarks/rust-runner",
 ]
 resolver = "2"
 
