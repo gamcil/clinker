@@ -1,7 +1,7 @@
 # Clinker runtime benchmarks
 
-This workflow compares Python Clinker 0.0.32, Rust clinker-cli 0.1.0, and the
-browser app built from the image's source checkout. Each fixture is run with
+This workflow compares Python Clinker 0.0.32 with the Rust CLI and browser app
+built from the image's source checkout. Each fixture is run with
 Python, Rust, and WebAssembly; Rust and WebAssembly are also run with the k-mer
 prefilter (size 5, minimum 8 shared k-mers). Runs are sequential, with up to
 four threads each. The five fixtures and their checksums are in `fixtures.tsv`.
@@ -53,20 +53,19 @@ measurements, `summary.csv` contains medians, and `run-metadata.json` records
 software and machine details. Open `benchmark-results.html` for the table and
 plots. Prepared figure JSON and logs are retained for each run.
 
-Each measurement starts before input files are read and ends after figure data
-is serialized to JSON. It includes parsing, alignment, gene grouping and
-figure preparation. Process and browser startup, loading Python and JavaScript
-modules, browser rendering, and writing the resulting JSON are outside the
-timed interval. The browser measurement still includes its worker and WASM
-initialization and transfers. Implementations use their own figure preparation
-and JSON representations, which are not identical; this is a comparison of the
-same workflow boundary rather than identical instructions or output bytes.
+The Python and native Rust measurements cover process startup, reading input,
+parsing, alignment, gene grouping, figure preparation, JSON serialization, and
+transferring JSON through stdout. Saving the result file is excluded. The WASM
+measurement starts with Chromium already running and covers input reading through
+JSON serialization, including worker and WASM initialization and transfers.
+Browser rendering and result-file writing are excluded. Python and Rust use
+different JSON representations and layout implementations; the benchmark
+compares complete figure-data workflows, not identical instructions.
 
-The native adapter uses the published `clinker-core` 0.1.0; the browser uses
-the source checkout recorded in the image. Python uses its plotting data API,
-not HTML generation. Runs report retained link and group counts. After timing,
-shared links and identical gene groups are compared with unfiltered Rust using
-cluster, locus and gene labels. `runs.csv` flags duplicate labels or differing
-gene identities, which can make those comparisons incomplete. Link percentages
-in the report compare counts, not link identities. Use a fresh working directory
-when changing benchmark versions so older measurements cannot be mixed in.
+The image builds the CLI and browser WASM from the same workspace checkout and
+`Cargo.lock`. For release runs, use an image built from the intended release
+commit. Runs report retained link and group counts. After timing, shared links
+and identical groups are compared with unfiltered Rust. Duplicate gene labels
+are disambiguated by locus tag, or coordinates if no tag is available; the CSV
+records any remaining ambiguity. Link percentages compare counts, not identities.
+Use a fresh working directory when changing benchmark versions.

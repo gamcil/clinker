@@ -2,6 +2,7 @@
 import argparse
 import json
 import subprocess
+import time
 from pathlib import Path
 
 
@@ -22,23 +23,35 @@ def main():
 
     output_stem = Path(args.output)
     figure_path = Path(f"{output_stem}.figure.json")
-    metrics_path = Path(f"{output_stem}.metrics.tmp")
     log_path = Path(f"{output_stem}.log")
     json_path = Path(f"{output_stem}.json")
     if args.mode == "python":
         command = ["/opt/python-clinker/bin/python", "/opt/benchmark/measure-python.py",
-                   str(args.fixture), str(args.identity), str(args.threads),
-                   str(figure_path), str(metrics_path)]
+                   str(args.fixture), str(args.identity), str(args.threads)]
     else:
-        command = ["/opt/clinker-cli/bin/clinker-benchmark", str(args.fixture), args.mode,
-                   str(args.identity), str(args.threads), str(args.kmer_size),
-                   str(args.min_shared_kmers), str(figure_path), str(metrics_path)]
-    completed = subprocess.run(command, text=True, capture_output=True)
-    log_path.write_text(completed.stdout + completed.stderr)
+        inputs = sorted(args.fixture.glob("*.gbk"))
+        if not inputs:
+            raise SystemExit(f"No GenBank files found in {args.fixture}")
+        command = ["/usr/local/bin/clinker-rust", *(str(path) for path in inputs),
+                   "--plot-json", "--stats", "--identity", str(args.identity),
+                   "--jobs", str(args.threads)]
+        if args.mode == "rust-kmer":
+            command += ["--prefilter", "--kmer-size", str(args.kmer_size),
+                        "--min-shared-kmers", str(args.min_shared_kmers)]
+    started = time.perf_counter()
+    completed = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    elapsed = time.perf_counter() - started
+    log_path.write_bytes(completed.stderr)
     if completed.returncode:
         raise SystemExit(f"{args.mode} failed; see {log_path}")
-    metrics = json.loads(metrics_path.read_text())
-    metrics_path.unlink()
+    figure_path.write_bytes(completed.stdout)
+    figure = json.loads(completed.stdout)
+    stats = next((json.loads(line.split("\t", 1)[1])
+                  for line in completed.stderr.decode().splitlines()
+                  if line.startswith("CLINKER_STATS\t")), None)
+    metrics = {"elapsed_seconds": elapsed, "retained_links": len(figure["links"]),
+               "groups": len(figure["groups"]), "json_bytes": len(completed.stdout),
+               "alignments_performed": stats.get("alignments_performed") if stats else None}
 
     record = {
         "dataset": args.fixture.name,
@@ -52,8 +65,7 @@ def main():
         "kmer_size": args.kmer_size if args.mode == "rust-kmer" else None,
         "min_shared_kmers": args.min_shared_kmers if args.mode == "rust-kmer" else None,
         **metrics,
-        "timing_boundary": "figure-json-v1",
-        "alignments_performed": None,
+        "timing_boundary": "cli-figure-json-v2",
     }
     json_path.write_text(json.dumps(record, indent=2) + "\n")
     print(json.dumps(record), flush=True)

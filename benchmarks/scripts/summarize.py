@@ -6,7 +6,7 @@ import platform
 import statistics
 import subprocess
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 
@@ -21,14 +21,21 @@ def figure_members(path):
     figure = json.loads(Path(path).read_text())
     genes = {}
     keys = set()
-    for cluster in figure['clusters']:
-        for locus in cluster['loci']:
-            for gene in locus['genes']:
-                key = (cluster['name'], locus['name'], gene['label'])
-                if key in keys:
-                    raise ValueError('gene labels are not unique within a locus')
-                keys.add(key)
-                genes[gene['uid']] = key
+    entries = [(cluster['name'], locus['name'], gene)
+               for cluster in figure['clusters'] for locus in cluster['loci']
+               for gene in locus['genes']]
+    counts = Counter((cluster, locus, gene['label']) for cluster, locus, gene in entries)
+    for cluster, locus, gene in entries:
+        base = (cluster, locus, gene['label'])
+        if counts[base] > 1:
+            tag = gene.get('names', {}).get('locus_tag')
+            key = (*base, 'locus_tag', tag) if tag else (*base, 'coordinates', gene['start'], gene['end'], gene['strand'])
+        else:
+            key = base
+        if key in keys:
+            raise ValueError(f'ambiguous gene identity: {base}')
+        keys.add(key)
+        genes[gene['uid']] = key
     links = {tuple(sorted((genes[link['query']['uid']], genes[link['target']['uid']])))
              for link in figure['links']}
     groups = {tuple(sorted(genes[uid] for uid in group['genes'])) for group in figure['groups']}
@@ -46,9 +53,9 @@ def main():
     for modes in by_run.values():
         try:
             reference_links, reference_groups, reference_genes = figure_members(modes['rust'][1])
-        except (KeyError, ValueError):
+        except (KeyError, ValueError) as error:
             for row, _ in modes.values():
-                row['comparison_note'] = 'Rust reference could not be compared'
+                row['comparison_note'] = f'Rust reference could not be compared: {error}'
             continue
         for row, path in modes.values():
             try:
