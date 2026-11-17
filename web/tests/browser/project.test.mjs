@@ -38,7 +38,7 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(url);
-  assert.equal(await page.locator('#prefilter').isChecked(), false, 'default analysis matches the unfiltered CLI');
+  assert.equal(await page.locator('#prefilter').isChecked(), true);
   const helpButton = page.getByRole('button', { name: 'Plot help', exact: true });
   const help = page.getByRole('dialog', { name: 'Plot help' });
   await helpButton.click();
@@ -103,6 +103,10 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   assert.deepEqual(await page.evaluate(() => window.inputAudit.reads), inspectionReads);
   await page.locator('#analyse').click();
   await page.waitForFunction(() => document.querySelector('#run-panel').hidden, {}, { timeout: 60000 });
+  assert.deepEqual(await page.evaluate(() => {
+    const { enabled, kmerSize, minSharedKmers } = window.workerAudit.settings;
+    return { enabled, kmerSize, minSharedKmers };
+  }), { enabled: true, kmerSize: 5, minSharedKmers: 5 });
   assert.deepEqual(await page.evaluate(() => window.workerAudit.settings.genbank.ranges), [{ record: 'KV878126', start: 99, end: 20000 }]);
   const expected = await page.evaluate(() => {
     const chart = document.querySelector('#plot-editor').chart;
