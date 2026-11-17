@@ -108,6 +108,20 @@ fn gff_discovery_preserves_directory_pairing_order_and_distinct_inputs() {
     let figure: serde_json::Value =
         serde_json::from_slice(&fs::read(root.join("a/figure.json")).unwrap()).unwrap();
     assert_eq!(figure["clusters"][0]["source_file"], "sample.gff3");
+    let stdout = succeeds(
+        &root.join("a"),
+        &["sample.gff3", "--no-align", "--plot-json"],
+    );
+    let stdout_figure: serde_json::Value = serde_json::from_slice(&stdout.stdout).unwrap();
+    assert_eq!(stdout_figure, figure);
+    assert!(
+        !run(
+            &root.join("a"),
+            &["sample.gff3", "--plot-json", "--output", "links.txt"]
+        )
+        .status
+        .success()
+    );
 }
 
 #[test]

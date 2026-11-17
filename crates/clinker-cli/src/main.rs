@@ -86,6 +86,10 @@ struct Args {
     #[arg(short, long, value_name = "PATH", num_args = 0..=1)]
     plot: Option<Option<PathBuf>>,
 
+    /// Write figure data as JSON to standard output instead of a link summary.
+    #[arg(long, conflicts_with_all = ["plot", "output", "open_project"])]
+    plot_json: bool,
+
     /// Write a complete editable project for the web or local viewer.
     #[arg(long, value_name = "PATH")]
     project: Option<PathBuf>,
@@ -276,18 +280,22 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let analysis = &session.analysis;
     let group_definitions = &session.group_definitions;
 
-    let summary = outputs::link_summary(
-        analysis,
-        usize::from(args.decimals),
-        args.delimiter.as_deref(),
-        !args.hide_alignment_headers,
-        !args.hide_link_headers,
-    );
+    let summary = if args.plot_json {
+        String::new()
+    } else {
+        outputs::link_summary(
+            analysis,
+            usize::from(args.decimals),
+            args.delimiter.as_deref(),
+            !args.hide_alignment_headers,
+            !args.hide_link_headers,
+        )
+    };
     if let Some(output) = &mut outputs.summary {
         output.write(summary.as_bytes())?;
     }
 
-    let figure = if args.plot.is_some() || args.project.is_some() {
+    let figure = if args.plot.is_some() || args.plot_json || args.project.is_some() {
         let row_order =
             if args.use_file_order || session.alignment() == Some(AlignmentSettings::Skipped) {
                 RowOrder::Input
@@ -301,6 +309,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut local_project = None;
     if let Some(figure) = &figure {
         let data = &figure.plot_data;
+        if args.plot_json {
+            serde_json::to_writer(io::stdout().lock(), data)?;
+        }
         if let Some(output) = &mut outputs.plot {
             let json = serde_json::to_string_pretty(data)?;
             let contents = match outputs
@@ -357,7 +368,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             serde_json::to_string(&alignment_stats)?
         );
     }
-    if args.output.is_none() {
+    if args.output.is_none() && !args.plot_json {
         if session.alignment() == Some(AlignmentSettings::Skipped) {
             println!(
                 "Alignment disabled; parsed {} clusters",
