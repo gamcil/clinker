@@ -16,8 +16,8 @@ pub struct KmerPrefilter {
 impl Default for KmerPrefilter {
     fn default() -> Self {
         Self {
-            kmer_size: 3,
-            min_shared_kmers: 3,
+            kmer_size: 5,
+            min_shared_kmers: 5,
         }
     }
 }

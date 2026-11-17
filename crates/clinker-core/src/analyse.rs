@@ -532,7 +532,15 @@ ORIGIN
     fn kmer_prefilter_keeps_only_pairs_with_enough_distinct_shared_words() {
         let query: [&[u8]; 2] = [b"MSTAVK", b"QQQQQQ"];
         let target: [&[u8]; 2] = [b"MSTAVR", b"GGGGGG"];
-        let pairs = kmer_candidate_pairs(&query, &target, 0.0, KmerPrefilter::default());
+        let pairs = kmer_candidate_pairs(
+            &query,
+            &target,
+            0.0,
+            KmerPrefilter {
+                kmer_size: 3,
+                min_shared_kmers: 3,
+            },
+        );
 
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].query_index, 0);

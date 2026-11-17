@@ -27,3 +27,6 @@ __pycache__/
 /benchmarks/results/
 /benchmark-run/
 /.nextflow.log*
+
+# Local prefilter evaluation outputs
+/prefilter-sweep-results/

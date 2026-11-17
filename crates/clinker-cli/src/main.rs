@@ -46,11 +46,11 @@ struct Args {
     #[arg(long, requires = "session", conflicts_with = "open_project")]
     reanalyse: bool,
 
-    /// Protein k-mer size for --prefilter (default: 3 for new sessions).
+    /// Protein k-mer size for --prefilter (default: 5 for new sessions).
     #[arg(long, requires = "prefilter", value_parser = clap::value_parser!(u8).range(1..=8))]
     kmer_size: Option<u8>,
 
-    /// Minimum distinct shared k-mers for --prefilter (default: 3 for new sessions).
+    /// Minimum distinct shared k-mers for --prefilter (default: 5 for new sessions).
     #[arg(long, requires = "prefilter", value_parser = clap::value_parser!(u32).range(1..))]
     min_shared_kmers: Option<u32>,
 
