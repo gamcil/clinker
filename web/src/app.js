@@ -8,6 +8,8 @@ import { mountAnnotationImport } from "./annotation-import.mjs";
 import { bindInputTree } from "./viewer/tree.mjs";
 import { createViewer } from "./viewer/viewer.mjs";
 import { readThemePreference, mountViewerControls } from "./viewer/controls.mjs";
+import { createPlotStatus } from "./viewer/status.mjs";
+import { mountTour } from "./viewer/tour.mjs";
 
 const analyseButton = document.querySelector("#analyse");
 const exampleButton = document.querySelector("#load-example");
@@ -38,10 +40,11 @@ const runSteps = new Map([...document.querySelectorAll("[data-run-step]")].map(s
   },
 ]));
 const runStatus = document.querySelector("#run-status");
-const plotStatus = document.querySelector("#plot-status");
+const setPlotStatus = createPlotStatus(document.querySelector("#plot-status"));
 const plotElement = document.querySelector("#plot");
 const plotStage = document.querySelector(".plot-stage");
 const viewer = createViewer({ plot: plotElement, stage: plotStage, editor: plotEditor, appearance: readThemePreference() });
+const tour = mountTour({ viewer });
 let latestSimilarity = null;
 let activeWorkflow = null;
 let treeImport = null;
@@ -114,6 +117,7 @@ async function runWorkflow(task, failureMessage) {
     if (completed) {
       closeRunPanel();
       editPlotButton.focus();
+      tour.offer();
     } else if (trigger instanceof HTMLElement && !trigger.disabled && trigger.getClientRects().length) {
       trigger.focus();
     }
@@ -161,13 +165,6 @@ function setRunStatus(message, { tone = "", preserveSteps = false } = {}) {
   runStatus.textContent = message;
   if (tone) runStatus.dataset.tone = tone;
   else delete runStatus.dataset.tone;
-}
-
-function setPlotStatus(message, { tone = "" } = {}) {
-  plotStatus.hidden = !message;
-  plotStatus.textContent = message;
-  if (tone) plotStatus.dataset.tone = tone;
-  else delete plotStatus.dataset.tone;
 }
 
 function setContextStatus(message, options = {}) {
@@ -409,7 +406,7 @@ async function analyseFiles(files, workflow) {
   workflow.throwIfCancelled();
   const plotData = result.plotData;
   if (resolvedRunTree) plotData.tree = bindInputTree(resolvedRunTree, plotData.clusters, settings.genbank.asSeparateClusters);
-  const summary = `${plotData.clusters.length} clusters; ${plotData.links.length} retained links.`;
+  const summary = `Analysis complete · ${plotData.clusters.length.toLocaleString()} clusters · ${plotData.links.length.toLocaleString()} retained links`;
   setRunStep(
     "groups",
     "complete",
@@ -467,13 +464,10 @@ treeImport = mountTreeImport({
   button: treeButton,
   getChart: () => viewer.chart,
   getRunInputs: () => runInputs.treeInputs(),
-  onAppearance: () => {
-    return viewer.openTreeAppearance();
-  },
   onRunChange: syncControls,
-  onChange: message => {
+  onChange: (message, options) => {
     viewer.refreshEditor();
-    setPlotStatus(message);
+    setPlotStatus(message, options);
   },
 });
 

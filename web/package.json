@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "clustermap.js": "https://codeload.github.com/gamcil/clustermap.js/tar.gz/8cb76e06357190fddffc0116b3513a14d00f67c8",
-    "d3": "7.9.0"
+    "d3": "7.9.0",
+    "driver.js": "1.14.0"
   },
   "devDependencies": {
     "playwright": "1.63.0"

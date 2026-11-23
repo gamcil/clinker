@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>clinker</title>
+    <link rel="stylesheet" href="vendor/driver/driver.css">
     <link rel="stylesheet" href="style.css">
     <script src="vendor/d3/d3.min.js"></script>
     <script src="vendor/clustermap/clustermap.min.js"></script>
@@ -32,19 +33,16 @@
               <summary class="app-disclosure">Add data</summary>
               <div class="menu-popover">
                 <button id="manage-tree" type="button" aria-haspopup="dialog" aria-controls="tree-dialog" disabled class="app-button">Import tree (Newick)…</button>
+                <button id="remove-tree" type="button" hidden class="app-button">Remove imported tree</button>
                 <button id="import-annotations" type="button" aria-haspopup="dialog" aria-controls="annotation-dialog" disabled class="app-button">Import annotations (TSV / CSV)…</button>
               </div>
             </details>
             <details id="plot-order" class="menu order-menu">
               <summary class="app-disclosure"><span>Row order<span class="order-colon">:</span></span> <span id="plot-order-label" class="menu-current-value">Default</span></summary>
               <div class="menu-popover">
-                <button type="button" data-order="computed" aria-pressed="true" class="app-button">Default order</button>
+                <button type="button" data-order="computed" aria-pressed="true" class="app-button">Default (no tree)</button>
                 <button type="button" data-order="clustering" aria-pressed="false" hidden class="app-button">Similarity dendrogram</button>
                 <button type="button" data-order="tree" aria-pressed="false" hidden class="app-button">Imported tree</button>
-                <label id="clustering-scale-control" class="menu-checkbox" hidden><input id="clustering-scaled" type="checkbox" checked class="app-field">Scale by merge height</label>
-                <span id="tree-controls-divider" class="menu-section-divider" aria-hidden="true" hidden></span>
-                <button id="tree-appearance" type="button" hidden class="app-button">Tree appearance…</button>
-                <button id="remove-tree" type="button" hidden class="app-button">Remove tree</button>
               </div>
             </details>
           </div>
@@ -65,7 +63,8 @@
       </header>
       <div class="plot-stage clinker-plot-workspace">
         <div id="plot" class="plot-container"></div>
-        <p id="plot-status" class="plot-status" role="status" hidden></p>
+        <div id="plot-status" class="plot-status" hidden><span role="status" aria-live="polite"></span><button type="button" class="plot-status-dismiss" aria-label="Dismiss notification" hidden>×</button></div>
+        <div id="tour-prompt" class="tour-prompt" hidden><span>New to clinker?</span><button type="button" class="app-button" data-tour-start>Quick tour</button><button type="button" class="app-button" data-tour-dismiss>Not now</button></div>
         <!-- run-panel:start -->
         <section id="run-panel" class="run-panel" aria-labelledby="run-panel-title">
           <div class="run-card">
@@ -99,19 +98,9 @@
                 <div class="prefilter-option">
                   <label class="setting-check">
                     <input id="prefilter" type="checkbox" aria-describedby="prefilter-help" class="app-field" checked>
-                    <span>Use k-mer prefilter</span>
+                    <span>Speed up comparisons with a k-mer prefilter</span>
                   </label>
-                  <p id="prefilter-help" class="setting-help app-note">Can reduce comparison work; may miss distant homologues.</p>
-                  <div id="prefilter-options" class="prefilter-options" hidden>
-                    <label class="prefilter-parameter">
-                      <span>k-mer size</span>
-                      <input id="kmer-size" class="app-field compact-control" type="number" min="1" max="8" step="1" value="5">
-                    </label>
-                    <label class="prefilter-parameter">
-                      <span>Minimum shared k-mers</span>
-                      <input id="min-shared-kmers" class="app-field compact-control" type="number" min="1" step="1" value="5">
-                    </label>
-                  </div>
+                  <p id="prefilter-help" class="setting-help app-note">Skips unlikely protein matches; some matches may be missed.</p>
                 </div>
               </div>
               <details class="run-other-settings">
@@ -135,6 +124,13 @@
                       <span>Keep the original origin of circular records</span>
                     </label>
                   </div>
+                  <section id="prefilter-options" class="settings-section" aria-labelledby="prefilter-options-title" hidden>
+                    <h3 id="prefilter-options-title" class="settings-title">k-mer prefilter</h3>
+                    <div class="settings-fields">
+                      <label class="setting-row prefilter-parameter"><span>k-mer size</span><input id="kmer-size" class="app-field compact-control" type="number" min="1" max="8" step="1" value="5"></label>
+                      <label class="setting-row prefilter-parameter"><span>Minimum shared k-mers</span><input id="min-shared-kmers" class="app-field compact-control" type="number" min="1" step="1" value="5"></label>
+                    </div>
+                  </section>
                   <section class="settings-section" aria-labelledby="annotation-files-label">
                     <h3 id="annotation-files-label" class="settings-title">Gene annotations</h3>
                     <p class="setting-help app-note">Optional two-column CSV files.</p>
@@ -235,62 +231,50 @@
       <header class="app-dialog__header">
         <div class="app-dialog__heading">
           <div>
-            <h2 id="help-title" class="app-dialog__title">Plot help</h2>
-            <p id="help-intro">Arrange, edit and export your comparison with the menus above the figure. Your files stay in the browser; save a project to keep your work.</p>
+            <h2 id="help-title" class="app-dialog__title">Help &amp; about clinker</h2>
+            <p id="help-intro">clinker compares gene clusters and displays their similarities as an interactive figure.</p>
+            <p class="help-citation"><strong>Cite clinker:</strong> Gilchrist, C.L.M. and Chooi, Y.-H. (2021). <i>clinker &amp; clustermap.js: Automatic generation of gene cluster comparison figures.</i> Bioinformatics. <a href="https://doi.org/10.1093/bioinformatics/btab007" target="_blank" rel="noopener noreferrer">doi:10.1093/bioinformatics/btab007</a>.</p>
           </div>
-          <form method="dialog"><button class="app-button icon-button" aria-label="Close help" autofocus>×</button></form>
+          <div class="help-header-actions"><button type="button" class="app-button" id="help-tour" disabled>Quick tour</button><form method="dialog"><button class="app-button icon-button" aria-label="Close help" autofocus>×</button></form></div>
         </div>
-        <nav class="help-topics" aria-label="Help topics">
-          <button type="button" data-help-section="help-navigate" class="app-button link-action">Navigate and select</button>
-          <button type="button" data-help-section="help-arrange" class="app-button link-action">Arrange and trees</button>
-          <button type="button" data-help-section="help-edit" class="app-button link-action">Edit the figure</button>
-          <button type="button" data-help-section="help-save" class="app-button link-action">Add data and save</button>
-          <button type="button" data-help-section="help-about" class="app-button link-action">About clinker</button>
-        </nav>
       </header>
       <div class="app-dialog__body" tabindex="0" role="region" aria-label="Plot controls and shortcuts">
         <div class="help-grid">
           <section aria-labelledby="help-navigate">
             <h3 id="help-navigate">Navigate and select</h3>
             <dl>
-              <div><dt>Zoom and pan</dt><dd>Scroll or pinch to zoom. Drag empty space to pan; in Canvas/GPU mode, hold <kbd>Space</kbd> to pan over the figure.</dd></div>
-              <div><dt>Minimap</dt><dd>Click or drag the overview to move around a large figure.</dd></div>
-              <div><dt>Select loci</dt><dd>Click a locus. <kbd>Shift</kbd>-click toggles it; <kbd>Shift</kbd>-click a gene to select its locus.</dd></div>
-              <div><dt>Select a row range</dt><dd><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Shift</kbd>-click adds the range. <kbd>Alt</kbd>/<kbd>⌥</kbd> + <kbd>Shift</kbd>-click removes it.</dd></div>
-              <div><dt>Clear selection</dt><dd>Press <kbd>Esc</kbd> or choose Clear when you are not typing in a field.</dd></div>
+              <div><dt>Zoom</dt><dd>Scroll or pinch. Use the minimap to navigate large figures.</dd></div>
+              <div><dt>Pan</dt><dd>Drag empty space; hold <kbd>Space</kbd> to pan over a Canvas/GPU figure.</dd></div>
+              <div><dt>Select</dt><dd><kbd>Shift</kbd>-click a locus or gene. Press <kbd>Esc</kbd> to clear.</dd></div>
+              <div><dt>Select a range</dt><dd>After selecting a locus, <span id="range-add-key"><kbd>Ctrl</kbd>/<kbd>⌘</kbd></span> + <kbd>Shift</kbd>-click another to add the range; use <span id="range-remove-key"><kbd>Alt</kbd>/<kbd>⌥</kbd></span> + <kbd>Shift</kbd>-click to remove it.</dd></div>
             </dl>
           </section>
           <section aria-labelledby="help-arrange">
             <h3 id="help-arrange">Arrange and trees</h3>
             <dl>
-              <div><dt>Move rows</dt><dd>Drag a cluster label. Selected rows move together; an active tree keeps each clade together.</dd></div>
-              <div><dt>Move or resize loci</dt><dd>Drag a locus to move it. Drag an end handle to change its displayed bounds; double-click to flip its orientation.</dd></div>
-              <div><dt>Trim selected loci</dt><dd>Use the selection toolbar to flip, trim to displayed genes, or restore full bounds.</dd></div>
-              <div><dt>Choose a tree</dt><dd>Import Newick with Add data or when starting a comparison. Row order switches between Default, an imported tree and the Similarity dendrogram. The dendrogram shows gene-cluster similarity, not ancestry.</dd></div>
-              <div><dt>Edit a tree</dt><dd>Right-click a node for tree controls. Depending on the tree and node, you can root or rotate branches, collapse a clade, style it, or add a label. Tree appearance is under Row order.</dd></div>
+              <div><dt>Move rows</dt><dd>Drag a cluster label. An active tree keeps each clade together.</dd></div>
+              <div><dt>Arrange loci</dt><dd>Drag to move, drag an end to resize, or double-click to flip. Use the selection toolbar for batch actions.</dd></div>
+              <div><dt>Trees</dt><dd>Import a Newick tree under Add data; choose the order under Row order. The similarity dendrogram shows similarity, not ancestry.</dd></div>
+              <div><dt>Edit a tree</dt><dd>Right-click a node for tree actions. Change its appearance in the figure editor.</dd></div>
             </dl>
           </section>
           <section aria-labelledby="help-edit">
             <h3 id="help-edit">Edit the figure</h3>
             <dl>
-              <div><dt>Gene and group shortcuts</dt><dd>Click a gene to anchor it; right-click to edit its label or colour. Click legend text or colour to rename or recolour a group; right-click for more actions.</dd></div>
-              <div><dt>Edit figure</dt><dd>Open the editor to make batch changes to genes, groups, links, annotations and appearance. Select rows or checkboxes; use Undo and Redo to review edits.</dd></div>
-              <div><dt>Scale bar</dt><dd>Click it to change the represented length.</dd></div>
+              <div><dt>Figure editor</dt><dd>Edit data and appearance; use Undo and Redo to review changes.</dd></div>
+              <div><dt>Genes and groups</dt><dd>Click a gene to anchor it or right-click to edit it. Click legend text or colour to edit a group.</dd></div>
+              <div><dt>Scale bar</dt><dd>Click to change its length.</dd></div>
             </dl>
           </section>
           <section aria-labelledby="help-save">
             <h3 id="help-save">Add data and save</h3>
             <dl>
-              <div><dt>Import annotations</dt><dd>Use a TSV or CSV with a header and one row per cluster. Choose separate panels or group comparable columns into heatmaps with shared scales and palettes.</dd></div>
-              <div><dt>Save or open a project</dt><dd>Use File → Save project or Open project. Edits are not saved automatically.</dd></div>
-              <div><dt>Export</dt><dd>SVG exports the figure. The similarity CSV exports analysis scores; visual edits do not change them.</dd></div>
+              <div><dt>Annotations</dt><dd>Import a TSV or CSV table under Add data.</dd></div>
+              <div><dt>Projects</dt><dd>Use File to save or open an editable project. Edits are not saved automatically.</dd></div>
+              <div><dt>Export</dt><dd>Export the figure as SVG or analysis similarity scores as CSV.</dd></div>
             </dl>
           </section>
         </div>
-        <section class="help-about" aria-labelledby="help-about">
-          <h3 id="help-about">About clinker</h3>
-          <p>clinker compares gene clusters and arranges their similarities as an interactive figure. Browser analysis runs on your device. Theme changes the interface, not figure colours.</p>
-        </section>
       </div>
     </dialog>
     <dialog id="tree-dialog" class="app-dialog compact-dialog tree-dialog" aria-labelledby="tree-title">

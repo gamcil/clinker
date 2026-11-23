@@ -483,6 +483,11 @@ html,
   color: var(--app-muted);
   font-weight: 700;
 }
+:where(.clinker-app) .app-bar .about-button:hover,
+:where(.clinker-app) .app-bar .about-button:focus-visible {
+  background: var(--app-hover);
+  color: var(--app-foreground);
+}
 @media (max-width: 900px) {
   :where(.clinker-app) .app-bar {
     display: grid;
@@ -548,13 +553,40 @@ html,
   box-shadow: 0 2px 8px rgba(23, 36, 54, .08);
   color: var(--app-muted);
   font-size: .8rem;
-  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+:where(.clinker-app) .plot-status[hidden] { display: none; }
+:where(.clinker-app) .plot-status-dismiss {
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
 }
 :where(.clinker-app) .plot-status[data-tone="error"] {
   border-color: var(--app-danger-border);
   background: var(--app-danger-surface);
   color: var(--app-danger);
 }
+:where(.clinker-app) .tour-prompt {
+  position: absolute;
+  z-index: 3;
+  top: 44px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  color: var(--app-foreground);
+}
+:where(.clinker-app) .tour-prompt[hidden] { display: none; }
 :where(.clinker-app) .plot-stage > .cm-plot-selection-toolbar {
   z-index: 3;
   right: 12px;
@@ -727,19 +759,14 @@ html,
   --dialog-header-padding: 22px 26px 18px;
   --dialog-body-padding: 22px 26px 26px;
 }
-:where(.clinker-app) .help-topics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin-top: 16px;
-}
+:where(.clinker-app) .help-header-actions { display: flex; align-items: flex-start; gap: 8px; flex: none; }
+:where(.clinker-app) .help-dialog .help-citation { margin-top: 12px; font-size: .85rem; line-height: 1.5; }
 :where(.clinker-app) .help-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 26px 32px;
 }
-:where(.clinker-app) .help-grid h3,
-:where(.clinker-app) .help-about h3 {
+:where(.clinker-app) .help-grid h3 {
   margin: 0 0 12px;
   color: var(--app-foreground);
   font-size: 1rem;
@@ -760,7 +787,7 @@ html,
   color: var(--app-muted);
   line-height: 1.45;
 }
-:where(.clinker-app) .help-grid kbd {
+:where(.clinker-app) .help-grid kbd, .driver-popover kbd {
   display: inline-block;
   padding: 0 4px;
   border: 1px solid var(--app-border);
@@ -771,20 +798,41 @@ html,
   font-size: .85em;
   white-space: nowrap;
 }
-:where(.clinker-app) .help-about {
-  margin-top: 26px;
-  padding-top: 22px;
-  border-top: 1px solid var(--app-border);
+.driver-popover {
+  color: var(--app-foreground);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-:where(.clinker-app) .help-about p {
-  margin: 0;
-  color: var(--app-muted);
-  line-height: 1.45;
+.driver-popover .driver-popover-progress-text,
+.driver-popover .driver-popover-close-btn { color: var(--app-muted); }
+.driver-popover .driver-popover-close-btn:hover,
+.driver-popover .driver-popover-close-btn:focus-visible { color: var(--app-foreground); }
+.driver-popover .driver-popover-footer-btn {
+  color: var(--app-foreground);
+  background: var(--app-surface);
+  border-color: var(--app-border);
 }
-:where(.clinker-app) .help-about p + p { margin-top: 12px; }
+.driver-popover .driver-popover-footer-btn:hover,
+.driver-popover .driver-popover-footer-btn:focus-visible { background: var(--app-hover); }
+.driver-popover .driver-popover-arrow-side-left { border-left-color: var(--app-surface); }
+.driver-popover .driver-popover-arrow-side-right { border-right-color: var(--app-surface); }
+.driver-popover .driver-popover-arrow-side-top { border-top-color: var(--app-surface); }
+.driver-popover .driver-popover-arrow-side-bottom { border-bottom-color: var(--app-surface); }
+.driver-popover kbd { color: var(--app-foreground); }
+.driver-popover.tour-plot-popover {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%);
+}
+.driver-popover.tour-plot-popover .driver-popover-arrow { display: none; }
 @media (max-width: 620px) {
   :where(.clinker-app) .help-grid { grid-template-columns: minmax(0, 1fr); }
   :where(.clinker-app) .help-dialog { --dialog-header-padding: 18px; --dialog-body-padding: 18px; }
+  :where(.clinker-app) .help-dialog .app-dialog__heading { flex-wrap: wrap; }
 }
 
 /* Run setup. */
@@ -1065,14 +1113,8 @@ html,
 }
 
 :where(.clinker-app) .settings-fields { display: grid; gap: 8px; }
-:where(.clinker-app) .prefilter-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 24px;
-  margin: 4px 0 0 24px;
-}
-:where(.clinker-app) .prefilter-parameter { display: flex; align-items: center; gap: 8px; font-size: .8rem; }
-:where(.clinker-app) .prefilter-parameter .app-field { width: 64px; flex: none; }
+:where(.clinker-app) .prefilter-parameter { --setting-control-width: 64px; }
+:where(.clinker-app) .prefilter-parameter .app-field { width: 100%; }
 :where(.clinker-app) .compact-file-description {
   display: flex;
   flex-wrap: wrap;

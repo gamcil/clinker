@@ -75,8 +75,8 @@ test('tree import, matching and edited project round-trips preserve the working 
     return [...new DOMParser().parseFromString(svg, 'image/svg+xml').querySelectorAll('.tree-branch')].map(path => path.getAttribute('d'));
   });
   const scaledPaths = await branchPaths();
-  await orderMenu();
-  await page.locator('#clustering-scaled').uncheck();
+  await page.evaluate(() => document.querySelector('#plot-editor').openAppearance({ section: 'tree' }));
+  await page.locator('#plot-editor').getByLabel('Use branch lengths', { exact: true }).uncheck();
   assert.equal(await page.evaluate(() => document.querySelector('#plot-editor').chart.config().tree.useBranchLengths), false);
   assert.notDeepEqual(await branchPaths(), scaledPaths);
   assert.deepEqual(await page.evaluate(() => document.querySelector('#plot-editor').chart.state().clusterOrder), dendrogram.state.clusterOrder);
@@ -156,8 +156,7 @@ test('tree import, matching and edited project round-trips preserve the working 
   assert.deepEqual((await snapshot()).data.tree, imported.data.tree);
   await page.evaluate(() => document.querySelector('#plot-editor').chart.redo());
 
-  await orderMenu();
-  await page.locator('#tree-appearance').click();
+  await page.evaluate(() => document.querySelector('#plot-editor').openAppearance({ section: 'tree' }));
   assert.equal(await page.locator('#plot-editor').isVisible(), true);
   assert.equal(await page.locator('#plot-editor').getByRole('tab', { name: 'Appearance' }).getAttribute('aria-selected'), 'true');
   await page.waitForFunction(element => element === element.getRootNode().activeElement,
@@ -218,7 +217,7 @@ test('tree import, matching and edited project round-trips preserve the working 
   await page.evaluate(() => window.releaseTreeRead());
   assert.equal(await page.locator('#apply-tree').isDisabled(), false, 'cancelled reads cannot overwrite a newer import');
   await page.getByRole('button', { name: 'Close tree import' }).click();
-  await orderMenu();
+  await page.locator('#add-data-menu > summary').click();
   await page.locator('#remove-tree').click();
   assert.equal((await snapshot()).data.tree, undefined);
   await importTree();

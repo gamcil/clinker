@@ -22,14 +22,11 @@ function frameTree(chart) {
   chart.clearHistory();
 }
 
-export function mountTreeImport({ button, getChart, getRunInputs, onRunChange = () => {}, onAppearance, onChange }) {
+export function mountTreeImport({ button, getChart, getRunInputs, onRunChange = () => {}, onChange }) {
   const dialog = document.querySelector('#tree-dialog');
   const apply = dialog.querySelector('#apply-tree');
   const remove = document.querySelector('#remove-tree');
   const order = document.querySelector('#plot-order');
-  const appearance = document.querySelector('#tree-appearance');
-  const scaled = document.querySelector('#clustering-scaled');
-  const scaleControl = document.querySelector('#clustering-scale-control');
   let inactive = null;
   let dendrogram = null;
   let activeSource = "imported";
@@ -70,10 +67,6 @@ export function mountTreeImport({ button, getChart, getRunInputs, onRunChange = 
     const custom = displayed.length && displayed.some((uid, i) => uid !== data.clusters[i]?.uid);
     const selected = data.tree ? (activeSource === 'clustering' ? 'clustering' : 'tree') : custom ? 'manual' : 'computed';
     order.dataset.order = selected;
-    scaleControl.hidden = selected !== 'clustering';
-    scaled.checked = chart.config().tree.useBranchLengths !== false;
-    scaled.disabled = !data.tree || !data.tree.nodes.filter(node => node.uid !== data.tree.root).every(node => Number.isFinite(node.branchLength));
-    scaleControl.title = scaled.disabled ? 'Run a new analysis to obtain merge heights for this dendrogram.' : 'Use Ward linkage distances for horizontal spacing';
     const labels = { computed: 'Default', clustering: 'Similarity', tree: 'Tree', manual: 'Manual' };
     document.querySelector('#plot-order-label').textContent = labels[selected];
     for (const item of order.querySelectorAll('[data-order]')) item.setAttribute('aria-pressed', String(item.dataset.order === selected));
@@ -81,10 +74,8 @@ export function mountTreeImport({ button, getChart, getRunInputs, onRunChange = 
     order.querySelector('[data-order="clustering"]').hidden = !dendrogram;
     order.querySelector('[data-order="tree"]').hidden = !hasTree;
     button.textContent = hasTree ? 'Replace tree (Newick)…' : 'Import tree (Newick)…';
-    appearance.hidden = !data.tree && !inactive && !dendrogram;
     remove.hidden = !hasTree;
     remove.textContent = 'Remove imported tree';
-    document.querySelector('#tree-controls-divider').hidden = appearance.hidden && remove.hidden;
   };
   const bind = () => {
     if (boundChart !== getChart()) {
@@ -114,20 +105,18 @@ export function mountTreeImport({ button, getChart, getRunInputs, onRunChange = 
         frameTree(chart);
         onChange(selected === 'clustering' ? 'Showing clustering dendrogram from gene-cluster similarity.' : 'Using imported tree order.');
       } else if (selected === 'computed') {
-        if (chart.data().tree) {
+        const hadTree = Boolean(chart.data().tree);
+        if (hadTree) {
           retainActiveTree();
           const data = { ...chart.data() };
           delete data.tree;
           chart.data(data);
         }
         chart.state({ ...chart.state(), clusterOrder: [] });
-        onChange('Using the computed default order. Trees are retained for switching back.');
+        onChange(hadTree ? 'Default order applied. Your tree is still available under Row order.' : 'Default order applied.');
       }
-    } catch (error) { onChange(error.message || String(error)); }
+    } catch (error) { onChange(error.message || String(error), { tone: 'error' }); }
     syncOrder();
-  });
-  scaled.addEventListener('change', () => {
-    getChart().config({ tree: { useBranchLengths: scaled.checked } });
   });
   const inputsChanged = async () => {
     if (!runInput) return;
@@ -176,7 +165,7 @@ export function mountTreeImport({ button, getChart, getRunInputs, onRunChange = 
     } catch (error) { onChange(error.message || String(error)); }
   });
   remove.addEventListener('click', () => {
-    order.open = false;
+    button.closest('details').open = false;
     const chart = getChart();
     if (activeSource !== 'clustering' && chart.data().tree) {
       const next = { ...chart.data() };
@@ -188,7 +177,6 @@ export function mountTreeImport({ button, getChart, getRunInputs, onRunChange = 
     syncOrder();
     onChange('Removed imported tree.');
   });
-  appearance.addEventListener('click', () => { order.open = false; onAppearance(); });
   dialog.addEventListener('keydown', event => event.stopPropagation());
   dialog.addEventListener('close', () => {
     if (continuation) { const waiting = continuation; continuation = null; waiting.workflow.cancel(); }

@@ -45,8 +45,7 @@ test('task menus support adding data, saving, editing and keyboard navigation at
   await page.locator('[data-order="clustering"]').click();
   assert.equal(await page.locator('#plot-order-label').textContent(), 'Similarity');
 
-  await openMenu('#plot-order');
-  await page.locator('#tree-appearance').click();
+  await page.evaluate(() => document.querySelector('#plot-editor').openAppearance({ section: 'tree' }));
   assert.equal(await page.locator('#edit-plot').textContent(), 'Close editor');
   assert.equal(await page.locator('#plot-editor').isVisible(), true);
   const appearance = page.locator('#plot-editor clinker-appearance-panel');
@@ -75,8 +74,7 @@ test('task menus support adding data, saving, editing and keyboard navigation at
   await filter.fill('legend');
   assert.equal(await treeField.isVisible(), false);
   await page.locator('#edit-plot').click();
-  await openMenu('#plot-order');
-  await page.locator('#tree-appearance').click();
+  await page.evaluate(() => document.querySelector('#plot-editor').openAppearance({ section: 'tree' }));
   assert.equal(await filter.inputValue(), '', 'tree settings are revealed even after filtering other appearance settings');
   await waitForTreeFocus();
   assert.equal(await treeField.evaluate(input => {

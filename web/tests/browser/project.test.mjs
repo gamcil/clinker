@@ -40,15 +40,13 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
   await page.goto(url);
   assert.equal(await page.locator('#prefilter').isChecked(), true);
   const helpButton = page.getByRole('button', { name: 'Plot help', exact: true });
-  const help = page.getByRole('dialog', { name: 'Plot help' });
+  const help = page.getByRole('dialog', { name: 'Help & about clinker' });
   await helpButton.click();
   assert.equal(await help.isVisible(), true);
   assert.equal(await help.getByRole('heading', { name: 'Navigate and select' }).isVisible(), true);
   assert.equal(await help.getByRole('button', { name: 'Close help' }).evaluate(el => el === document.activeElement), true);
   await page.keyboard.press('Tab');
-  assert.equal(await help.getByRole('button', { name: 'Navigate and select', exact: true }).evaluate(el => el === document.activeElement), true);
-  await page.keyboard.press('Shift+Tab');
-  assert.equal(await help.getByRole('button', { name: 'Close help' }).evaluate(el => el === document.activeElement), true);
+  assert.equal(await help.evaluate(el => el.contains(document.activeElement)), true);
   await page.keyboard.press('Escape');
   assert.equal(await help.isVisible(), false);
   assert.equal(await helpButton.evaluate(el => el === document.activeElement), true);
@@ -59,7 +57,7 @@ test('analysis, cancellation, failure recovery and project exports preserve the 
     fits: el.scrollWidth <= el.clientWidth,
   }));
   assert.deepEqual(dimensions, { scrolls: true, fits: true });
-  await help.getByRole('button', { name: 'Add data and save', exact: true }).click();
+  await help.getByRole('heading', { name: 'Add data and save' }).scrollIntoViewIfNeeded();
   assert.equal(await help.getByRole('region', { name: 'Plot controls and shortcuts' }).evaluate(el => el.scrollTop > 0), true);
   await page.mouse.click(2, 2);
   assert.equal(await help.isVisible(), false);

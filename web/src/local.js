@@ -3,24 +3,21 @@ import { mountViewerControls, readThemePreference } from './viewer/controls.mjs'
 import { parseProject } from './viewer/project.mjs';
 import { mountTreeImport } from './tree-import.mjs';
 import { mountAnnotationImport } from './annotation-import.mjs';
+import { createPlotStatus } from './viewer/status.mjs';
+import { mountTour } from './viewer/tour.mjs';
 
 const editor = document.querySelector('#plot-editor');
 const viewer = createViewer({
   plot: document.querySelector('#plot'), stage: document.querySelector('.plot-stage'),
   editor, appearance: readThemePreference(),
 });
-const status = document.querySelector('#plot-status');
-const showStatus = (message, { tone = '' } = {}) => {
-  status.hidden = !message;
-  status.textContent = message;
-  status.dataset.tone = tone;
-};
+const tour = mountTour({ viewer });
+const showStatus = createPlotStatus(document.querySelector('#plot-status'));
 let similarity = null;
 let generation = 0;
 const trees = mountTreeImport({
   button: document.querySelector('#manage-tree'), getChart: () => viewer.chart,
-  onAppearance: () => viewer.openTreeAppearance(),
-  onChange: message => { viewer.refreshEditor(); showStatus(message); },
+  onChange: (message, options) => { viewer.refreshEditor(); showStatus(message, options); },
 });
 mountAnnotationImport({
   button: document.querySelector('#import-annotations'), getChart: () => viewer.chart,
@@ -49,7 +46,8 @@ function display(project, matrix) {
   for (const id of ['download-project', 'download-svg', 'download-matrix', 'edit-plot', 'manage-tree', 'import-annotations']) {
     document.getElementById(id).disabled = false;
   }
-  showStatus(`${project.data.clusters.length} clusters · ${project.data.links.length} retained links`);
+  showStatus(`Loaded figure · ${project.data.clusters.length.toLocaleString()} clusters · ${project.data.links.length.toLocaleString()} retained links`);
+  tour.offer();
 }
 
 const fileInput = document.querySelector('#clinker-file');

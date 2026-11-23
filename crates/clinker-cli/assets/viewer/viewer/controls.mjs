@@ -1,4 +1,4 @@
-import { similarityCsv, serializeProject, downloadText } from './project.mjs?v=8412ef8703155aa1';
+import { similarityCsv, serializeProject, downloadText } from './project.mjs?v=90af91a815e4c2ca';
 
 const themePreferenceKey = 'clinker-interface-theme';
 export function readThemePreference() {
@@ -85,11 +85,6 @@ export function mountViewerControls({ viewer, editor, getTrees, getSimilarity, o
   helpDialog.addEventListener("keydown", event => event.stopPropagation());
   helpDialog.addEventListener("close", () => helpButton.focus());
   helpDialog.addEventListener("click", event => {
-    const topic = event.target.closest("[data-help-section]");
-    if (topic) {
-      helpDialog.querySelector(`#${topic.dataset.helpSection}`).scrollIntoView({ block: "start" });
-      return;
-    }
     if (event.target !== helpDialog) return;
     const bounds = helpDialog.getBoundingClientRect();
     if (event.clientX < bounds.left || event.clientX > bounds.right

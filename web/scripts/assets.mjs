@@ -9,6 +9,9 @@ export const repoRoot = resolve(webRoot, '..');
 export const assets = [
   { source: 'node_modules/d3/dist/d3.min.js', output: 'vendor/d3/d3.min.js' },
   { source: 'node_modules/d3/LICENSE', output: 'LICENSE.d3', embedded: 'LICENSE.d3' },
+  { source: 'node_modules/driver.js/dist/driver.js.mjs', output: 'vendor/driver/driver.js.mjs' },
+  { source: 'node_modules/driver.js/dist/driver.css', output: 'vendor/driver/driver.css' },
+  { source: 'node_modules/driver.js/license', output: 'LICENSE.driver' },
   { source: 'node_modules/clustermap.js/dist/clustermap.min.js', output: 'vendor/clustermap/clustermap.min.js' },
   { source: 'node_modules/clustermap.js/LICENSE', output: 'LICENSE.clustermap', embedded: 'LICENSE.clustermap' },
   { source: 'node_modules/clustermap.js/dist/editor.mjs', output: 'vendor/clustermap/editor.mjs' },
