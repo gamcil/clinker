@@ -1,0 +1,12 @@
+# Offline PWA implementation
+
+Goal: make the deployed web app installable and usable offline after an initial online visit. Keep the existing static GitHub Pages deployment and postMessage file-import API.
+
+- Add a web app manifest, 192 and 512 px icons, and a manifest link in `web/src/index.html`. Use relative `id`, `start_url`, scope, icon and worker URLs so repository subpath and local hosting work.
+- Register a service worker for the app scope. Precache the complete app build, including the HTML, versioned JS/CSS, module workers, WASM and bindings, clustermap.js, D3, viewer assets, icons and bundled examples. Do not cache user files, projects or external responses.
+- Generate a cache name and asset inventory from the existing build ID and final built files in `web/scripts/build-common.mjs`; account for the `?v=` URLs already inserted by the build. Generate the worker without introducing a circular dependency between the worker contents and its build ID, and include it in the package inventory. Cache installation must fail if required assets cannot be fetched.
+- For same-scope navigation to the app entry point, serve the cached app shell even when the URL includes `?integration=postmessage`; preserve the window's original URL and existing opener handshake. Serve version-matched app assets from the cache. Do not indiscriminately intercept external requests or unrelated paths.
+- Use normal service-worker update waiting: cache the new build before activation and do not replace the worker controlling an active figure. Remove obsolete Clinker caches when safe. Avoid immediate takeover that could mix asset versions. Keep the worker URL stable so the browser can detect updates.
+- Add browser tests for first-visit cache readiness, offline reload and local-file analysis, offline example loading, offline postMessage import, subpath hosting, and a deployment update without mixing old and new assets. Check the existing web build/package integrity tests and actual Safari installation separately.
+
+The first visit must complete caching while online. Browser storage may be evicted, and installed-app storage may be separate from browser tabs on some platforms. Projects remain user-managed files; installing the app does not save work. External apps still open the hosted integration URL and send files to the opened window; no cross-browser detection or launching of an already installed PWA is assumed.
