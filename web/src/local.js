@@ -11,8 +11,8 @@ const viewer = createViewer({
   plot: document.querySelector('#plot'), stage: document.querySelector('.plot-stage'),
   editor, appearance: readThemePreference(),
 });
-const tour = mountTour({ viewer });
 const showStatus = createPlotStatus(document.querySelector('#plot-status'));
+const tour = mountTour({ viewer, onError: showStatus });
 let similarity = null;
 let generation = 0;
 const trees = mountTreeImport({

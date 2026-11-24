@@ -1,4 +1,4 @@
-import { b as uiAppearanceStyles, h as applyUiAppearance } from './search-field-595834d9.mjs';
+import { b as uiAppearanceStyles, h as applyUiAppearance } from './search-field-8b97b3e8.mjs';
 
 // Nested controls inherit public overrides and the enclosing editor's explicit
 // appearance. Each panel also works independently with complete system defaults.

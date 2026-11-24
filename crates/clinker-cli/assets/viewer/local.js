@@ -1,18 +1,18 @@
-import { createViewer } from './viewer/viewer.mjs?v=90af91a815e4c2ca';
-import { mountViewerControls, readThemePreference } from './viewer/controls.mjs?v=90af91a815e4c2ca';
-import { parseProject } from './viewer/project.mjs?v=90af91a815e4c2ca';
-import { mountTreeImport } from './tree-import.mjs?v=90af91a815e4c2ca';
-import { mountAnnotationImport } from './annotation-import.mjs?v=90af91a815e4c2ca';
-import { createPlotStatus } from './viewer/status.mjs?v=90af91a815e4c2ca';
-import { mountTour } from './viewer/tour.mjs?v=90af91a815e4c2ca';
+import { createViewer } from './viewer/viewer.mjs?v=f59ad68748ccfe73';
+import { mountViewerControls, readThemePreference } from './viewer/controls.mjs?v=f59ad68748ccfe73';
+import { parseProject } from './viewer/project.mjs?v=f59ad68748ccfe73';
+import { mountTreeImport } from './tree-import.mjs?v=f59ad68748ccfe73';
+import { mountAnnotationImport } from './annotation-import.mjs?v=f59ad68748ccfe73';
+import { createPlotStatus } from './viewer/status.mjs?v=f59ad68748ccfe73';
+import { mountTour } from './viewer/tour.mjs?v=f59ad68748ccfe73';
 
 const editor = document.querySelector('#plot-editor');
 const viewer = createViewer({
   plot: document.querySelector('#plot'), stage: document.querySelector('.plot-stage'),
   editor, appearance: readThemePreference(),
 });
-const tour = mountTour({ viewer });
 const showStatus = createPlotStatus(document.querySelector('#plot-status'));
+const tour = mountTour({ viewer, onError: showStatus });
 let similarity = null;
 let generation = 0;
 const trees = mountTreeImport({

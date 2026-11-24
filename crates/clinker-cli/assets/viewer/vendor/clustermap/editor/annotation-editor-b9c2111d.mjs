@@ -1,4 +1,4 @@
-import { b as uiAppearanceStyles, a as controlStyles, l as lightControlStyles, m as mountComponent, c as createTemplate, d as updateSelectOptions, e as colourHex, f as defineSearchField, g as createActionRunner } from './search-field-595834d9.mjs';
+import { b as uiAppearanceStyles, a as controlStyles, l as lightControlStyles, m as mountComponent, c as createTemplate, d as updateSelectOptions, e as colourHex, f as defineSearchField, g as createActionRunner } from './search-field-8b97b3e8.mjs';
 
 /** Rollup embeds these files; unbundled browser modules load them by URL. */
 
@@ -88,7 +88,6 @@ function createVirtualRows({ viewport, container, key, createRow, updateRow,
 
 const DATA_EDITOR_CSS = `
 ${uiAppearanceStyles(":where(.cm-ui)")}
-.cm-data-ui summary:hover { color:var(--cm-accent,var(--_cm-accent,#1677ff)); }
 .cm-data-ui .cm-data-icon-button { display:inline-grid; place-items:center; width:var(--cm-icon-size,28px); min-width:var(--cm-icon-size,28px); min-height:var(--cm-icon-size,28px); padding:0; border:0; background:transparent; color:var(--cm-muted,var(--_cm-muted,#64748b)); line-height:1; }
 .cm-data-ui .cm-data-icon-button:hover:not(:disabled) { background:var(--cm-hover,var(--_cm-hover,#e3ecf8)); color:var(--cm-accent,var(--_cm-accent,#1677ff)); }
 .cm-data-icon-button svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
@@ -114,8 +113,8 @@ span.cm-data-cell--select { display:flex; align-items:center; justify-content:ce
 function installDataEditorStyle(root) { installStyle(root, "cm-data-editor-style", (root.host ? controlStyles : lightControlStyles) + DATA_EDITOR_CSS); }
 
 const [markup$a, css$a] = await Promise.all([
-  "<details>\n  <summary part=\"trigger\"></summary>\n  <div part=\"panel\"><slot></slot></div>\n</details>\n",
-  ":host { display: block; position: relative; color: var(--cm-foreground,var(--_cm-foreground, #273444)); font: inherit; }\n:host([hidden]) { display: none !important; }\nsummary {\n  display: block;\n  box-sizing: border-box;\n  min-height: var(--cm-control-height,var(--_cm-control-height,30px));\n  padding: var(--cm-control-padding,var(--_cm-control-padding,4px 8px));\n  border: 1px solid var(--cm-border,var(--_cm-border, #cbd3de));\n  border-radius: var(--cm-control-radius,var(--_cm-control-radius,6px));\n  background: var(--cm-surface,var(--_cm-surface, #fff));\n  list-style: none;\n  white-space: nowrap;\n  cursor: pointer;\n}\nsummary::-webkit-details-marker { display: none; }\nsummary:hover, details[open] > summary { background: var(--cm-hover,var(--_cm-hover, #e3ecf8)); border-color: var(--cm-accent,var(--_cm-accent, #78a9ed)); }\nsummary:focus-visible { outline: 2px solid var(--cm-focus-ring,var(--_cm-focus-ring, #1677ff)); outline-offset: 2px; }\ndiv {\n  position: absolute;\n  right: 0;\n  top: calc(100% + 4px);\n  z-index: 10;\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  width: max-content;\n  max-width: min(340px, 80vw);\n  max-height: 50vh;\n  overflow: auto;\n  padding: 10px;\n  border: 1px solid var(--cm-border,var(--_cm-border, #cbd3de));\n  border-radius: 8px;\n  background: var(--cm-surface,var(--_cm-surface, #fff));\n  box-shadow: 0 4px 16px #0002;\n}\nslot { display: contents; }\n::slotted(button) { text-align: left; }\n::slotted(label) { display: flex; align-items: center; gap: 6px; }\n::slotted(input[type=number]) { width: 112px; }\n",
+  "<details>\n  <summary part=\"trigger\"></summary>\n  <div part=\"panel\" class=\"cm-popover\"><slot></slot></div>\n</details>\n",
+  ":host { display: block; position: relative; color: var(--cm-foreground,var(--_cm-foreground, #273444)); font: inherit; }\n:host([hidden]) { display: none !important; }\nsummary {\n  display: block;\n  box-sizing: border-box;\n  min-height: var(--cm-control-height,var(--_cm-control-height,30px));\n  padding: var(--cm-control-padding,var(--_cm-control-padding,4px 8px));\n  border: 1px solid var(--cm-border,var(--_cm-border, #cbd3de));\n  border-radius: var(--cm-control-radius,var(--_cm-control-radius,6px));\n  background: var(--cm-surface,var(--_cm-surface, #fff));\n  list-style: none;\n  white-space: nowrap;\n  cursor: pointer;\n}\nsummary::-webkit-details-marker { display: none; }\nsummary:hover, details[open] > summary { background: var(--cm-hover,var(--_cm-hover, #e3ecf8)); border-color: var(--cm-accent,var(--_cm-accent, #78a9ed)); }\nsummary:focus-visible { outline: 2px solid var(--cm-focus-ring,var(--_cm-focus-ring, #1677ff)); outline-offset: 2px; }\ndiv {\n  position: absolute;\n  right: 0;\n  top: calc(100% + 4px);\n  z-index: 10;\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  width: max-content;\n  max-width: min(340px, 80vw);\n  max-height: 50vh;\n  overflow: auto;\n}\nslot { display: contents; }\n::slotted(button) { text-align: left; }\n::slotted(label) { display: flex; align-items: center; gap: 6px; }\n::slotted(input[type=number]) { width: 112px; }\n",
 ]);
 const template$a = createTemplate(markup$a);
 const activeMenus = new WeakMap();
@@ -330,7 +329,7 @@ function defineEditableField() {
 
 const [markup$8, css$8] = await Promise.all([
   "<details>\n  <summary></summary>\n  <div data-items>\n    <template>\n      <div class=\"category\">\n        <input type=\"color\">\n        <clinker-editable-field required></clinker-editable-field>\n        <button type=\"button\" data-remove>×</button>\n      </div>\n    </template>\n    <form class=\"category\">\n      <input type=\"color\" aria-label=\"New category colour\">\n      <input type=\"text\" aria-label=\"New category name\" placeholder=\"New category\" required>\n      <button type=\"submit\" aria-label=\"Add category\">+</button>\n    </form>\n  </div>\n  <div data-removal hidden>\n    <span></span>\n    <select aria-label=\"Replacement category\"></select>\n    <button type=\"button\" data-confirm>Remove</button>\n    <button type=\"button\" data-cancel>Cancel</button>\n  </div>\n</details>\n",
-  ":host { display: block; color: inherit; font: inherit; }\nsummary { cursor: pointer; color: var(--cm-muted,var(--_cm-muted, #687586)); }\nsummary:hover { color: var(--cm-accent,var(--_cm-accent, #1677ff)); }\n[data-items] { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 8px 0 2px; }\n.category, [data-removal] { display: flex; align-items: center; gap: 5px; }\n.category:hover { --cm-edit-icon-width:20px; }\nclinker-editable-field, input[type=text] { width: 140px; min-width: 0; }\n[data-removal] { flex-wrap: wrap; margin-top: 6px; padding: 6px; border: 1px solid var(--cm-border,var(--_cm-border, #cbd3de)); border-radius: 4px; }\n",
+  ":host { display: block; color: inherit; font: inherit; }\n[data-items] { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 8px 0 2px; }\n.category, [data-removal] { display: flex; align-items: center; gap: 5px; }\n.category:hover { --cm-edit-icon-width:20px; }\nclinker-editable-field, input[type=text] { width: 140px; min-width: 0; }\n[data-removal] { flex-wrap: wrap; margin-top: 6px; padding: 6px; border: 1px solid var(--cm-border,var(--_cm-border, #cbd3de)); border-radius: 4px; }\n",
 ]);
 const template$8 = createTemplate(markup$8);
 const HTMLElementBase$8 = globalThis.HTMLElement || class {};
@@ -677,14 +676,14 @@ var tsv = dsv("\t");
 var tsvParseRows = tsv.parseRows;
 
 const [markup$6, css$6] = await Promise.all([
-  "<form>\n  <div data-create>\n    <label><span>Type</span><select name=\"type\" aria-label=\"Type\"><option value=\"heatmap\">Heatmap</option><option value=\"bar\">Bar chart</option><option value=\"groups\">Group markers</option></select></label>\n    <label><span>Title</span><input name=\"title\" type=\"text\" aria-label=\"Title\"></label>\n    <label data-scale><span>Values</span><select name=\"scale\" aria-label=\"Values\"><option value=\"continuous\">Numeric</option><option value=\"categorical\">Categories</option></select></label>\n    <p data-help></p>\n  </div>\n  <label class=\"data\"><span>Data</span><textarea name=\"data\" aria-label=\"Data\" rows=\"8\" spellcheck=\"false\"></textarea></label>\n  <p data-error role=\"alert\" hidden></p>\n  <div class=\"actions\"><button type=\"submit\">Add panel</button><button type=\"button\" data-cancel hidden>Cancel</button></div>\n</form>\n",
+  "<form>\n  <div data-create>\n    <label><span>Type</span><select name=\"type\" aria-label=\"Type\"><option value=\"heatmap\">Heatmap</option><option value=\"bar\">Bar chart</option><option value=\"groups\">Group markers</option></select></label>\n    <label><span>Title</span><input name=\"title\" type=\"text\" aria-label=\"Title\"></label>\n    <label data-scale><span>Values</span><select name=\"scale\" aria-label=\"Values\"><option value=\"continuous\">Numeric</option><option value=\"categorical\">Categories</option></select></label>\n    <p data-help></p>\n  </div>\n  <details data-paste><summary>Paste CSV, TSV or JSON</summary><label class=\"data\"><span>Data</span><textarea name=\"data\" aria-label=\"Data\" rows=\"8\" spellcheck=\"false\"></textarea></label></details>\n  <p data-error role=\"alert\" hidden></p>\n  <div class=\"actions\"><button type=\"submit\">Add panel</button><button type=\"button\" data-cancel hidden>Cancel</button></div>\n</form>\n",
   ":host { display: block; flex-shrink: 0; min-width: 0; color: inherit; font: inherit; }\nlabel { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }\nlabel > span { flex: 1; min-width: 0; }\ninput, select { width: 140px; max-width: 65%; }\n.data { display: block; }\ntextarea { display: block; width: 100%; margin-top: 4px; resize: vertical; }\np { margin: 8px 0; color: var(--cm-muted,var(--_cm-muted, #687586)); }\n[data-error] { color: var(--cm-danger,var(--_cm-danger, #b42318)); }\n.actions { display: flex; gap: 8px; }\n",
 ]);
 const template$6 = createTemplate(markup$6);
 const HTMLElementBase$6 = globalThis.HTMLElement || class {};
 
 class AnnotationDataForm extends HTMLElementBase$6 {
-  static observedAttributes = ["mode"];
+  static observedAttributes = ["mode", "draft"];
   #form;
   #clusters = [];
 
@@ -692,7 +691,8 @@ class AnnotationDataForm extends HTMLElementBase$6 {
     super();
     const root = mountComponent(this, template$6, css$6);
     this.#form = root.querySelector("form");
-    this.#field("type").onchange = () => { this.#sync(); this.#example(); };
+    this.#field("type").onchange = () => { this.#sync(); this.#example(); this.#emit("draft-config-change", this.value); };
+    this.#field("scale").onchange = () => this.#emit("draft-config-change", this.value);
     this.#form.onsubmit = (event) => { event.preventDefault(); this.error = ""; this.#emit("data-submit", this.value); };
     root.querySelector("[data-cancel]").onclick = () => this.#emit("data-cancel");
     this.#sync();
@@ -717,8 +717,11 @@ class AnnotationDataForm extends HTMLElementBase$6 {
     if (type === "bar") this.#field("scale").value = "continuous";
     root.querySelector("[data-help]").textContent = type === "groups"
       ? "Define groups as JSON. Each needs a uid, a label, and either clusterIds or a tree nodeUid. Colours are optional."
-      : "Paste CSV or a tab-separated table. First column: cluster ID; remaining headings: data columns. Blank cells are missing. Bars use one data column. JSON {columns, values} is also accepted.";
+      : this.hasAttribute("draft") && !replace
+        ? "Enter values in the cluster table, or paste CSV, TSV or JSON. Bars use one data column."
+        : "Paste CSV or a tab-separated table. First column: cluster ID; remaining headings: data columns. Blank cells are missing. Bars use one data column. JSON {columns, values} is also accepted.";
     this.#field("data").rows = replace ? 5 : 8;
+    root.querySelector("[data-paste]").open = replace || type === "groups" || !this.hasAttribute("draft");
     this.#field("data").setAttribute("aria-label", replace ? "Replacement annotation data (CSV, TSV or JSON)" : "Data");
     root.querySelector('[type="submit"]').textContent = replace ? "Replace data" : "Add panel";
     root.querySelector("[data-cancel]").hidden = !replace;
@@ -727,7 +730,7 @@ class AnnotationDataForm extends HTMLElementBase$6 {
     if (this.getAttribute("mode") === "replace") return;
     this.#field("data").value = this.#field("type").value === "groups"
       ? JSON.stringify({ groups: [{ uid: "group-1", label: "Example group", clusterIds: this.#clusters.slice(0, 2).map(({ uid }) => uid) }] }, null, 2)
-      : csvFormatRows([["cluster", "Value"], ...this.#clusters.map(({ uid }) => [uid, ""])]);
+      : this.hasAttribute("draft") ? "" : csvFormatRows([["cluster", "Value"], ...this.#clusters.map(({ uid }) => [uid, ""])]);
   }
 }
 
@@ -1005,6 +1008,8 @@ class AnnotationTable extends HTMLElementBase$1 {
   #viewport;
   #panel;
   #domain = null;
+  #freeCategories = false;
+  #showIds = false;
   #filtered = [];
   #filter = "";
   #schema;
@@ -1034,13 +1039,14 @@ class AnnotationTable extends HTMLElementBase$1 {
     });
   }
 
-  set state({ panel, clusters, domain = null, filter = "" }) {
+  set state({ panel, clusters, domain = null, filter = "", freeCategories = false, showIds = false }) {
     const changed = this.#panel?.uid !== panel.uid, filtered = this.#filter !== filter;
     if (changed) this.#selection.clear();
-    this.#panel = panel; this.#domain = domain; this.#filter = filter;
+    this.#panel = panel; this.#domain = domain; this.#filter = filter; this.#freeCategories = freeCategories; this.#showIds = showIds;
+    this.#batch.closest("clinker-action-menu").hidden = freeCategories;
     this.#selection.prune(new Set(clusters.map(({ uid }) => uid)));
     const scroll = changed || filtered ? 0 : this.#viewport.scrollTop;
-    const schema = JSON.stringify([panel.uid, panel.type, panel.columns, domain]);
+    const schema = JSON.stringify([panel.uid, panel.type, panel.columns, domain, freeCategories]);
     if (this.#schema !== schema) { this.#schema = schema; this.#build(); }
     const needle = filter.trim().toLowerCase();
     this.#filtered = clusters.filter(({ uid, name }) => `${name} ${uid}`.toLowerCase().includes(needle));
@@ -1124,11 +1130,12 @@ class AnnotationTable extends HTMLElementBase$1 {
     name.onclick = (event) => select(!this.#selection.has(cluster.uid), event.shiftKey);
     this.#panel.columns.forEach((_, index) => {
       const cell = this.#element("cell"), field = cell.firstElementChild;
-      if (this.#domain === null) field.setAttribute("type", "number");
+      if (this.#freeCategories) field.setAttribute("type", "text");
+      else if (this.#domain === null) field.setAttribute("type", "number");
       else field.options = [["", "Missing"], ...this.#domain.map((name, i) => [String(i), name])];
       field.addEventListener("value-commit", (event) => {
         event.stopPropagation(); const value = event.detail.value;
-        if (!this.#setValues([cluster.uid], index, value === "" ? null : this.#domain === null ? Number(value) : this.#domain[Number(value)])) event.preventDefault();
+        if (!this.#setValues([cluster.uid], index, value === "" ? null : this.#freeCategories ? value : this.#domain === null ? Number(value) : this.#domain[Number(value)])) event.preventDefault();
       });
       row.append(cell);
     });
@@ -1137,12 +1144,13 @@ class AnnotationTable extends HTMLElementBase$1 {
   }
 
   #updateRow(row, cluster) {
-    const label = cluster.name || cluster.uid, name = row.querySelector("th"); name.textContent = label; name.title = cluster.uid;
+    const label = cluster.name || cluster.uid, name = row.querySelector("th");
+    name.textContent = this.#showIds && label !== cluster.uid ? `${label} (${cluster.uid})` : label; name.title = cluster.uid;
     row.querySelector("input").setAttribute("aria-label", `Select ${label}`);
     [...row.querySelectorAll("clinker-editable-field")].forEach((field, index) => {
       const value = this.#panel.values[cluster.uid]?.[index] ?? null;
       field.setAttribute("label", `${label}: ${this.#panel.columns[index]}`);
-      field.value = this.#domain === null ? value : value === null ? "" : String(this.#domain.indexOf(value));
+      field.value = this.#freeCategories || this.#domain === null ? value : value === null ? "" : String(this.#domain.indexOf(value));
     });
     return row;
   }
@@ -1225,6 +1233,7 @@ class AnnotationEditor extends HTMLElementBase {
   #viewKey;
   #categories;
   #form;
+  #draft = null;
   #run = createActionRunner((message) => { this.#status.textContent = message; });
 
   connectedCallback() {
@@ -1272,8 +1281,15 @@ class AnnotationEditor extends HTMLElementBase {
     this.#search.addEventListener("input", () => this.#syncView());
     this.#toolbar.addEventListener("panel-change", (event) => this.select(event.detail.value));
     this.#toolbar.addEventListener("panel-action", (event) => this.#action(event.detail.action));
-    this.#body.addEventListener("columns-change", (event) => { if (this.#update(event.detail) === false) event.preventDefault(); });
+    this.#body.addEventListener("columns-change", (event) => {
+      if (this.#creating && event.target === this.#view) {
+        Object.assign(this.#draft, event.detail); this.#syncDraft();
+      } else if (this.#update(event.detail) === false) event.preventDefault();
+    });
     this.#body.addEventListener("rows-change", (event) => {
+      if (this.#creating && event.target === this.#view) {
+        Object.assign(this.#draft.values, event.detail.values); this.#syncDraft(); return;
+      }
       const panel = this.#current(), categorical = panel.scale?.type === "categorical", scale = this.#scale(panel);
       if (this.#commit([
         ...(categorical && !panel.scale?.domain ? [{ type: "annotationPanels.update", ids: [this.#selected],
@@ -1292,6 +1308,19 @@ class AnnotationEditor extends HTMLElementBase {
       if (this.#update(changes) === false) event.preventDefault();
     });
     this.#body.addEventListener("data-submit", (event) => { if (event.target === this.#form) this.#submit(event.detail); });
+    this.#body.addEventListener("draft-config-change", (event) => {
+      if (event.target !== this.#form || !this.#draft) return;
+      const oldScale = this.#draft.scale.type;
+      this.#draft.type = event.detail.type;
+      this.#draft.scale = { type: event.detail.scale };
+      if (oldScale !== event.detail.scale) this.#draft.values = {};
+      if (event.detail.type === "bar") {
+        this.#draft.columns = this.#draft.columns.slice(0, 1);
+        this.#draft.values = Object.fromEntries(Object.entries(this.#draft.values).map(([uid, values]) => [uid, values.slice(0, 1)]));
+      }
+      this.#view.hidden = event.detail.type === "groups";
+      this.#syncDraft();
+    });
     this.#body.addEventListener("data-cancel", (event) => { if (event.target === this.#form) this.#form.hidden = true; });
   }
   #action(action) {
@@ -1314,7 +1343,9 @@ class AnnotationEditor extends HTMLElementBase {
   #submit(detail) {
     try {
       if (this.#creating) {
-        const panel = createAnnotationPanel(detail, this.#panels());
+        const panel = detail.type === "groups" || detail.data.trim()
+          ? createAnnotationPanel(detail, this.#panels())
+          : createAnnotationPanel({ ...detail, data: JSON.stringify({ columns: this.#draft.columns, values: this.#draft.values }) }, this.#panels());
         this.#state.patch([{ type: "annotationPanels.create", panel }]); this.select(panel.uid); return;
       }
       const source = this.#current(), categorical = source.scale?.type === "categorical", changes = parseAnnotationTable(detail.data, categorical);
@@ -1328,10 +1359,16 @@ class AnnotationEditor extends HTMLElementBase {
     } catch (exception) { this.#form.error = exception.message; }
   }
   #syncView() {
+    if (this.#creating) { this.#syncDraft(); return; }
     if (!this.#view) return;
     const panel = this.#current(), clusters = this.#state.clusters;
     this.#view.state = panel.type === "groups" ? { groups: panel.groups, colour: panel.colour, clusters, tree: this.#state.data.tree }
       : { panel, clusters, filter: this.#search.value, domain: panel.scale?.type === "categorical" ? this.#scale(panel).domain : null };
+  }
+  #syncDraft() {
+    if (!this.#draft || !this.#view) return;
+    this.#view.state = { panel: this.#draft, clusters: this.#state.clusters,
+      freeCategories: this.#draft.scale.type === "categorical", showIds: true };
   }
   #render() {
     const panels = this.#panels();
@@ -1344,7 +1381,9 @@ class AnnotationEditor extends HTMLElementBase {
     if (key !== this.#viewKey) {
       this.#cancelEdit(); this.#body.replaceChildren(); this.#view = this.#categories = this.#form = null; this.#viewKey = key;
       if (this.#creating) {
-        this.#form = this.#element("creation"); this.#form.clusters = this.#state.clusters; this.#body.append(this.#form);
+        this.#draft = { uid: "__draft__", type: "heatmap", columns: ["Value"], values: {}, scale: { type: "continuous" } };
+        this.#form = this.#element("creation"); this.#form.setAttribute("draft", ""); this.#form.clusters = this.#state.clusters; this.#body.append(this.#form);
+        this.#view = this.#element("matrix"); this.#body.append(this.#view);
       } else if (!panel) this.#body.append(this.#element("empty"));
       else if (panel.type === "groups") {
         const region = this.#element("groups"); this.#body.append(region); this.#view = region.firstElementChild;
@@ -1354,7 +1393,7 @@ class AnnotationEditor extends HTMLElementBase {
       }
     }
     this.#syncView();
-    if (this.#view && panel.type !== "groups" && categorical && !this.#categories) {
+    if (!this.#creating && this.#view && panel?.type !== "groups" && categorical && !this.#categories) {
       this.#categories = this.#element("categories"); this.#view.prepend(this.#categories);
       this.#categories.palette = this.#palette;
     } else if (!categorical && this.#categories) {

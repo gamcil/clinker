@@ -587,11 +587,26 @@ html,
   color: var(--app-foreground);
 }
 :where(.clinker-app) .tour-prompt[hidden] { display: none; }
-:where(.clinker-app) .plot-stage > .cm-plot-selection-toolbar {
-  z-index: 3;
-  right: 12px;
-  left: auto;
+:where(.clinker-app) .tour-example, :where(.clinker-app) .tour-example-chart {
+  position: absolute;
+  inset: 0;
 }
+:where(.clinker-app) .tour-example { background: var(--app-background); }
+:where(.clinker-app) .tour-example-chart.cm-chart { isolation: auto !important; }
+:where(.clinker-app) .tour-example-chart > .tooltip.driver-allowed-element { z-index: 10001; }
+:where(.clinker-app) .tour-example-label {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  padding: 5px 9px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  color: var(--app-muted);
+  font-size: .8rem;
+  pointer-events: none;
+}
+:where(.clinker-app) .plot-stage[data-tour-example] > .cm-plot-selection-toolbar:not(.tour-example-toolbar) { visibility: hidden; }
 :where(.clinker-app) .plot-container {
   position: relative;
   width: 100%;

@@ -1,8 +1,8 @@
-import { d as defineActionMenu, i as installDataEditorStyle, a as installStyle } from './editor/annotation-editor-3c63735d.mjs';
-import { c as createTemplate, m as mountComponent, a as controlStyles, u as upgradeProperty } from './editor/search-field-595834d9.mjs';
-import { a as applyEditorTheme, e as editorThemeStyles } from './editor/theme-8bd47f2f.mjs';
-import { d as defineAppearancePanel } from './editor/appearance-panel-65bf7f98.mjs';
-import { b as bindOptionButtons, d as defineDataPanel } from './editor/data-panel-a0484e62.mjs';
+import { d as defineActionMenu, i as installDataEditorStyle, a as installStyle } from './editor/annotation-editor-b9c2111d.mjs';
+import { c as createTemplate, m as mountComponent, a as controlStyles, u as upgradeProperty } from './editor/search-field-8b97b3e8.mjs';
+import { a as applyEditorTheme, e as editorThemeStyles } from './editor/theme-70e7f5bd.mjs';
+import { d as defineAppearancePanel } from './editor/appearance-panel-7be400d6.mjs';
+import { b as bindOptionButtons, d as defineDataPanel } from './editor/data-panel-1ac0e2b2.mjs';
 
 const editable = "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
 
@@ -14,7 +14,7 @@ function eventMatches(event, selector) {
 const isEditingEvent = (event) => eventMatches(event, editable);
 
 const toolbarTemplate = createTemplate("<strong></strong>\n<button type=\"button\" data-action=\"focus\">Focus</button>\n<button type=\"button\" data-action=\"flip\">Flip</button>\n<button type=\"button\" data-action=\"trim\">Trim</button>\n<clinker-action-menu label=\"Loci…\" data-loci-menu hidden>\n  <button type=\"button\" data-action=\"restore\">Restore full loci</button>\n</clinker-action-menu>\n<clinker-action-menu label=\"More…\" data-more-menu>\n  <button type=\"button\" data-action=\"edit\">Edit data…</button>\n  <button type=\"button\" data-action=\"remove\"></button>\n</clinker-action-menu>\n<button type=\"button\" data-action=\"clear\">Clear</button>\n");
-const css$2 = ".cm-plot-selection-toolbar { position: absolute; z-index: 2; top: 12px; left: 12px; display: flex; align-items: center; gap: 6px; padding: 7px 8px; border: 1px solid var(--cm-border,var(--_cm-border,#c7d9f1)); border-radius: 8px; background: var(--cm-surface,var(--_cm-surface,rgba(255,255,255,.94))); box-shadow: 0 3px 12px rgba(23,36,54,.12); color: var(--cm-foreground,var(--_cm-foreground,#273444)); font: var(--cm-font,var(--_cm-font)); }\n.cm-plot-selection-toolbar[hidden] { display: none; }\n.cm-plot-selection-toolbar strong { padding: 4px 6px; border-radius: 5px; background: var(--cm-hover,var(--_cm-hover,#e7f0ff)); color: var(--cm-accent,var(--_cm-accent,#184a86)); }\n";
+const css$2 = ".cm-plot-selection-toolbar { position: absolute; z-index: 2; top: 12px; left: 12px; display: flex; flex-wrap: wrap; max-width: calc(100% - 24px); box-sizing: border-box; align-items: center; gap: 6px; padding: 7px 8px; border: 1px solid var(--cm-border,var(--_cm-border,#c7d9f1)); border-radius: 8px; background: var(--cm-surface,var(--_cm-surface,rgba(255,255,255,.94))); box-shadow: 0 3px 12px rgba(23,36,54,.12); color: var(--cm-foreground,var(--_cm-foreground,#273444)); font: var(--cm-font,var(--_cm-font)); }\n.cm-plot-selection-toolbar[hidden] { display: none; }\n.cm-plot-selection-toolbar strong { padding: 4px 6px; border-radius: 5px; background: var(--cm-hover,var(--_cm-hover,#e7f0ff)); color: var(--cm-accent,var(--_cm-accent,#184a86)); }\n";
 
 let activeToolbar = null;
 
@@ -32,6 +32,25 @@ function mountPlotSelectionToolbar(chart, container, { editor = null } = {}) {
   const button = (action) => root.querySelector(`[data-action="${action}"]`);
   const flip = button("flip"), trim = button("trim"), restore = button("restore");
   const lociMenu = root.querySelector("[data-loci-menu]"), moreMenu = root.querySelector("[data-more-menu]");
+  let observedMinimap = null;
+  const position = () => {
+    const minimap = container.querySelector("canvas.clusterMapMinimap");
+    if (minimap !== observedMinimap) {
+      if (observedMinimap) resizeObserver.unobserve(observedMinimap);
+      observedMinimap = minimap;
+      if (minimap) resizeObserver.observe(minimap);
+    }
+    const box = container.getBoundingClientRect(), toolbarBox = root.getBoundingClientRect();
+    const miniBox = minimap?.getBoundingClientRect();
+    const overlaps = !root.hidden && miniBox?.width && miniBox.height &&
+      toolbarBox.right + 8 > miniBox.left && miniBox.left < box.right;
+    const top = overlaps ? `${Math.max(12, miniBox.bottom - box.top + 8)}px` : "12px";
+    if (root.style.top !== top) root.style.top = top;
+  };
+  const resizeObserver = new ResizeObserver(position);
+  resizeObserver.observe(container); resizeObserver.observe(root);
+  const mutationObserver = new MutationObserver(position);
+  mutationObserver.observe(container, { childList: true });
   let clusterActions;
   const lociFor = ({ kind, ids }) => kind === "loci" ? ids :
     (chart.visibleData()?.clusters || []).filter((cluster) => ids.includes(cluster.uid)).flatMap((cluster) => cluster.loci.map((locus) => locus.uid));
@@ -50,6 +69,7 @@ function mountPlotSelectionToolbar(chart, container, { editor = null } = {}) {
       lociMenu.hidden = !clusters; clusterActions = clusters;
     }
     if (root.hidden) lociMenu.open = moreMenu.open = false;
+    position();
   };
   const clear = () => chart.selection({ kind: chart.selection().kind, ids: [] });
   const activate = () => { activeToolbar = root; };
@@ -78,12 +98,14 @@ function mountPlotSelectionToolbar(chart, container, { editor = null } = {}) {
   document.addEventListener("keydown", onKeyDown);
   const unsubscribe = chart.on("change", (change) => {
     if (["theme.change", "config.change"].includes(change.type)) applyEditorTheme(root, chart);
+    if (change.type === "config.change") position();
     if (["selection.change", "state.replace", "data.apply", "data.replace"].includes(change.type)) sync();
   });
   container.append(root);
   sync();
   return () => {
     unsubscribe();
+    resizeObserver.disconnect(); mutationObserver.disconnect();
     if (activeToolbar === root) activeToolbar = null;
     container.removeEventListener("pointerdown", activate);
     container.removeEventListener("focusin", activate);
@@ -166,7 +188,7 @@ function defineTabs() {
 }
 
 const [markup, css] = await Promise.all([
-  "<div data-editor-shell>\n<div class=\"cm-editor__resize-handle\" data-resize role=\"separator\" aria-label=\"Resize plot editor\" aria-orientation=\"horizontal\"></div>\n<header part=\"header\" class=\"cm-editor__header\">\n  <h2 class=\"cm-editor__title\">Plot editor</h2>\n  <div>\n    <button type=\"button\" data-command=\"undo\" disabled>Undo</button>\n    <button type=\"button\" data-command=\"redo\" disabled>Redo</button>\n  </div>\n</header>\n<clinker-tabs part=\"tabs\" data-editor-tabs label=\"Plot editor sections\" value=\"data\">\n  <clinker-data-panel part=\"data\" name=\"data\" label=\"Data\"></clinker-data-panel>\n  <clinker-appearance-panel part=\"appearance\" name=\"appearance\" label=\"Appearance\" hidden></clinker-appearance-panel>\n</clinker-tabs>\n</div>\n",
+  "<div data-editor-shell>\n<div class=\"cm-editor__resize-handle\" data-resize role=\"separator\" aria-label=\"Resize figure editor\" aria-orientation=\"horizontal\"></div>\n<header part=\"header\" class=\"cm-editor__header\">\n  <h2 class=\"cm-editor__title\">Figure editor</h2>\n  <div>\n    <button type=\"button\" data-command=\"undo\" disabled>Undo</button>\n    <button type=\"button\" data-command=\"redo\" disabled>Redo</button>\n  </div>\n</header>\n<clinker-tabs part=\"tabs\" data-editor-tabs label=\"Figure editor sections\" value=\"data\">\n  <clinker-data-panel part=\"data\" name=\"data\" label=\"Data\"></clinker-data-panel>\n  <clinker-appearance-panel part=\"appearance\" name=\"appearance\" label=\"Appearance\" hidden></clinker-appearance-panel>\n</clinker-tabs>\n</div>\n",
   ":host { display: flex; min-height: 180px; box-sizing: border-box; flex-direction: column; padding: 10px; border: 1px solid var(--cm-border,var(--_cm-border,#d7dce3)); border-radius: 10px; }\n:host([resizable]) { overflow: hidden; }\n.cm-editor__resize-handle { height: 10px; flex: 0 0 10px; margin: -10px -10px 0; cursor: ns-resize; touch-action: none; }\n.cm-editor__resize-handle::after { display: block; width: 36px; height: 3px; margin: 4px auto; border-radius: 3px; background: var(--cm-muted,var(--_cm-muted,#aaa)); content: \"\"; }\n.cm-editor__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }\n.cm-editor__title { margin: 0; font-size: 17px; letter-spacing: -.01em; }\n[data-editor-shell] { display:flex; flex:1; flex-direction:column; min-width:0; min-height:0; }\n",
 ]);
 const shellTemplate = createTemplate(markup);
