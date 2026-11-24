@@ -107,7 +107,7 @@ def shift_origin(record: SeqRecord) -> SeqRecord:
         if len(new_parts) > 1:
             new_parts = merge_locations(new_parts)
         if len(new_parts) > 1:
-            feature.location = CompoundLocation(final)
+            feature.location = CompoundLocation(new_parts)
         else:
             feature.location = new_parts[0]
 
